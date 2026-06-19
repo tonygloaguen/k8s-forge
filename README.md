@@ -29,7 +29,8 @@ k8s-forge status demo-app -n demo
 
 `demo-app` is only a documentation example. Real values should come from the
 user's configuration. See [docs/config-reference.md](docs/config-reference.md)
-for the full `app.yaml` format.
+for the full `app.yaml` format. See [docs/operations.md](docs/operations.md)
+for the operational `kubectl` workflow.
 
 ## MVP Scope
 
@@ -41,7 +42,9 @@ The MVP renders these Kubernetes resources:
 - Deployment
 - Service, only when `service.enabled` is `true`
 
-The current implementation renders manifests and can run controlled `kubectl` commands through a single safe wrapper.
+The current implementation renders manifests and can run controlled `kubectl`
+commands through a single safe wrapper. The recommended cluster workflow is
+`check`, `render`, `dry-run`, `diff`, then `apply`.
 
 
 ## Initialize Configuration
