@@ -27,6 +27,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+  "build>=1.2",
   "bandit>=1.7",
   "mypy>=1.10",
   "pip-audit>=2.7",
@@ -40,6 +41,9 @@ k8s-forge = "k8s_forge.cli:app"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+k8s_forge = ["templates/*.j2"]
 
 [tool.ruff]
 line-length = 88

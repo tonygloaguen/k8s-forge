@@ -39,3 +39,9 @@ jobs:
 
       - name: Test
         run: pytest -q
+
+      - name: Build package
+        run: python -m build
+
+      - name: Check local release install
+        run: bash scripts/check_release.sh

@@ -152,6 +152,19 @@ examples and tests.
 - [Operational workflow](docs/operations.md)
 - [Design notes](docs/design.md)
 
+## Local Release Check
+
+Build the package and verify it installs into a clean temporary virtualenv:
+
+```bash
+python -m build
+bash scripts/check_release.sh
+```
+
+The release check verifies wheel/sdist creation, installation of the wheel, the
+`k8s-forge` console command, and manifest generation from the installed wheel.
+It does not call `kubectl apply` and does not require a Kubernetes cluster.
+
 ## Development
 
 Install with development dependencies:

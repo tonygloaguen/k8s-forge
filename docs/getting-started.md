@@ -43,3 +43,16 @@ real Kubernetes cluster.
 - [Configuration reference](config-reference.md)
 - [Operational workflow](operations.md)
 - [Design notes](design.md)
+
+## Local Release Check
+
+Before publishing or pushing a release candidate, run:
+
+```bash
+python -m build
+bash scripts/check_release.sh
+```
+
+This builds the wheel and sdist, installs the wheel into a clean temporary
+virtualenv, checks `k8s-forge --help`, and renders manifests from the installed
+console command.
