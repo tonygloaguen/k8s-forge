@@ -151,6 +151,7 @@ examples and tests.
 - [Configuration reference](docs/config-reference.md)
 - [Operational workflow](docs/operations.md)
 - [Design notes](docs/design.md)
+- [Release checklist](docs/release-checklist.md)
 
 ## Local Release Check
 
