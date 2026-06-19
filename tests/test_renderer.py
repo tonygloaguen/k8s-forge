@@ -1,0 +1,186 @@
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+from k8s_forge.config_loader import load_app_config
+from k8s_forge.models import AppConfig
+from k8s_forge.renderer import render_manifests
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _load_yaml(path: Path) -> dict[str, Any]:
+    loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
+    assert isinstance(loaded, dict)
+    return loaded
+
+
+def _render_example(example_name: str, tmp_path: Path) -> list[Path]:
+    config = load_app_config(ROOT / "examples" / example_name)
+    return render_manifests(config, tmp_path)
+
+
+def _base_config() -> dict[str, object]:
+    return {
+        "app": {
+            "name": "generic-web",
+            "namespace": "generic",
+            "image": "ghcr.io/example/generic-web:1.0.0",
+            "containerPort": 9000,
+            "replicas": 1,
+        },
+        "config": {"APP_ENV": "test"},
+        "secrets": {"API_TOKEN": "change-me"},
+        "service": {"enabled": True, "port": 9001},
+        "resources": {},
+        "probes": {},
+        "ingress": {"enabled": False},
+    }
+
+
+def test_render_generates_expected_files_for_demo_app(tmp_path: Path) -> None:
+    generated = _render_example("demo-app.yaml", tmp_path)
+
+    assert [path.name for path in generated] == [
+        "00-namespace.yaml",
+        "10-configmap.yaml",
+        "20-secret.yaml",
+        "30-deployment.yaml",
+        "40-service.yaml",
+    ]
+    for path in generated:
+        assert path.exists()
+
+
+def test_render_generates_expected_files_for_admin_api(tmp_path: Path) -> None:
+    generated = _render_example("admin-api.yaml", tmp_path)
+
+    assert [path.name for path in generated] == [
+        "00-namespace.yaml",
+        "10-configmap.yaml",
+        "20-secret.yaml",
+        "30-deployment.yaml",
+        "40-service.yaml",
+    ]
+
+
+def test_demo_deployment_contains_demo_image(tmp_path: Path) -> None:
+    _render_example("demo-app.yaml", tmp_path)
+    deployment = _load_yaml(tmp_path / "30-deployment.yaml")
+
+    container = deployment["spec"]["template"]["spec"]["containers"][0]
+    assert container["image"] == "ghcr.io/example/demo-app:1.0.0"
+
+
+def test_admin_deployment_contains_admin_image(tmp_path: Path) -> None:
+    _render_example("admin-api.yaml", tmp_path)
+    deployment = _load_yaml(tmp_path / "30-deployment.yaml")
+
+    container = deployment["spec"]["template"]["spec"]["containers"][0]
+    assert container["image"] == "ghcr.io/example/admin-api:2.1.0"
+
+
+def test_service_target_port_matches_container_port(tmp_path: Path) -> None:
+    _render_example("admin-api.yaml", tmp_path)
+    service = _load_yaml(tmp_path / "40-service.yaml")
+
+    assert service["spec"]["ports"][0]["targetPort"] == 8080
+
+
+def test_service_selector_matches_pod_template_labels(tmp_path: Path) -> None:
+    _render_example("demo-app.yaml", tmp_path)
+    service = _load_yaml(tmp_path / "40-service.yaml")
+    deployment = _load_yaml(tmp_path / "30-deployment.yaml")
+
+    selector = service["spec"]["selector"]
+    pod_labels = deployment["spec"]["template"]["metadata"]["labels"]
+    for key, value in selector.items():
+        assert pod_labels[key] == value
+
+
+def test_configmap_absent_if_config_empty(tmp_path: Path) -> None:
+    config_data = _base_config()
+    config_data["config"] = {}
+    config = AppConfig.model_validate(config_data)
+
+    render_manifests(config, tmp_path)
+
+    assert not (tmp_path / "10-configmap.yaml").exists()
+
+
+def test_secret_absent_if_secrets_empty(tmp_path: Path) -> None:
+    config_data = _base_config()
+    config_data["secrets"] = {}
+    config = AppConfig.model_validate(config_data)
+
+    render_manifests(config, tmp_path)
+
+    assert not (tmp_path / "20-secret.yaml").exists()
+
+
+def test_service_absent_if_service_disabled(tmp_path: Path) -> None:
+    config_data = _base_config()
+    service = config_data["service"]
+    assert isinstance(service, dict)
+    service["enabled"] = False
+    config = AppConfig.model_validate(config_data)
+
+    render_manifests(config, tmp_path)
+
+    assert not (tmp_path / "40-service.yaml").exists()
+
+
+def test_env_from_excludes_configmap_when_config_empty(tmp_path: Path) -> None:
+    config_data = _base_config()
+    config_data["config"] = {}
+    config = AppConfig.model_validate(config_data)
+
+    render_manifests(config, tmp_path)
+    deployment = _load_yaml(tmp_path / "30-deployment.yaml")
+
+    container = deployment["spec"]["template"]["spec"]["containers"][0]
+    env_from = container["envFrom"]
+    assert {next(iter(source)) for source in env_from} == {"secretRef"}
+
+
+def test_env_from_excludes_secret_when_secrets_empty(tmp_path: Path) -> None:
+    config_data = _base_config()
+    config_data["secrets"] = {}
+    config = AppConfig.model_validate(config_data)
+
+    render_manifests(config, tmp_path)
+    deployment = _load_yaml(tmp_path / "30-deployment.yaml")
+
+    container = deployment["spec"]["template"]["spec"]["containers"][0]
+    env_from = container["envFrom"]
+    assert {next(iter(source)) for source in env_from} == {"configMapRef"}
+
+
+def test_env_from_absent_when_config_and_secrets_empty(tmp_path: Path) -> None:
+    config_data = _base_config()
+    config_data["config"] = {}
+    config_data["secrets"] = {}
+    config = AppConfig.model_validate(config_data)
+
+    render_manifests(config, tmp_path)
+    deployment = _load_yaml(tmp_path / "30-deployment.yaml")
+
+    container = deployment["spec"]["template"]["spec"]["containers"][0]
+    assert "envFrom" not in container
+
+
+def test_generated_yaml_files_are_parseable(tmp_path: Path) -> None:
+    generated = _render_example("demo-app.yaml", tmp_path)
+
+    for path in generated:
+        assert _load_yaml(path)["kind"]
+
+
+def test_renderer_does_not_delete_user_files(tmp_path: Path) -> None:
+    user_file = tmp_path / "notes.txt"
+    user_file.write_text("keep me", encoding="utf-8")
+
+    _render_example("demo-app.yaml", tmp_path)
+
+    assert user_file.read_text(encoding="utf-8") == "keep me"

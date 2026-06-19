@@ -7,7 +7,7 @@ The project is intentionally application-agnostic: every application-specific
 value must come from a user-provided `app.yaml` file. No application name is
 hardcoded in the implementation.
 
-## Planned Workflow
+## Workflow
 
 The intended workflow is:
 
@@ -32,23 +32,43 @@ user's configuration.
 
 ## MVP Scope
 
-The MVP will generate these Kubernetes resources:
+The MVP renders these Kubernetes resources:
 
 - Namespace
-- ConfigMap
-- Secret
+- ConfigMap, only when `config` is non-empty
+- Secret, only when `secrets` is non-empty
 - Deployment
-- Service
+- Service, only when `service.enabled` is `true`
 
-The initial skeleton does not yet generate complete Kubernetes manifests and
-does not call `kubectl`.
+The current implementation renders manifests and does not call `kubectl`.
+
+## Rendering
+
+Generate manifests from an application configuration:
+
+```bash
+k8s-forge render examples/demo-app.yaml --output generated/
+```
+
+For a complete configuration, this writes:
+
+```text
+generated/00-namespace.yaml
+generated/10-configmap.yaml
+generated/20-secret.yaml
+generated/30-deployment.yaml
+generated/40-service.yaml
+```
+
+Known generated files are overwritten on each render. Files with other names in
+the output directory are left untouched.
 
 ## Secrets Warning
 
 Do not commit real secrets. Values placed in `app.yaml` or generated manifests
-may be stored in plain text during the MVP. Use local placeholder values for
-development and rely on an appropriate secret management process for real
-deployments.
+may be stored in plain text during the MVP. The MVP uses Kubernetes
+`stringData` for readability and should only be used with placeholder values in
+examples and tests.
 
 ## Development
 

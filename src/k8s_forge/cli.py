@@ -9,9 +9,10 @@ from rich.table import Table
 
 from k8s_forge import __version__
 from k8s_forge.config_loader import load_app_config
-from k8s_forge.exceptions import ConfigLoadError
+from k8s_forge.exceptions import ConfigLoadError, RenderError
 from k8s_forge.kubectl import kubectl_not_implemented
 from k8s_forge.models import AppConfig
+from k8s_forge.renderer import render_manifests
 
 app = typer.Typer(
     help="Generic Kubernetes manifest generator for stateless web applications.",
@@ -43,6 +44,15 @@ def _print_check_summary(config: AppConfig) -> None:
     table.add_row("replicas", str(config.app.replicas))
     table.add_row("container port", str(config.app.containerPort))
     table.add_row("service", _service_state(config))
+    console.print(table)
+
+
+def _print_render_summary(paths: list[Path]) -> None:
+    """Print the generated manifest paths."""
+    table = Table(title="Generated manifests")
+    table.add_column("File")
+    for path in paths:
+        table.add_row(path.name)
     console.print(table)
 
 
@@ -93,8 +103,15 @@ def render(
     ] = Path("generated"),
 ) -> None:
     """Render Kubernetes manifests."""
-    _ = (config_path, output)
-    console.print("render is not implemented yet")
+    try:
+        loaded = load_app_config(config_path)
+        generated = render_manifests(loaded, output)
+    except (ConfigLoadError, RenderError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    console.print("[green]manifests generated[/green]")
+    _print_render_summary(generated)
 
 
 @app.command("dry-run")

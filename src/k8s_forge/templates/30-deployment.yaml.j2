@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ app.name | tojson }}
+  namespace: {{ app.namespace | tojson }}
+  labels:
+{% for key, value in labels.items() %}
+    {{ key | tojson }}: {{ value | tojson }}
+{% endfor %}
+spec:
+  replicas: {{ app.replicas }}
+  selector:
+    matchLabels:
+{% for key, value in selector_labels.items() %}
+      {{ key | tojson }}: {{ value | tojson }}
+{% endfor %}
+  template:
+    metadata:
+      labels:
+{% for key, value in labels.items() %}
+        {{ key | tojson }}: {{ value | tojson }}
+{% endfor %}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: {{ app.name | tojson }}
+          image: {{ app.image | tojson }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: {{ app.containerPort }}
+{% if env_from %}
+          envFrom:
+{% for source in env_from %}
+            - {{ source.kind }}:
+                name: {{ source.name | tojson }}
+{% endfor %}
+{% endif %}
+{% if resources %}
+          resources:
+{% for section, values in resources.items() %}
+            {{ section }}:
+{% for key, value in values.items() %}
+              {{ key }}: {{ value | tojson }}
+{% endfor %}
+{% endfor %}
+{% endif %}
+{% if probes.liveness %}
+          livenessProbe:
+            httpGet:
+              path: {{ probes.liveness | tojson }}
+              port: {{ app.containerPort }}
+{% endif %}
+{% if probes.readiness %}
+          readinessProbe:
+            httpGet:
+              path: {{ probes.readiness | tojson }}
+              port: {{ app.containerPort }}
+{% endif %}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
