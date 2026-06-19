@@ -9,8 +9,8 @@ from rich.table import Table
 
 from k8s_forge import __version__
 from k8s_forge.config_loader import load_app_config
-from k8s_forge.exceptions import ConfigLoadError, RenderError
-from k8s_forge.kubectl import kubectl_not_implemented
+from k8s_forge.exceptions import ConfigLoadError, KubectlError, RenderError
+from k8s_forge.kubectl import KubectlResult, run_kubectl
 from k8s_forge.models import AppConfig
 from k8s_forge.renderer import render_manifests
 
@@ -54,6 +54,35 @@ def _print_render_summary(paths: list[Path]) -> None:
     for path in paths:
         table.add_row(path.name)
     console.print(table)
+
+
+def _load_and_render(config_path: Path, output: Path) -> list[Path]:
+    loaded = load_app_config(config_path)
+    return render_manifests(loaded, output)
+
+
+def _print_kubectl_result(result: KubectlResult) -> None:
+    if result.stdout:
+        console.print(result.stdout.rstrip())
+    if result.stderr:
+        console.print(result.stderr.rstrip(), style="red")
+
+
+def _run_kubectl_or_exit(
+    args: list[str],
+    timeout: int,
+    success_codes: tuple[int, ...] = (0,),
+) -> KubectlResult:
+    try:
+        result = run_kubectl(args, timeout=timeout)
+    except KubectlError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    _print_kubectl_result(result)
+    if result.returncode not in success_codes:
+        raise typer.Exit(code=result.returncode or 1)
+    return result
 
 
 @app.callback()
@@ -104,8 +133,7 @@ def render(
 ) -> None:
     """Render Kubernetes manifests."""
     try:
-        loaded = load_app_config(config_path)
-        generated = render_manifests(loaded, output)
+        generated = _load_and_render(config_path, output)
     except (ConfigLoadError, RenderError) as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
@@ -121,10 +149,20 @@ def dry_run(
         Path,
         typer.Option("--output", "-o", help="Output directory for manifests."),
     ] = Path("generated"),
+    timeout: Annotated[
+        int,
+        typer.Option("--timeout", help="kubectl timeout in seconds."),
+    ] = 30,
 ) -> None:
-    """Render manifests and perform a future kubectl dry run."""
-    _ = (config_path, output)
-    console.print(kubectl_not_implemented("dry-run"))
+    """Render manifests and run kubectl server-side dry-run."""
+    try:
+        generated = _load_and_render(config_path, output)
+    except (ConfigLoadError, RenderError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    _print_render_summary(generated)
+    _run_kubectl_or_exit(["apply", "--dry-run=server", "-f", str(output)], timeout)
 
 
 @app.command()
@@ -134,10 +172,22 @@ def diff(
         Path,
         typer.Option("--output", "-o", help="Output directory for manifests."),
     ] = Path("generated"),
+    timeout: Annotated[
+        int,
+        typer.Option("--timeout", help="kubectl timeout in seconds."),
+    ] = 30,
 ) -> None:
-    """Render manifests and perform a future kubectl diff."""
-    _ = (config_path, output)
-    console.print(kubectl_not_implemented("diff"))
+    """Render manifests and run kubectl diff."""
+    try:
+        generated = _load_and_render(config_path, output)
+    except (ConfigLoadError, RenderError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    _print_render_summary(generated)
+    result = _run_kubectl_or_exit(["diff", "-f", str(output)], timeout, (0, 1))
+    if result.returncode == 1:
+        console.print("[yellow]kubectl diff found changes[/yellow]")
 
 
 @app.command()
@@ -147,10 +197,31 @@ def apply(
         Path,
         typer.Option("--output", "-o", help="Output directory for manifests."),
     ] = Path("generated"),
+    yes: Annotated[
+        bool,
+        typer.Option("--yes", help="Apply without interactive confirmation."),
+    ] = False,
+    timeout: Annotated[
+        int,
+        typer.Option("--timeout", help="kubectl timeout in seconds."),
+    ] = 30,
 ) -> None:
-    """Render manifests and perform a future controlled kubectl apply."""
-    _ = (config_path, output)
-    console.print(kubectl_not_implemented("apply"))
+    """Render manifests and run controlled kubectl apply."""
+    try:
+        generated = _load_and_render(config_path, output)
+    except (ConfigLoadError, RenderError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    _print_render_summary(generated)
+    console.print(
+        "[yellow]This will apply manifests to the current Kubernetes context.[/yellow]"
+    )
+    if not yes and not typer.confirm("Continue with kubectl apply?"):
+        console.print("apply cancelled")
+        return
+
+    _run_kubectl_or_exit(["apply", "-f", str(output)], timeout)
 
 
 @app.command()
@@ -160,7 +231,13 @@ def status(
         str,
         typer.Option("--namespace", "-n", help="Kubernetes namespace."),
     ],
+    timeout: Annotated[
+        int,
+        typer.Option("--timeout", help="kubectl timeout in seconds."),
+    ] = 30,
 ) -> None:
-    """Show future application status from kubectl."""
-    _ = (name, namespace)
-    console.print(kubectl_not_implemented("status"))
+    """Show application status from kubectl."""
+    _run_kubectl_or_exit(
+        ["-n", namespace, "get", "deploy,po,svc", "-l", f"app={name}"],
+        timeout,
+    )

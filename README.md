@@ -40,7 +40,7 @@ The MVP renders these Kubernetes resources:
 - Deployment
 - Service, only when `service.enabled` is `true`
 
-The current implementation renders manifests and does not call `kubectl`.
+The current implementation renders manifests and can run controlled `kubectl` commands through a single safe wrapper.
 
 ## Rendering
 
@@ -62,6 +62,45 @@ generated/40-service.yaml
 
 Known generated files are overwritten on each render. Files with other names in
 the output directory are left untouched.
+
+
+## Kubernetes Commands
+
+Validate and render before touching a cluster:
+
+```bash
+k8s-forge check examples/demo-app.yaml
+k8s-forge render examples/demo-app.yaml --output generated/
+```
+
+Use server-side dry-run and diff before applying changes:
+
+```bash
+k8s-forge dry-run examples/demo-app.yaml --output generated/
+k8s-forge diff examples/demo-app.yaml --output generated/
+```
+
+Apply asks for interactive confirmation by default:
+
+```bash
+k8s-forge apply examples/demo-app.yaml --output generated/
+```
+
+For automation, confirmation can be skipped explicitly:
+
+```bash
+k8s-forge apply examples/demo-app.yaml --output generated/ --yes
+```
+
+Check deployed resources with the application name and namespace:
+
+```bash
+k8s-forge status demo-app -n demo
+```
+
+All `kubectl` calls use `subprocess.run` without `shell=True`, capture
+stdout/stderr, and use a timeout. Tests must mock the subprocess boundary and
+must never depend on a real Kubernetes cluster or run a real `kubectl apply`.
 
 ## Secrets Warning
 
