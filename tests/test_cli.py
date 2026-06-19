@@ -248,8 +248,97 @@ def test_cli_dry_run_calls_kubectl(
     )
 
     assert result.exit_code == 0
-    assert calls == [(["apply", "--dry-run=server", "-f", str(output_dir)], 7)]
+    assert calls == [
+        (["get", "namespace", "demo"], 7),
+        (["apply", "--dry-run=server", "-f", str(output_dir)], 7),
+    ]
     assert "dry run ok" in result.output
+    assert "does not exist" not in result.output
+
+
+def test_cli_dry_run_warns_when_namespace_is_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run_kubectl(args: list[str], timeout: int = 30) -> KubectlResult:
+        calls.append(args)
+        if args == ["get", "namespace", "demo"]:
+            return KubectlResult(
+                ["kubectl", *args],
+                1,
+                "",
+                'Error from server (NotFound): namespaces "demo" not found',
+            )
+        return KubectlResult(["kubectl", *args], 0, "dry run ok", "")
+
+    monkeypatch.setattr("k8s_forge.cli.run_kubectl", fake_run_kubectl)
+    output_dir = tmp_path / "generated"
+
+    result = runner.invoke(
+        app,
+        [
+            "dry-run",
+            str(ROOT / "examples" / "demo-app.yaml"),
+            "--output",
+            str(output_dir),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert calls == [
+        ["get", "namespace", "demo"],
+        ["apply", "--dry-run=server", "-f", str(output_dir)],
+    ]
+    assert "Namespace 'demo' does not exist" in result.output
+    assert "Server-side dry-run simulates the Namespace manifest" in result.output
+    assert "kubectl create namespace demo" in result.output
+    assert "dry run ok" in result.output
+
+
+def test_cli_dry_run_explains_namespace_not_found_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_run_kubectl(args: list[str], timeout: int = 30) -> KubectlResult:
+        if args == ["get", "namespace", "demo"]:
+            return KubectlResult(
+                ["kubectl", *args],
+                1,
+                "",
+                'Error from server (NotFound): namespaces "demo" not found',
+            )
+        return KubectlResult(
+            ["kubectl", *args],
+            1,
+            "namespace/demo created (server dry run)",
+            'Error from server (NotFound): namespaces "demo" not found',
+        )
+
+    monkeypatch.setattr("k8s_forge.cli.run_kubectl", fake_run_kubectl)
+    output_dir = tmp_path / "generated"
+
+    result = runner.invoke(
+        app,
+        [
+            "dry-run",
+            str(ROOT / "examples" / "demo-app.yaml"),
+            "--output",
+            str(output_dir),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "namespace/demo created (server dry run)" in result.output
+    assert 'namespaces "demo" not found' in result.output
+    assert "only simulated during server-side dry-run" in result.output
+    assert (
+        "ConfigMap, Secret, Deployment, and Service cannot be validated"
+        in result.output
+    )
+    assert "kubectl create namespace demo" in result.output
+    assert "Then rerun: k8s-forge dry-run" in result.output
+    assert str(ROOT / "examples" / "demo-app.yaml") in result.output
+    assert str(output_dir) in result.output
 
 
 def test_cli_diff_calls_kubectl(
@@ -625,6 +714,15 @@ def test_cli_cluster_create_calls_kind_create(monkeypatch: pytest.MonkeyPatch) -
             return subprocess.CompletedProcess(command, 0, "", "")
         if command[:3] == ["kind", "create", "cluster"]:
             return subprocess.CompletedProcess(command, 0, "created", "")
+        if command == [
+            "kubectl",
+            "wait",
+            "--for=condition=Ready",
+            "nodes",
+            "--all",
+            "--timeout=120s",
+        ]:
+            return subprocess.CompletedProcess(command, 0, "node/devsecops ready", "")
         if command == ["kubectl", "config", "current-context"]:
             return subprocess.CompletedProcess(command, 0, "kind-devsecops", "")
         if command == ["kubectl", "get", "nodes"]:
@@ -637,7 +735,47 @@ def test_cli_cluster_create_calls_kind_create(monkeypatch: pytest.MonkeyPatch) -
 
     assert result.exit_code == 0
     assert ["kind", "create", "cluster", "--name", "devsecops"] in calls
+    assert [
+        "kubectl",
+        "wait",
+        "--for=condition=Ready",
+        "nodes",
+        "--all",
+        "--timeout=120s",
+    ] in calls
     assert "created" in result.output
+    assert "node/devsecops ready" in result.output
+    assert "node Ready" in result.output
+
+
+def test_cli_cluster_create_wait_failure_is_readable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == ["kind", "get", "clusters"]:
+            return subprocess.CompletedProcess(command, 0, "", "")
+        if command == ["kind", "create", "cluster", "--name", "devsecops"]:
+            return subprocess.CompletedProcess(command, 0, "created", "")
+        if command == [
+            "kubectl",
+            "wait",
+            "--for=condition=Ready",
+            "nodes",
+            "--all",
+            "--timeout=120s",
+        ]:
+            return subprocess.CompletedProcess(command, 1, "", "timed out waiting")
+        raise AssertionError(command)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["cluster", "create", "--name", "devsecops"])
+
+    assert result.exit_code == 1
+    assert "timed out waiting" in result.output
+    assert "Timed out or failed while waiting for nodes to be Ready" in result.output
+    assert "kubectl get nodes" in result.output
+    assert "kubectl get pods -A" in result.output
 
 
 def test_cli_cluster_create_existing_does_not_recreate(
@@ -662,6 +800,7 @@ def test_cli_cluster_create_existing_does_not_recreate(
     assert result.exit_code == 0
     assert "already exists" in result.output
     assert ["kind", "create", "cluster", "--name", "devsecops"] not in calls
+    assert not any(command[:2] == ["kubectl", "wait"] for command in calls)
 
 
 def test_cli_cluster_status_calls_expected_commands(

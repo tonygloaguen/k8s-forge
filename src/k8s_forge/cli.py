@@ -29,6 +29,7 @@ from k8s_forge.local_cluster import (
     get_kind_clusters,
     get_nodes,
     load_docker_image,
+    wait_for_nodes_ready,
 )
 from k8s_forge.models import AppConfig
 from k8s_forge.renderer import render_manifests
@@ -181,6 +182,70 @@ def _run_kubectl_or_exit(
     if result.returncode not in success_codes:
         raise typer.Exit(code=result.returncode or 1)
     return result
+
+
+def _namespace_not_found(output: str, namespace: str) -> bool:
+    normalized = output.lower()
+    quoted_double = f'namespaces "{namespace.lower()}" not found'
+    quoted_single = f"namespaces '{namespace.lower()}' not found"
+    return (
+        quoted_double in normalized
+        or quoted_single in normalized
+        or ("namespaces" in normalized and "not found" in normalized)
+    )
+
+
+def _print_namespace_dry_run_warning(namespace: str) -> None:
+    console.print(
+        f"[yellow]Namespace {namespace!r} does not exist in the cluster.[/yellow]"
+    )
+    console.print(
+        "[yellow]Server-side dry-run simulates the Namespace manifest but does "
+        "not persist it. Namespaced resources such as ConfigMap, Secret, "
+        "Deployment, and Service may fail validation.[/yellow]"
+    )
+    console.print(
+        f"[yellow]Create it first with: kubectl create namespace {namespace}[/yellow]"
+    )
+
+
+def _print_namespace_dry_run_failure(
+    namespace: str, config_path: Path, output: Path
+) -> None:
+    console.print(
+        f"[yellow]The namespace {namespace!r} was only simulated during "
+        "server-side dry-run; it was not really created.[/yellow]"
+    )
+    console.print(
+        "[yellow]ConfigMap, Secret, Deployment, and Service cannot be validated "
+        "inside a namespace that does not exist yet.[/yellow]"
+    )
+    console.print(f"[yellow]Run: kubectl create namespace {namespace}[/yellow]")
+    rerun = f"k8s-forge dry-run {config_path} --output {output}"
+    console.print(f"[yellow]Then rerun: {rerun}[/yellow]")
+
+
+def _warn_if_namespace_missing(namespace: str, timeout: int) -> None:
+    try:
+        result = run_kubectl(["get", "namespace", namespace], timeout=timeout)
+    except KubectlError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    if result.ok:
+        return
+
+    combined = f"{result.stdout}\n{result.stderr}"
+    if _namespace_not_found(combined, namespace):
+        _print_namespace_dry_run_warning(namespace)
+        return
+
+    _print_kubectl_result(result)
+    console.print(
+        f"[yellow]Could not verify namespace {namespace!r} before dry-run; "
+        "continuing so Kubernetes can return the authoritative validation "
+        "result.[/yellow]"
+    )
 
 
 def _print_local_result(result: LocalCommandResult) -> None:
@@ -344,13 +409,29 @@ def dry_run(
 ) -> None:
     """Render manifests and run kubectl server-side dry-run."""
     try:
-        generated = _load_and_render(config_path, output)
+        loaded = load_app_config(config_path)
+        generated = render_manifests(loaded, output)
     except (ConfigLoadError, RenderError) as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
 
     _print_render_summary(generated)
-    _run_kubectl_or_exit(["apply", "--dry-run=server", "-f", str(output)], timeout)
+    _warn_if_namespace_missing(loaded.app.namespace, timeout)
+
+    try:
+        result = run_kubectl(
+            ["apply", "--dry-run=server", "-f", str(output)], timeout=timeout
+        )
+    except KubectlError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    _print_kubectl_result(result)
+    combined = f"{result.stdout}\n{result.stderr}"
+    if result.returncode != 0:
+        if _namespace_not_found(combined, loaded.app.namespace):
+            _print_namespace_dry_run_failure(loaded.app.namespace, config_path, output)
+        raise typer.Exit(code=result.returncode or 1)
 
 
 @app.command()
@@ -484,6 +565,24 @@ def cluster_create(
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
     _run_local_or_exit(result)
+
+    console.print("[bold]Waiting for nodes to become Ready[/bold]")
+    try:
+        wait_result = wait_for_nodes_ready(timeout)
+    except LocalCommandError as exc:
+        console.print(f"[red]{exc}[/red]")
+        console.print("[yellow]Check cluster state with: kubectl get nodes[/yellow]")
+        console.print("[yellow]Inspect system pods with: kubectl get pods -A[/yellow]")
+        raise typer.Exit(code=1) from exc
+    _print_local_result(wait_result)
+    if not wait_result.ok:
+        console.print(
+            "[red]Timed out or failed while waiting for nodes to be Ready.[/red]"
+        )
+        console.print("[yellow]Check cluster state with: kubectl get nodes[/yellow]")
+        console.print("[yellow]Inspect system pods with: kubectl get pods -A[/yellow]")
+        raise typer.Exit(code=wait_result.returncode or 1)
+
     _print_context_and_nodes(timeout)
 
 

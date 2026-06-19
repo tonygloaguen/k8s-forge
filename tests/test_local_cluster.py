@@ -8,6 +8,7 @@ from k8s_forge.local_cluster import (
     check_environment,
     get_kind_clusters,
     run_local_command,
+    wait_for_nodes_ready,
 )
 
 
@@ -77,3 +78,30 @@ def test_get_kind_clusters_parses_output(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr(subprocess, "run", fake_run)
 
     assert get_kind_clusters() == ["devsecops", "other"]
+
+
+def test_wait_for_nodes_ready_calls_kubectl_wait(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        captured["command"] = command
+        captured["kwargs"] = kwargs
+        return subprocess.CompletedProcess(command, 0, "nodes ready", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = wait_for_nodes_ready(timeout=120)
+
+    assert result.ok is True
+    assert captured["command"] == [
+        "kubectl",
+        "wait",
+        "--for=condition=Ready",
+        "nodes",
+        "--all",
+        "--timeout=120s",
+    ]
+    assert captured["kwargs"]["shell"] is False
+    assert captured["kwargs"]["timeout"] == 120

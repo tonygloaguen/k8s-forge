@@ -49,6 +49,10 @@ k8s-forge image load demo-app:latest --cluster devsecops
 k8s-forge dry-run app.yaml --output generated/
 ```
 
+After creating a kind cluster, `k8s-forge` waits for nodes to become Ready.
+During `dry-run`, it warns if the configured namespace does not really exist
+because server-side dry-run does not persist the generated Namespace manifest.
+
 `init` generates a generic configuration base to adapt before use. `demo-app`
 is only an example name; real values should come from the user's `app.yaml`.
 

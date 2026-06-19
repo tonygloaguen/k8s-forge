@@ -160,6 +160,21 @@ def get_nodes(timeout: int = 30) -> LocalCommandResult:
     return run_local_command(["kubectl", "get", "nodes"], timeout)
 
 
+def wait_for_nodes_ready(timeout: int = 120) -> LocalCommandResult:
+    """Wait until all Kubernetes nodes visible from kubectl are Ready."""
+    return run_local_command(
+        [
+            "kubectl",
+            "wait",
+            "--for=condition=Ready",
+            "nodes",
+            "--all",
+            f"--timeout={timeout}s",
+        ],
+        timeout=timeout,
+    )
+
+
 def docker_image_inspect(image: str, timeout: int = 30) -> LocalCommandResult:
     """Inspect a local Docker image."""
     return run_local_command(["docker", "image", "inspect", image], timeout)

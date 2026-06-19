@@ -23,9 +23,11 @@ k8s-forge cluster status --name devsecops
 ```
 
 `cluster create` is idempotent. If the cluster already exists, it reports that
-it is skipping creation instead of recreating the cluster. Immediately after
-creation, a kind node may briefly appear as `NotReady`; wait a few seconds and
-rerun `k8s-forge cluster status --name devsecops` or `kubectl get nodes`.
+it is skipping creation instead of recreating the cluster. After creating a new
+cluster, `k8s-forge` now waits for all nodes to become Ready with
+`kubectl wait --for=condition=Ready nodes --all --timeout=120s`, then prints the
+current context and nodes. If the wait fails, inspect the cluster with
+`kubectl get nodes` and `kubectl get pods -A`.
 
 To load a local Docker image into the kind cluster:
 
@@ -81,11 +83,12 @@ or the manifests are invalid for the target cluster.
 Run `dry-run` before `apply`.
 
 A real kind test showed one important namespace edge case: server-side dry-run
-simulates creation but does not persist resources. If the generated Namespace
-and namespaced resources are validated in one dry-run batch, Kubernetes may
-print the Namespace as created for dry-run and then reject later resources with
-`namespaces "<namespace>" not found`. Create the namespace once with
-`kubectl create namespace <namespace>`, then rerun `k8s-forge dry-run`.
+simulates creation but does not persist resources. Before dry-run, `k8s-forge`
+checks the configured namespace with `kubectl get namespace <namespace>`. If it
+does not exist, the command prints a warning explaining that namespaced
+resources may fail validation and suggests `kubectl create namespace
+<namespace>`. The dry-run still continues so Kubernetes can return the
+authoritative validation result.
 
 
 ## `diff`
@@ -267,6 +270,8 @@ in the application.
 
 Cause: server-side dry-run does not persist a Namespace created earlier in the
 same dry-run command, so later namespaced resources may fail validation.
+`k8s-forge dry-run` now checks the namespace first and warns when it appears to
+be missing.
 
 Diagnostic output can look like this:
 
