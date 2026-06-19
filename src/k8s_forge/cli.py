@@ -1,9 +1,11 @@
 """Command line interface for k8s-forge."""
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
+import yaml
+from pydantic import ValidationError
 from rich.console import Console
 from rich.table import Table
 
@@ -19,6 +21,23 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 console = Console()
+
+
+class _QuotedString(str):
+    """String rendered with double quotes in starter YAML."""
+
+
+class _InitConfigDumper(yaml.SafeDumper):
+    """YAML dumper for starter configuration files."""
+
+
+def _quoted_string_representer(
+    dumper: yaml.SafeDumper, data: _QuotedString
+) -> yaml.nodes.ScalarNode:
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data, style='"')
+
+
+_InitConfigDumper.add_representer(_QuotedString, _quoted_string_representer)
 
 
 def _version_callback(value: bool) -> None:
@@ -54,6 +73,66 @@ def _print_render_summary(paths: list[Path]) -> None:
     for path in paths:
         table.add_row(path.name)
     console.print(table)
+
+
+def _starter_config_data(
+    name: str,
+    namespace: str | None,
+    image: str | None,
+    port: int,
+    replicas: int,
+    service_port: int,
+) -> dict[str, Any]:
+    app_namespace = namespace or name
+    app_image = image or f"{name}:latest"
+    return {
+        "app": {
+            "name": name,
+            "namespace": app_namespace,
+            "image": app_image,
+            "containerPort": port,
+            "replicas": replicas,
+        },
+        "config": {
+            "APP_ENV": _QuotedString("dev"),
+            "LOG_LEVEL": _QuotedString("info"),
+        },
+        "secrets": {
+            "API_TOKEN": _QuotedString("change-me"),
+        },
+        "service": {
+            "enabled": True,
+            "port": service_port,
+        },
+        "resources": {
+            "requests": {
+                "cpu": _QuotedString("50m"),
+                "memory": _QuotedString("64Mi"),
+            },
+            "limits": {
+                "cpu": _QuotedString("250m"),
+                "memory": _QuotedString("128Mi"),
+            },
+        },
+        "probes": {
+            "liveness": _QuotedString("/healthz"),
+            "readiness": _QuotedString("/readyz"),
+        },
+        "ingress": {
+            "enabled": False,
+            "host": None,
+        },
+    }
+
+
+def _starter_config_yaml(data: dict[str, Any]) -> str:
+    rendered = yaml.dump(
+        data,
+        Dumper=_InitConfigDumper,
+        sort_keys=False,
+        default_flow_style=False,
+    )
+    return rendered.rstrip() + "\n"
 
 
 def _load_and_render(config_path: Path, output: Path) -> list[Path]:
@@ -102,10 +181,52 @@ def main(
 
 @app.command()
 def init(
-    name: Annotated[str, typer.Argument(help="Application name for the template.")],
+    name: Annotated[str, typer.Argument(help="Application name for app.yaml.")],
+    namespace: Annotated[
+        str | None,
+        typer.Option("--namespace", help="Kubernetes namespace."),
+    ] = None,
+    image: Annotated[
+        str | None,
+        typer.Option("--image", help="Container image."),
+    ] = None,
+    port: Annotated[
+        int,
+        typer.Option("--port", help="Container port."),
+    ] = 8000,
+    replicas: Annotated[
+        int,
+        typer.Option("--replicas", help="Deployment replica count."),
+    ] = 1,
+    service_port: Annotated[
+        int,
+        typer.Option("--service-port", help="Service port."),
+    ] = 80,
+    output: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Output app.yaml path."),
+    ] = Path("app.yaml"),
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Overwrite an existing output file."),
+    ] = False,
 ) -> None:
     """Create a starter app.yaml file."""
-    console.print(f"init for {name}: not implemented yet")
+    if output.exists() and not force:
+        console.print("[red]file already exists, use --force to overwrite[/red]")
+        raise typer.Exit(code=1)
+
+    data = _starter_config_data(name, namespace, image, port, replicas, service_port)
+    try:
+        AppConfig.model_validate(data)
+    except ValidationError as exc:
+        console.print(f"[red]Generated configuration is invalid: {exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    if output.parent != Path(""):
+        output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(_starter_config_yaml(data), encoding="utf-8")
+    console.print(f"[green]created {output}[/green]")
 
 
 @app.command()

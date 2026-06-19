@@ -42,6 +42,32 @@ The MVP renders these Kubernetes resources:
 
 The current implementation renders manifests and can run controlled `kubectl` commands through a single safe wrapper.
 
+
+## Initialize Configuration
+
+Create a generic starter configuration:
+
+```bash
+k8s-forge init demo-app
+k8s-forge check app.yaml
+k8s-forge render app.yaml --output generated/
+k8s-forge dry-run app.yaml --output generated/
+```
+
+`init` generates a generic configuration base to adapt before use. It will not
+overwrite an existing output file unless `--force` is passed.
+
+A more explicit example:
+
+```bash
+k8s-forge init admin-api \
+  --namespace admin \
+  --image ghcr.io/example/admin-api:1.0.0 \
+  --port 8080 \
+  --replicas 1 \
+  --output app.yaml
+```
+
 ## Rendering
 
 Generate manifests from an application configuration:
