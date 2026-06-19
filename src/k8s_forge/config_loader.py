@@ -6,8 +6,17 @@ from typing import Any
 import yaml
 from pydantic import ValidationError
 
-from k8s_forge.exceptions import ConfigLoadError
+from k8s_forge.exceptions import ConfigLoadError, ConfigValidationError
 from k8s_forge.models import AppConfig
+
+
+def _format_validation_error(exc: ValidationError) -> str:
+    """Return a compact validation error summary for CLI output."""
+    details: list[str] = []
+    for error in exc.errors():
+        location = ".".join(str(part) for part in error["loc"])
+        details.append(f"{location}: {error['msg']}")
+    return "; ".join(details)
 
 
 def load_app_config(path: Path) -> AppConfig:
@@ -26,10 +35,11 @@ def load_app_config(path: Path) -> AppConfig:
 
     if not isinstance(data, dict):
         msg = "Configuration root must be a YAML mapping."
-        raise ConfigLoadError(msg)
+        raise ConfigValidationError(msg)
 
     try:
         return AppConfig.model_validate(data)
     except ValidationError as exc:
-        msg = "Configuration validation failed."
-        raise ConfigLoadError(msg) from exc
+        details = _format_validation_error(exc)
+        msg = f"Configuration validation failed: {details}"
+        raise ConfigValidationError(msg) from exc

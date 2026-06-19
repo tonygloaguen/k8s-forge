@@ -5,11 +5,13 @@ from typing import Annotated
 
 import typer
 from rich.console import Console
+from rich.table import Table
 
 from k8s_forge import __version__
 from k8s_forge.config_loader import load_app_config
 from k8s_forge.exceptions import ConfigLoadError
 from k8s_forge.kubectl import kubectl_not_implemented
+from k8s_forge.models import AppConfig
 
 app = typer.Typer(
     help="Generic Kubernetes manifest generator for stateless web applications.",
@@ -22,6 +24,26 @@ def _version_callback(value: bool) -> None:
     if value:
         console.print(f"k8s-forge {__version__}")
         raise typer.Exit
+
+
+def _service_state(config: AppConfig) -> str:
+    if config.service.enabled:
+        return f"enabled on port {config.service.port}"
+    return "disabled"
+
+
+def _print_check_summary(config: AppConfig) -> None:
+    """Print a concise validation summary."""
+    table = Table(title="Application configuration")
+    table.add_column("Field", style="bold")
+    table.add_column("Value")
+    table.add_row("app name", config.app.name)
+    table.add_row("namespace", config.app.namespace)
+    table.add_row("image", config.app.image)
+    table.add_row("replicas", str(config.app.replicas))
+    table.add_row("container port", str(config.app.containerPort))
+    table.add_row("service", _service_state(config))
+    console.print(table)
 
 
 @app.callback()
@@ -58,8 +80,8 @@ def check(
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
 
-    console.print(f"configuration for {loaded.app.name} is valid")
-    console.print("full check is not implemented yet")
+    console.print("[green]configuration is valid[/green]")
+    _print_check_summary(loaded)
 
 
 @app.command()

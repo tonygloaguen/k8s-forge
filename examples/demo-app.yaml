@@ -1,0 +1,33 @@
+app:
+  name: demo-app
+  namespace: demo
+  image: ghcr.io/example/demo-app:1.0.0
+  containerPort: 8000
+  replicas: 2
+
+config:
+  APP_ENV: "dev"
+  LOG_LEVEL: "info"
+
+secrets:
+  API_TOKEN: "change-me"
+
+service:
+  enabled: true
+  port: 80
+
+resources:
+  requests:
+    cpu: "50m"
+    memory: "64Mi"
+  limits:
+    cpu: "250m"
+    memory: "128Mi"
+
+probes:
+  liveness: "/healthz"
+  readiness: "/readyz"
+
+ingress:
+  enabled: false
+  host: demo.local

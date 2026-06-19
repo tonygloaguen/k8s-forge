@@ -9,6 +9,10 @@ class ConfigLoadError(K8sForgeError):
     """Raised when an application configuration cannot be loaded."""
 
 
+class ConfigValidationError(ConfigLoadError):
+    """Raised when an application configuration is syntactically valid but invalid."""
+
+
 class RenderError(K8sForgeError):
     """Raised when rendering cannot be completed."""
 

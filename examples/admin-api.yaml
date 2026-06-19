@@ -1,0 +1,35 @@
+app:
+  name: admin-api
+  namespace: admin
+  image: ghcr.io/example/admin-api:2.1.0
+  containerPort: 8080
+  replicas: 1
+
+config:
+  APP_ENV: "staging"
+  LOG_LEVEL: "debug"
+  FEATURE_FLAGS: "admin-dashboard"
+
+secrets:
+  ADMIN_TOKEN: "change-me"
+  SESSION_SECRET: "replace-me"
+
+service:
+  enabled: true
+  port: 8081
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "256Mi"
+
+probes:
+  liveness: "/live"
+  readiness: "/ready"
+
+ingress:
+  enabled: false
+  host: admin.local
