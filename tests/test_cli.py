@@ -1,4 +1,6 @@
+import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner
@@ -257,3 +259,160 @@ def test_cli_status_calls_kubectl(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.exit_code == 0
     assert calls == [(["-n", "demo", "get", "deploy,po,svc", "-l", "app=demo-app"], 9)]
     assert "status output" in result.output
+
+
+def test_cli_dry_run_missing_kubectl_reports_clear_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        raise FileNotFoundError
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    output_dir = tmp_path / "generated"
+
+    result = runner.invoke(
+        app,
+        [
+            "dry-run",
+            str(ROOT / "examples" / "demo-app.yaml"),
+            "--output",
+            str(output_dir),
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "kubectl executable was not found" in result.output
+    assert "Install kubectl" in result.output
+    assert "PATH" in result.output
+
+
+def test_cli_status_timeout_reports_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(command, timeout=5, stderr="cluster too slow")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["status", "demo-app", "-n", "demo", "--timeout", "5"])
+
+    assert result.exit_code == 1
+    assert "kubectl timed out after 5 seconds" in result.output
+    assert "cluster too slow" in result.output
+
+
+def test_cli_dry_run_nonzero_return_shows_stderr(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 3, "", "server rejected manifest")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    output_dir = tmp_path / "generated"
+
+    result = runner.invoke(
+        app,
+        [
+            "dry-run",
+            str(ROOT / "examples" / "demo-app.yaml"),
+            "--output",
+            str(output_dir),
+        ],
+    )
+
+    assert result.exit_code == 3
+    assert "server rejected manifest" in result.output
+
+
+def test_cli_apply_nonzero_return_shows_stderr(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 4, "", "forbidden by RBAC")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    output_dir = tmp_path / "generated"
+
+    result = runner.invoke(
+        app,
+        [
+            "apply",
+            str(ROOT / "examples" / "demo-app.yaml"),
+            "--output",
+            str(output_dir),
+            "--yes",
+        ],
+    )
+
+    assert result.exit_code == 4
+    assert "forbidden by RBAC" in result.output
+
+
+def test_cli_status_nonzero_return_shows_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 1, "", "namespace demo not found")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["status", "demo-app", "-n", "demo"])
+
+    assert result.exit_code == 1
+    assert "namespace demo not found" in result.output
+
+
+def test_cli_diff_zero_return_is_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 0, "no differences", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    output_dir = tmp_path / "generated"
+
+    result = runner.invoke(
+        app,
+        ["diff", str(ROOT / "examples" / "demo-app.yaml"), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 0
+    assert "no differences" in result.output
+    assert "found changes" not in result.output
+
+
+def test_cli_diff_return_one_is_not_fatal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 1, "diff content", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    output_dir = tmp_path / "generated"
+
+    result = runner.invoke(
+        app,
+        ["diff", str(ROOT / "examples" / "demo-app.yaml"), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 0
+    assert "diff content" in result.output
+    assert "found changes" in result.output
+
+
+def test_cli_diff_return_above_one_is_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 2, "", "diff failed")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    output_dir = tmp_path / "generated"
+
+    result = runner.invoke(
+        app,
+        ["diff", str(ROOT / "examples" / "demo-app.yaml"), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 2
+    assert "diff failed" in result.output

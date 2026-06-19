@@ -45,8 +45,10 @@ def test_run_kubectl_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(subprocess, "run", fake_run)
 
-    with pytest.raises(KubectlError, match="timed out"):
+    with pytest.raises(KubectlError, match="timed out after 1 seconds") as exc_info:
         run_kubectl(["get", "pods"], timeout=1)
+
+    assert "partial" in str(exc_info.value)
 
 
 def test_run_kubectl_missing_binary(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -55,5 +57,11 @@ def test_run_kubectl_missing_binary(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(subprocess, "run", fake_run)
 
-    with pytest.raises(KubectlError, match="not found"):
+    with pytest.raises(
+        KubectlError, match="kubectl executable was not found"
+    ) as exc_info:
         run_kubectl(["get", "pods"])
+
+    message = str(exc_info.value)
+    assert "Install kubectl" in message
+    assert "PATH" in message

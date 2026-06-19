@@ -42,7 +42,10 @@ def run_kubectl(args: list[str], timeout: int = 30) -> KubectlResult:
             timeout=timeout,
         )
     except FileNotFoundError as exc:
-        msg = "kubectl executable was not found in PATH."
+        msg = (
+            "kubectl executable was not found. "
+            "Install kubectl and ensure it is available in PATH."
+        )
         raise KubectlError(msg) from exc
     except subprocess.TimeoutExpired as exc:
         stdout = _text_output(exc.stdout)
