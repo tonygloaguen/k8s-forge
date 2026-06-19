@@ -11,8 +11,25 @@ from rich.table import Table
 
 from k8s_forge import __version__
 from k8s_forge.config_loader import load_app_config
-from k8s_forge.exceptions import ConfigLoadError, KubectlError, RenderError
+from k8s_forge.exceptions import (
+    ConfigLoadError,
+    KubectlError,
+    LocalCommandError,
+    RenderError,
+)
 from k8s_forge.kubectl import KubectlResult, run_kubectl
+from k8s_forge.local_cluster import (
+    LocalCommandResult,
+    ToolCheck,
+    check_environment,
+    create_kind_cluster,
+    current_context,
+    delete_kind_cluster,
+    docker_image_inspect,
+    get_kind_clusters,
+    get_nodes,
+    load_docker_image,
+)
 from k8s_forge.models import AppConfig
 from k8s_forge.renderer import render_manifests
 
@@ -21,6 +38,8 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 console = Console()
+cluster_app = typer.Typer(help="Manage local kind clusters.")
+image_app = typer.Typer(help="Manage local images for kind clusters.")
 
 
 class _QuotedString(str):
@@ -162,6 +181,54 @@ def _run_kubectl_or_exit(
     if result.returncode not in success_codes:
         raise typer.Exit(code=result.returncode or 1)
     return result
+
+
+def _print_local_result(result: LocalCommandResult) -> None:
+    if result.stdout:
+        console.print(result.stdout.rstrip())
+    if result.stderr:
+        console.print(result.stderr.rstrip(), style="red")
+
+
+def _run_local_or_exit(
+    result: LocalCommandResult, success_codes: tuple[int, ...] = (0,)
+) -> LocalCommandResult:
+    _print_local_result(result)
+    if result.returncode not in success_codes:
+        raise typer.Exit(code=result.returncode or 1)
+    return result
+
+
+def _print_tool_checks(checks: list[ToolCheck]) -> None:
+    table = Table(title="Local environment")
+    table.add_column("Check", style="bold")
+    table.add_column("Status")
+    table.add_column("Details")
+    for check in checks:
+        table.add_row(check.name, check.status, check.details)
+    console.print(table)
+    for check in checks:
+        if check.status != "OK" and check.details:
+            console.print(f"{check.name}: {check.details}")
+
+
+def _print_context_and_nodes(timeout: int) -> None:
+    try:
+        console.print("[bold]Current context[/bold]")
+        _run_local_or_exit(current_context(timeout))
+        console.print("[bold]Nodes[/bold]")
+        _run_local_or_exit(get_nodes(timeout))
+    except LocalCommandError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+
+def _kind_clusters_or_exit(timeout: int) -> list[str]:
+    try:
+        return get_kind_clusters(timeout)
+    except LocalCommandError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
 
 
 @app.callback()
@@ -362,3 +429,145 @@ def status(
         ["-n", namespace, "get", "deploy,po,svc", "-l", f"app={name}"],
         timeout,
     )
+
+
+@app.command()
+def doctor(
+    timeout: Annotated[
+        int,
+        typer.Option("--timeout", help="Local command timeout in seconds."),
+    ] = 30,
+) -> None:
+    """Check local Docker, kind, and kubectl prerequisites."""
+    report = check_environment(timeout)
+    _print_tool_checks(
+        [
+            report.docker,
+            report.kind,
+            report.kubectl,
+            report.current_context,
+            report.nodes,
+        ]
+    )
+    if report.ready:
+        console.print("[green]Ready for local kind workflows.[/green]")
+    else:
+        console.print(
+            "[yellow]Missing or failing prerequisites. "
+            "Install or fix the tools above.[/yellow]"
+        )
+
+
+@cluster_app.command("create")
+def cluster_create(
+    name: Annotated[
+        str,
+        typer.Option("--name", help="kind cluster name."),
+    ] = "devsecops",
+    timeout: Annotated[
+        int,
+        typer.Option("--timeout", help="Local command timeout in seconds."),
+    ] = 120,
+) -> None:
+    """Create a local kind cluster if it does not already exist."""
+    clusters = _kind_clusters_or_exit(timeout)
+    if name in clusters:
+        console.print(
+            f"[yellow]kind cluster {name} already exists; skipping create.[/yellow]"
+        )
+        _print_context_and_nodes(timeout)
+        return
+
+    try:
+        result = create_kind_cluster(name, timeout)
+    except LocalCommandError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+    _run_local_or_exit(result)
+    _print_context_and_nodes(timeout)
+
+
+@cluster_app.command("status")
+def cluster_status(
+    name: Annotated[
+        str,
+        typer.Option("--name", help="kind cluster name."),
+    ] = "devsecops",
+    timeout: Annotated[
+        int,
+        typer.Option("--timeout", help="Local command timeout in seconds."),
+    ] = 30,
+) -> None:
+    """Show local kind cluster status."""
+    clusters = _kind_clusters_or_exit(timeout)
+    if name not in clusters:
+        console.print(f"[red]kind cluster {name} does not exist.[/red]")
+        raise typer.Exit(code=1)
+
+    console.print(f"[green]kind cluster {name} exists.[/green]")
+    _print_context_and_nodes(timeout)
+
+
+@cluster_app.command("delete")
+def cluster_delete(
+    name: Annotated[
+        str,
+        typer.Option("--name", help="kind cluster name."),
+    ] = "devsecops",
+    yes: Annotated[
+        bool,
+        typer.Option("--yes", help="Delete without interactive confirmation."),
+    ] = False,
+    timeout: Annotated[
+        int,
+        typer.Option("--timeout", help="Local command timeout in seconds."),
+    ] = 120,
+) -> None:
+    """Delete a local kind cluster."""
+    if not yes and not typer.confirm(f"Delete kind cluster {name}?"):
+        console.print("cluster delete cancelled")
+        return
+
+    try:
+        result = delete_kind_cluster(name, timeout)
+    except LocalCommandError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+    _run_local_or_exit(result)
+
+
+@image_app.command("load")
+def image_load(
+    image: Annotated[str, typer.Argument(help="Local Docker image to load.")],
+    cluster: Annotated[
+        str,
+        typer.Option("--cluster", help="kind cluster name."),
+    ] = "devsecops",
+    timeout: Annotated[
+        int,
+        typer.Option("--timeout", help="Local command timeout in seconds."),
+    ] = 120,
+) -> None:
+    """Load a local Docker image into a kind cluster."""
+    try:
+        inspect = docker_image_inspect(image, timeout)
+    except LocalCommandError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    if not inspect.ok:
+        _print_local_result(inspect)
+        console.print(f"[red]Docker image {image} was not found locally.[/red]")
+        raise typer.Exit(code=1)
+
+    try:
+        result = load_docker_image(image, cluster, timeout)
+    except LocalCommandError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+    _run_local_or_exit(result)
+    console.print(f"[green]Loaded {image} into kind cluster {cluster}.[/green]")
+
+
+app.add_typer(cluster_app, name="cluster")
+app.add_typer(image_app, name="image")

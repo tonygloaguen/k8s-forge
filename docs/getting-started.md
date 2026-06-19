@@ -17,9 +17,12 @@ The CLI can initialize, validate, render, and run guarded kubectl workflows.
 ## Basic Flow
 
 ```bash
+k8s-forge doctor
+k8s-forge cluster create --name devsecops
 k8s-forge init demo-app
 k8s-forge check app.yaml
 k8s-forge render app.yaml --output generated/
+k8s-forge image load demo-app:latest --cluster devsecops
 k8s-forge dry-run app.yaml --output generated/
 ```
 

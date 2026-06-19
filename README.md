@@ -18,6 +18,7 @@ name.
 - validate `app.yaml` with Pydantic models;
 - render Kubernetes YAML manifests locally;
 - run guarded `kubectl` workflows for `dry-run`, `diff`, `apply`, and `status`;
+- check local Docker/kind/kubectl prerequisites and manage a local kind cluster;
 - keep generated manifests inspectable before cluster operations.
 
 ## MVP Scope
@@ -31,6 +32,9 @@ Included:
 - `diff`
 - `apply` with confirmation
 - `status`
+- `doctor`
+- `cluster create`, `cluster status`, `cluster delete` for kind
+- `image load` for loading local Docker images into kind
 - generation of Namespace, ConfigMap, Secret, Deployment, and Service
 
 Out of scope:
@@ -58,9 +62,13 @@ k8s-forge --help
 ## Quick Example
 
 ```bash
+k8s-forge doctor
+k8s-forge cluster create --name devsecops
+k8s-forge cluster status --name devsecops
 k8s-forge init demo-app
 k8s-forge check app.yaml
 k8s-forge render app.yaml --output generated/
+k8s-forge image load demo-app:latest --cluster devsecops
 k8s-forge dry-run app.yaml --output generated/
 k8s-forge diff app.yaml --output generated/
 k8s-forge apply app.yaml --output generated/
@@ -73,6 +81,11 @@ user's configuration.
 ## Main Commands
 
 ```bash
+k8s-forge doctor
+k8s-forge cluster create --name devsecops
+k8s-forge cluster status --name devsecops
+k8s-forge cluster delete --name devsecops
+k8s-forge image load demo-app:latest --cluster devsecops
 k8s-forge init demo-app
 k8s-forge init demo-app --namespace demo --image demo-app:1.0.0 --port 8000
 k8s-forge check app.yaml
@@ -104,6 +117,14 @@ Optional resources are generated only when enabled by `app.yaml`:
 
 Known generated files are overwritten on each render. Files with other names in
 the output directory are left untouched.
+
+## Local kind Bootstrap
+
+`k8s-forge doctor` checks Docker, kind, kubectl, the current context, and
+visible nodes.
+`k8s-forge cluster create --name devsecops` creates a local kind cluster when it
+does not already exist. `k8s-forge image load IMAGE --cluster devsecops` loads a
+local Docker image into that kind cluster.
 
 ## Guardrails
 

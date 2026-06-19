@@ -10,6 +10,31 @@ Before using `dry-run`, `diff`, `apply`, or `status`, `kubectl` must be
 installed and configured. The active Kubernetes context must also be checked
 before any command that talks to a real cluster.
 
+
+## Local kind Bootstrap
+
+`k8s-forge` can help prepare a local kind cluster. It does not install Docker,
+kind, or kubectl for you. Install those tools first, then run:
+
+```bash
+k8s-forge doctor
+k8s-forge cluster create --name devsecops
+k8s-forge cluster status --name devsecops
+```
+
+To load a local Docker image into the kind cluster:
+
+```bash
+k8s-forge image load demo-app:latest --cluster devsecops
+```
+
+To remove the cluster, `cluster delete` asks for confirmation by default:
+
+```bash
+k8s-forge cluster delete --name devsecops
+k8s-forge cluster delete --name devsecops --yes
+```
+
 ## Recommended Pre-Checks
 
 ```bash
@@ -109,9 +134,13 @@ manifests.
 ## Complete Operational Scenario
 
 ```bash
-k8s-forge init demo-app
+k8s-forge doctor
+k8s-forge cluster create --name devsecops
+k8s-forge cluster status --name devsecops
+k8s-forge init demo-app --image demo-app:latest
 k8s-forge check app.yaml
 k8s-forge render app.yaml --output generated/
+k8s-forge image load demo-app:latest --cluster devsecops
 k8s-forge dry-run app.yaml --output generated/
 k8s-forge diff app.yaml --output generated/
 k8s-forge apply app.yaml --output generated/
@@ -120,9 +149,13 @@ k8s-forge status demo-app -n demo-app
 
 Step summary:
 
+- `doctor` checks Docker, kind, kubectl, context, and visible nodes.
+- `cluster create` creates the local kind cluster if needed.
+- `cluster status` shows the local kind cluster state.
 - `init` creates a generic starter `app.yaml`.
 - `check` validates the configuration file.
 - `render` writes local manifests for inspection.
+- `image load` loads a local Docker image into kind.
 - `dry-run` asks the Kubernetes API server to validate the manifests without
   applying them.
 - `diff` shows what would change.

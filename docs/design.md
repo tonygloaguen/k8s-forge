@@ -22,7 +22,8 @@ will render standard YAML manifests. The full configuration reference lives in
 - `models.py`: Pydantic models for user configuration.
 - `config_loader.py`: YAML loading and validation entry points.
 - `renderer.py`: future Jinja2-based rendering.
-- `kubectl.py`: future safe wrapper around `kubectl`.
+- `kubectl.py`: safe wrapper around `kubectl`.
+- `local_cluster.py`: safe local command helpers for Docker, kind, and kubectl diagnostics.
 - `exceptions.py`: project-specific exceptions.
 
 ## MVP Resources

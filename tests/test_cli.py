@@ -530,3 +530,283 @@ def test_cli_diff_return_above_one_is_error(
 
     assert result.exit_code == 2
     assert "diff failed" in result.output
+
+
+def test_cli_doctor_all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        outputs = {
+            ("docker", "version"): "Docker version",
+            ("kind", "version"): "kind v0.23.0",
+            ("kubectl", "version", "--client"): "Client Version",
+            ("kubectl", "config", "current-context"): "kind-devsecops",
+            ("kubectl", "get", "nodes"): "node Ready",
+        }
+        return subprocess.CompletedProcess(command, 0, outputs[tuple(command)], "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "Docker" in result.output
+    assert "kind" in result.output
+    assert "kubectl" in result.output
+    assert "kind-devsecops" in result.output
+    assert "Ready for local kind workflows" in result.output
+
+
+def test_cli_doctor_docker_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command[0] == "docker":
+            raise FileNotFoundError
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "Docker" in result.output
+    assert "missing" in result.output
+    assert "Install docker" in result.output
+    assert "Missing or failing prerequisites" in result.output
+
+
+def test_cli_doctor_kind_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command[0] == "kind":
+            raise FileNotFoundError
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "kind" in result.output
+    assert "Install kind" in result.output
+
+
+def test_cli_doctor_kubectl_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command[0] == "kubectl":
+            raise FileNotFoundError
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "kubectl" in result.output
+    assert "Install kubectl" in result.output
+    assert "unavailable" in result.output
+
+
+def test_cli_doctor_multiple_tools_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        raise FileNotFoundError
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert result.output.count("missing") >= 3
+    assert "Missing or failing prerequisites" in result.output
+
+
+def test_cli_cluster_create_calls_kind_create(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        if command == ["kind", "get", "clusters"]:
+            return subprocess.CompletedProcess(command, 0, "", "")
+        if command[:3] == ["kind", "create", "cluster"]:
+            return subprocess.CompletedProcess(command, 0, "created", "")
+        if command == ["kubectl", "config", "current-context"]:
+            return subprocess.CompletedProcess(command, 0, "kind-devsecops", "")
+        if command == ["kubectl", "get", "nodes"]:
+            return subprocess.CompletedProcess(command, 0, "node Ready", "")
+        raise AssertionError(command)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["cluster", "create", "--name", "devsecops"])
+
+    assert result.exit_code == 0
+    assert ["kind", "create", "cluster", "--name", "devsecops"] in calls
+    assert "created" in result.output
+
+
+def test_cli_cluster_create_existing_does_not_recreate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        if command == ["kind", "get", "clusters"]:
+            return subprocess.CompletedProcess(command, 0, "devsecops\n", "")
+        if command == ["kubectl", "config", "current-context"]:
+            return subprocess.CompletedProcess(command, 0, "kind-devsecops", "")
+        if command == ["kubectl", "get", "nodes"]:
+            return subprocess.CompletedProcess(command, 0, "node Ready", "")
+        raise AssertionError(command)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["cluster", "create", "--name", "devsecops"])
+
+    assert result.exit_code == 0
+    assert "already exists" in result.output
+    assert ["kind", "create", "cluster", "--name", "devsecops"] not in calls
+
+
+def test_cli_cluster_status_calls_expected_commands(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        if command == ["kind", "get", "clusters"]:
+            return subprocess.CompletedProcess(command, 0, "devsecops\n", "")
+        if command == ["kubectl", "config", "current-context"]:
+            return subprocess.CompletedProcess(command, 0, "kind-devsecops", "")
+        if command == ["kubectl", "get", "nodes"]:
+            return subprocess.CompletedProcess(command, 0, "node Ready", "")
+        raise AssertionError(command)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["cluster", "status", "--name", "devsecops"])
+
+    assert result.exit_code == 0
+    assert calls == [
+        ["kind", "get", "clusters"],
+        ["kubectl", "config", "current-context"],
+        ["kubectl", "get", "nodes"],
+    ]
+    assert "kind cluster devsecops exists" in result.output
+
+
+def test_cli_cluster_status_missing_cluster_is_readable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 0, "other\n", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["cluster", "status", "--name", "devsecops"])
+
+    assert result.exit_code == 1
+    assert "kind cluster devsecops does not exist" in result.output
+
+
+def test_cli_cluster_delete_refusal_does_not_delete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, "deleted", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(
+        app, ["cluster", "delete", "--name", "devsecops"], input="n\n"
+    )
+
+    assert result.exit_code == 0
+    assert calls == []
+    assert "cluster delete cancelled" in result.output
+
+
+def test_cli_cluster_delete_confirmation_calls_kind_delete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, "deleted", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(
+        app, ["cluster", "delete", "--name", "devsecops"], input="y\n"
+    )
+
+    assert result.exit_code == 0
+    assert calls == [["kind", "delete", "cluster", "--name", "devsecops"]]
+    assert "deleted" in result.output
+
+
+def test_cli_cluster_delete_yes_calls_kind_delete_without_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 0, "deleted", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["cluster", "delete", "--name", "devsecops", "--yes"])
+
+    assert result.exit_code == 0
+    assert calls == [["kind", "delete", "cluster", "--name", "devsecops"]]
+    assert "Delete kind cluster" not in result.output
+
+
+def test_cli_image_load_checks_image_and_loads_into_kind(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        if command[:3] == ["docker", "image", "inspect"]:
+            return subprocess.CompletedProcess(command, 0, "[]", "")
+        if command[:3] == ["kind", "load", "docker-image"]:
+            return subprocess.CompletedProcess(command, 0, "loaded", "")
+        raise AssertionError(command)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(
+        app, ["image", "load", "demo-app:latest", "--cluster", "devsecops"]
+    )
+
+    assert result.exit_code == 0
+    assert calls == [
+        ["docker", "image", "inspect", "demo-app:latest"],
+        ["kind", "load", "docker-image", "demo-app:latest", "--name", "devsecops"],
+    ]
+    assert "Loaded demo-app:latest" in result.output
+
+
+def test_cli_image_load_fails_if_image_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        return subprocess.CompletedProcess(command, 1, "", "No such image")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(
+        app, ["image", "load", "demo-app:latest", "--cluster", "devsecops"]
+    )
+
+    assert result.exit_code == 1
+    assert calls == [["docker", "image", "inspect", "demo-app:latest"]]
+    assert "No such image" in result.output
+    assert "was not found locally" in result.output

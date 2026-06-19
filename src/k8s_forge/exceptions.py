@@ -19,3 +19,7 @@ class RenderError(K8sForgeError):
 
 class KubectlError(K8sForgeError):
     """Raised when a kubectl operation cannot be completed."""
+
+
+class LocalCommandError(K8sForgeError):
+    """Raised when a local Docker/kind/kubectl command cannot be completed."""
