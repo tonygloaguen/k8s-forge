@@ -1,21 +1,61 @@
 # k8s-forge
 
-`k8s-forge` is a generic Python tool for generating standard Kubernetes
-manifests for stateless containerized web applications.
+`k8s-forge` is a generic Python CLI for generating Kubernetes manifests for
+stateless containerized web applications from a user-owned `app.yaml` file.
 
-The project is intentionally application-agnostic: every application-specific
-value must come from a user-provided `app.yaml` file. No application name is
-hardcoded in the implementation.
+Status: local MVP. The project is ready to install and test locally, but it is
+not a full deployment platform and does not replace Kubernetes or `kubectl`.
 
-## Workflow
+The project is intentionally application-agnostic. Application-specific values
+must come from `app.yaml`; implementation logic must not hardcode an application
+name.
 
-The intended workflow is:
+## What It Does
 
-```text
-init -> check -> render -> dry-run -> diff -> apply -> status
+`k8s-forge` can:
+
+- create a starter `app.yaml` with `init`;
+- validate `app.yaml` with Pydantic models;
+- render Kubernetes YAML manifests locally;
+- run guarded `kubectl` workflows for `dry-run`, `diff`, `apply`, and `status`;
+- keep generated manifests inspectable before cluster operations.
+
+## MVP Scope
+
+Included:
+
+- `init`
+- `check`
+- `render`
+- `dry-run`
+- `diff`
+- `apply` with confirmation
+- `status`
+- generation of Namespace, ConfigMap, Secret, Deployment, and Service
+
+Out of scope:
+
+- Ingress
+- HPA
+- NetworkPolicy
+- Helm
+- Kustomize
+- LangGraph
+- real secret management
+- Python Kubernetes client
+- Kubernetes operator behavior
+
+## Local Installation
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+k8s-forge --help
 ```
 
-Example command flow:
+## Quick Example
 
 ```bash
 k8s-forge init demo-app
@@ -24,63 +64,29 @@ k8s-forge render app.yaml --output generated/
 k8s-forge dry-run app.yaml --output generated/
 k8s-forge diff app.yaml --output generated/
 k8s-forge apply app.yaml --output generated/
-k8s-forge status demo-app -n demo
+k8s-forge status demo-app -n demo-app
 ```
 
 `demo-app` is only a documentation example. Real values should come from the
-user's configuration. See [docs/config-reference.md](docs/config-reference.md)
-for the full `app.yaml` format. See [docs/operations.md](docs/operations.md)
-for the operational `kubectl` workflow.
+user's configuration.
 
-## MVP Scope
-
-The MVP renders these Kubernetes resources:
-
-- Namespace
-- ConfigMap, only when `config` is non-empty
-- Secret, only when `secrets` is non-empty
-- Deployment
-- Service, only when `service.enabled` is `true`
-
-The current implementation renders manifests and can run controlled `kubectl`
-commands through a single safe wrapper. The recommended cluster workflow is
-`check`, `render`, `dry-run`, `diff`, then `apply`.
-
-
-## Initialize Configuration
-
-Create a generic starter configuration:
+## Main Commands
 
 ```bash
 k8s-forge init demo-app
+k8s-forge init demo-app --namespace demo --image demo-app:1.0.0 --port 8000
 k8s-forge check app.yaml
 k8s-forge render app.yaml --output generated/
 k8s-forge dry-run app.yaml --output generated/
+k8s-forge diff app.yaml --output generated/
+k8s-forge apply app.yaml --output generated/
+k8s-forge apply app.yaml --output generated/ --yes
+k8s-forge status demo-app -n demo-app
 ```
 
-`init` generates a generic configuration base to adapt before use. It will not
-overwrite an existing output file unless `--force` is passed.
+## Generated Kubernetes Objects
 
-A more explicit example:
-
-```bash
-k8s-forge init admin-api \
-  --namespace admin \
-  --image ghcr.io/example/admin-api:1.0.0 \
-  --port 8080 \
-  --replicas 1 \
-  --output app.yaml
-```
-
-## Rendering
-
-Generate manifests from an application configuration:
-
-```bash
-k8s-forge render examples/demo-app.yaml --output generated/
-```
-
-For a complete configuration, this writes:
+For a complete configuration, `render` writes:
 
 ```text
 generated/00-namespace.yaml
@@ -90,47 +96,26 @@ generated/30-deployment.yaml
 generated/40-service.yaml
 ```
 
+Optional resources are generated only when enabled by `app.yaml`:
+
+- ConfigMap is rendered only when `config` is non-empty.
+- Secret is rendered only when `secrets` is non-empty.
+- Service is rendered only when `service.enabled` is `true`.
+
 Known generated files are overwritten on each render. Files with other names in
 the output directory are left untouched.
 
+## Guardrails
 
-## Kubernetes Commands
-
-Validate and render before touching a cluster:
-
-```bash
-k8s-forge check examples/demo-app.yaml
-k8s-forge render examples/demo-app.yaml --output generated/
-```
-
-Use server-side dry-run and diff before applying changes:
-
-```bash
-k8s-forge dry-run examples/demo-app.yaml --output generated/
-k8s-forge diff examples/demo-app.yaml --output generated/
-```
-
-Apply asks for interactive confirmation by default:
-
-```bash
-k8s-forge apply examples/demo-app.yaml --output generated/
-```
-
-For automation, confirmation can be skipped explicitly:
-
-```bash
-k8s-forge apply examples/demo-app.yaml --output generated/ --yes
-```
-
-Check deployed resources with the application name and namespace:
-
-```bash
-k8s-forge status demo-app -n demo
-```
-
-All `kubectl` calls use `subprocess.run` without `shell=True`, capture
-stdout/stderr, and use a timeout. Tests must mock the subprocess boundary and
-must never depend on a real Kubernetes cluster or run a real `kubectl apply`.
+- `check` validates the configuration before rendering.
+- `render` only writes local YAML files.
+- `dry-run` asks the Kubernetes API server to validate manifests without
+  applying them.
+- `diff` shows what would change before applying.
+- `apply` asks for confirmation unless `--yes` is passed.
+- `kubectl` calls go through one wrapper using `subprocess.run` without
+  `shell=True`.
+- Tests mock `kubectl` and must not depend on a real Kubernetes cluster.
 
 ## Secrets Warning
 
@@ -138,6 +123,13 @@ Do not commit real secrets. Values placed in `app.yaml` or generated manifests
 may be stored in plain text during the MVP. The MVP uses Kubernetes
 `stringData` for readability and should only be used with placeholder values in
 examples and tests.
+
+## Documentation
+
+- [Getting started](docs/getting-started.md)
+- [Configuration reference](docs/config-reference.md)
+- [Operational workflow](docs/operations.md)
+- [Design notes](docs/design.md)
 
 ## Development
 

@@ -29,9 +29,14 @@ is only an example name; real values should come from the user's `app.yaml`.
 Read [config-reference.md](config-reference.md) for the full `app.yaml` format,
 field constraints, and examples.
 
-
 ## Next Step: Operational Workflow
 
 After generating and validating `app.yaml`, read [operations.md](operations.md)
 for the recommended `dry-run`, `diff`, `apply`, and `status` workflow against a
 real Kubernetes cluster.
+
+## Documentation
+
+- [Configuration reference](config-reference.md)
+- [Operational workflow](operations.md)
+- [Design notes](design.md)
