@@ -1,0 +1,186 @@
+# Real Application Case Study: weatherapi-platform
+
+This page documents a real validation of the `k8s-forge` MVP on a Debian VM
+with an existing FastAPI application named `weatherapi-platform`.
+
+This is a field report, not a new feature. The implementation remains generic:
+`weatherapi-platform` and `weatherapi` are real-world example values used only
+in this document.
+
+## Validated Environment
+
+Application details:
+
+- repository: `~/projects/weatherapi-platform`
+- Dockerfile: `docker/Dockerfile`
+- image: `weatherapi:0.1.0`
+- Kubernetes namespace: `weather`
+- application port: `8000`
+- Kubernetes Service port: `80`
+- tested endpoint: `/weather`
+
+Cluster details:
+
+- kind cluster: `devsecops`
+- kubectl context: `kind-devsecops`
+- final node state: `Ready`
+
+Validated HTTP response:
+
+```json
+{"city":"Magny-les-Hameaux","temp_c":4.4,"condition":"pluie","version":"0.1.0"}
+```
+
+## Important Boundaries
+
+When an existing application already exists, do not create or use a temporary
+`/tmp/demo-app` application. Work from the real application repository.
+
+Do not overwrite an existing `k8s/` directory, Helm chart, or manually managed
+Kubernetes manifests that may already be present in the application. Generate
+`k8s-forge` output into a separate directory such as `generated-k8s-forge/` and
+use a separate config file such as `k8s-forge-app.yaml`.
+
+If `weatherapi-platform` already contains Helm assets, keep that separate from
+`k8s-forge`. This MVP does not use Helm and does not modify Helm charts.
+
+## Real Flow
+
+Start from the existing application repository:
+
+```bash
+cd ~/projects/weatherapi-platform
+```
+
+Find the Dockerfile:
+
+```bash
+find . -maxdepth 3 -iname "Dockerfile" -print
+```
+
+Inspect application and container hints:
+
+```bash
+grep -RInE "EXPOSE|uvicorn|gunicorn|fastapi|ports:|docker build|IMAGE|PORT" \
+  Dockerfile docker compose app Makefile README.md 2>/dev/null | head -80
+```
+
+Build the application image:
+
+```bash
+make build
+```
+
+Load the local image into the kind cluster:
+
+```bash
+k8s-forge image load weatherapi:0.1.0 --cluster devsecops
+```
+
+Create a dedicated `k8s-forge` configuration file:
+
+```bash
+k8s-forge init weatherapi \
+  --image weatherapi:0.1.0 \
+  --namespace weather \
+  --port 8000 \
+  --replicas 1 \
+  --output k8s-forge-app.yaml \
+  --force
+```
+
+Validate the generated configuration:
+
+```bash
+k8s-forge check k8s-forge-app.yaml
+```
+
+Render manifests into a dedicated output directory:
+
+```bash
+k8s-forge render k8s-forge-app.yaml \
+  --output generated-k8s-forge/
+```
+
+Create the namespace before server-side dry-run:
+
+```bash
+kubectl create namespace weather
+```
+
+Run server-side validation:
+
+```bash
+k8s-forge dry-run k8s-forge-app.yaml \
+  --output generated-k8s-forge/
+```
+
+Apply after reviewing the generated files and dry-run output:
+
+```bash
+k8s-forge apply k8s-forge-app.yaml \
+  --output generated-k8s-forge/
+```
+
+Check Kubernetes resources:
+
+```bash
+k8s-forge status weatherapi -n weather
+```
+
+Forward the Service locally:
+
+```bash
+kubectl -n weather port-forward svc/weatherapi 8080:80
+```
+
+Test the FastAPI endpoint:
+
+```bash
+curl http://localhost:8080/weather
+```
+
+Expected response observed during the test:
+
+```json
+{"city":"Magny-les-Hameaux","temp_c":4.4,"condition":"pluie","version":"0.1.0"}
+```
+
+## Notes From The Test
+
+`k8s-forge cluster create --name devsecops` can report a node as `NotReady`
+immediately after creation. This is expected while kind finishes starting the
+node. Wait briefly and rerun:
+
+```bash
+k8s-forge cluster status --name devsecops
+kubectl get nodes
+```
+
+If the cluster already exists, `cluster create` reports:
+
+```text
+kind cluster devsecops already exists; skipping create.
+```
+
+This is expected. The command is idempotent and does not recreate an existing
+cluster.
+
+Server-side dry-run can fail for namespaced resources when the Namespace exists
+only in the same dry-run batch. The observed output was:
+
+```text
+namespace/weather created (server dry run)
+namespaces "weather" not found
+```
+
+Create the namespace once, then rerun dry-run:
+
+```bash
+kubectl create namespace weather
+k8s-forge dry-run k8s-forge-app.yaml --output generated-k8s-forge/
+```
+
+After manually creating the namespace, `kubectl apply` may warn about a missing
+`kubectl.kubernetes.io/last-applied-configuration` annotation. This warning is
+not blocking; `kubectl apply` patches the annotation automatically.

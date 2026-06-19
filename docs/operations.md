@@ -22,6 +22,11 @@ k8s-forge cluster create --name devsecops
 k8s-forge cluster status --name devsecops
 ```
 
+`cluster create` is idempotent. If the cluster already exists, it reports that
+it is skipping creation instead of recreating the cluster. Immediately after
+creation, a kind node may briefly appear as `NotReady`; wait a few seconds and
+rerun `k8s-forge cluster status --name devsecops` or `kubectl get nodes`.
+
 To load a local Docker image into the kind cluster:
 
 ```bash
@@ -74,6 +79,14 @@ or missing, the current user lacks permissions, the API server rejects a field,
 or the manifests are invalid for the target cluster.
 
 Run `dry-run` before `apply`.
+
+A real kind test showed one important namespace edge case: server-side dry-run
+simulates creation but does not persist resources. If the generated Namespace
+and namespaced resources are validated in one dry-run batch, Kubernetes may
+print the Namespace as created for dry-run and then reject later resources with
+`namespaces "<namespace>" not found`. Create the namespace once with
+`kubectl create namespace <namespace>`, then rerun `k8s-forge dry-run`.
+
 
 ## `diff`
 
@@ -250,6 +263,29 @@ an error, or take too long to respond.
 Correction: update `app.yaml` to use real endpoints or implement the endpoints
 in the application.
 
+### Manual Namespace creation before dry-run
+
+Cause: server-side dry-run does not persist a Namespace created earlier in the
+same dry-run command, so later namespaced resources may fail validation.
+
+Diagnostic output can look like this:
+
+```text
+namespace/weather created (server dry run)
+namespaces "weather" not found
+```
+
+Correction: create the namespace once, then rerun dry-run:
+
+```bash
+kubectl create namespace weather
+k8s-forge dry-run k8s-forge-app.yaml --output generated-k8s-forge/
+```
+
+A warning about a missing `kubectl.kubernetes.io/last-applied-configuration`
+annotation after manual namespace creation is non-blocking; `kubectl apply`
+will patch it automatically.
+
 ### Namespace or RBAC errors
 
 Cause: the namespace does not exist, the namespace name is wrong, or the current
@@ -283,3 +319,10 @@ permissions.
 - Keep generated manifests inspectable.
 - Never commit real secrets.
 - Use K9s or equivalent tools to observe Pods, Services, Events, and Logs.
+
+
+## Related Field Notes
+
+- [Debian/Ubuntu installation](debian-install.md)
+- [Troubleshooting](troubleshooting.md)
+- [Real app case study: weatherapi-platform](real-app-weatherapi.md)

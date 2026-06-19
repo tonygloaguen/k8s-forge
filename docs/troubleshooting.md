@@ -1,0 +1,34 @@
+# Troubleshooting
+
+This page records real issues observed while installing and using `k8s-forge`
+on a Debian VM with a local kind cluster.
+
+| Observed error or output | Probable cause | Solution | Verification command |
+| --- | --- | --- | --- |
+| `bash: cd: /home/gloaguen/projets: No such file or directory` | The `~/projets` directory does not exist on the VM. | Create it with `mkdir -p ~/projets`, then retry `cd ~/projets`. | `test -d ~/projets && pwd` |
+| Repository cloned into `~` instead of `~/projets` | The target directory was missing, so cloning happened from the home directory. | Move it with `mkdir -p ~/projets && mv ~/k8s-forge ~/projets/`, or clone again from `~/projets`. | `test -d ~/projets/k8s-forge` |
+| `ensurepip is not available` | Debian/Ubuntu virtual environment support is not installed. | Run `sudo apt update` and `sudo apt install -y python3-venv python3-pip`. For version-specific Python, install `python3.13-venv python3-pip` or the matching package. | `python3 -m venv .venv` |
+| `.venv/bin/activate: No such file or directory` | The virtual environment was not created successfully. | Run `rm -rf .venv`, then `python3 -m venv .venv`, then `source .venv/bin/activate`. | `test -f .venv/bin/activate` |
+| `bash: python: command not found` | Debian may provide `python3` without a global `python` alias. | Outside a venv, use `python3`. Inside the activated venv, use `python`. | `python3 --version` and, after activation, `python --version` |
+| `k8s-forge: command not found` | The package is not installed in the active virtual environment, or the venv is not active. | Activate the venv and run `python -m pip install -e ".[dev]"`. | `k8s-forge --help` |
+| `NotReady` immediately after `cluster create` | The kind node was created only a few seconds ago and is still starting. | Wait briefly, then rerun `k8s-forge cluster status --name devsecops` or `kubectl get nodes`. | `kubectl get nodes` |
+| `kind cluster devsecops already exists; skipping create.` | The requested kind cluster already exists. | No action is required. `cluster create` is idempotent and does not recreate an existing cluster. | `kind get clusters` |
+| `namespace/weather created (server dry run)` followed by `namespaces "weather" not found` during `dry-run` | Server-side dry-run simulates namespace creation but does not persist it before validating namespaced resources. | Create the namespace once with `kubectl create namespace weather`, then rerun `k8s-forge dry-run k8s-forge-app.yaml --output generated-k8s-forge/`. | `kubectl get namespace weather` |
+| `missing the kubectl.kubernetes.io/last-applied-configuration annotation` | The namespace was created manually instead of through `kubectl apply`, so it lacks the last-applied annotation. | This warning is non-blocking. `kubectl apply` will patch the annotation automatically. | Rerun `k8s-forge apply ...` and inspect the output. |
+
+## General Debugging Commands
+
+```bash
+k8s-forge doctor
+kubectl config current-context
+kubectl get nodes
+kind get clusters
+```
+
+For application runtime issues, inspect Kubernetes resources directly:
+
+```bash
+kubectl -n <namespace> get deploy,po,svc
+kubectl -n <namespace> describe pod <pod-name>
+kubectl -n <namespace> logs <pod-name>
+```
