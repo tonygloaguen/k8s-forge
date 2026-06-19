@@ -36,3 +36,4 @@ app.local.yaml
 # OS
 .DS_Store
 Thumbs.db
+codeburn-*.json
