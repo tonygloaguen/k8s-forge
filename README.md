@@ -28,7 +28,8 @@ k8s-forge status demo-app -n demo
 ```
 
 `demo-app` is only a documentation example. Real values should come from the
-user's configuration.
+user's configuration. See [docs/config-reference.md](docs/config-reference.md)
+for the full `app.yaml` format.
 
 ## MVP Scope
 

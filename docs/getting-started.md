@@ -25,3 +25,6 @@ k8s-forge dry-run app.yaml --output generated/
 
 `init` generates a generic configuration base to adapt before use. `demo-app`
 is only an example name; real values should come from the user's `app.yaml`.
+
+Read [config-reference.md](config-reference.md) for the full `app.yaml` format,
+field constraints, and examples.

@@ -4,7 +4,8 @@
 
 `k8s-forge` is a small, generic generator for Kubernetes manifests. Users
 describe an application in `app.yaml`; the tool validates the configuration and
-will render standard YAML manifests.
+will render standard YAML manifests. The full configuration reference lives in
+[config-reference.md](config-reference.md).
 
 ## Core Rules
 
