@@ -45,6 +45,7 @@ k8s-forge cluster create --name devsecops
 k8s-forge init demo-app
 k8s-forge check app.yaml
 k8s-forge render app.yaml --output generated/
+k8s-forge helm render app.yaml --output charts/
 k8s-forge image load demo-app:latest --cluster devsecops
 k8s-forge dry-run app.yaml --output generated/
 ```
@@ -70,6 +71,21 @@ For the raw Kubernetes training workflow with multiple replicas, HPA,
 metrics-server notes, and Pod reconciliation, read
 [module-2-kubernetes.md](module-2-kubernetes.md).
 
+
+## Module 2 Helm
+
+After understanding the raw Kubernetes resources, generate a local Helm chart
+from the same `app.yaml`:
+
+```bash
+k8s-forge helm render app.yaml --output charts/
+helm lint charts/demo-app
+helm template demo-app charts/demo-app -n demo-app
+```
+
+Read [module-2-helm.md](module-2-helm.md) for chart structure, validation, and
+migration from raw `k8s-forge` resources.
+
 ## Next Step: Operational Workflow
 
 After generating and validating `app.yaml`, read [operations.md](operations.md)
@@ -84,6 +100,7 @@ real Kubernetes cluster.
 - [Configuration reference](config-reference.md)
 - [Operational workflow](operations.md)
 - [Module 2 Kubernetes raw workflow](module-2-kubernetes.md)
+- [Module 2 Helm workflow](module-2-helm.md)
 - [Design notes](design.md)
 
 ## Local Release Check

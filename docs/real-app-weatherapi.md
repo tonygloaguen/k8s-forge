@@ -50,8 +50,9 @@ Kubernetes manifests that may already be present in the application. Generate
 `k8s-forge` output into a separate directory such as `generated-k8s-forge/` and
 use a separate config file such as `k8s-forge-app.yaml`.
 
-If `weatherapi-platform` already contains Helm assets, keep that separate from
-`k8s-forge`. This MVP does not use Helm and does not modify Helm charts.
+For Module 2 Helm, `k8s-forge` can generate a separate local chart from
+`k8s-forge-app.yaml`. Keep that generated chart separate from any existing Helm
+assets unless you intentionally migrate them.
 
 ## Real Flow
 
@@ -227,3 +228,19 @@ The Service should remain stable while the Deployment creates a replacement Pod.
 
 HPA CPU metrics require metrics-server. Without it, `kubectl -n weather get hpa`
 may show `<unknown>`, even though the HPA manifest was rendered and applied.
+
+
+## Helm Follow-Up
+
+After the raw Kubernetes validation succeeds, generate a Helm chart from the same
+configuration:
+
+```bash
+k8s-forge helm render k8s-forge-app.yaml --output charts/
+helm lint charts/weatherapi
+helm template weatherapi charts/weatherapi -n weather
+```
+
+If the raw resources still exist from `k8s-forge apply`, Helm may refuse to take
+ownership of them. For the lab, delete the raw generated resources first or use a
+fresh namespace.

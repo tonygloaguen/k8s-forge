@@ -1,0 +1,73 @@
+replicaCount: [[ values.replica_count ]]
+
+image:
+  repository: [[ values.image_repository | yaml_scalar ]]
+  tag: [[ values.image_tag | yaml_scalar ]]
+  pullPolicy: IfNotPresent
+
+service:
+  enabled: [[ values.service_enabled | lower ]]
+  type: ClusterIP
+  port: [[ values.service_port ]]
+  targetPort: [[ values.service_target_port ]]
+
+config:
+[% if values.config %]
+[% for key, value in values.config.items() %]
+  [[ key ]]: [[ value | yaml_scalar ]]
+[% endfor %]
+[% else %]
+  {}
+[% endif %]
+
+secrets:
+  enabled: [[ values.secrets_enabled | lower ]]
+  values:
+[% if values.secrets %]
+[% for key, value in values.secrets.items() %]
+    [[ key ]]: [[ value | yaml_scalar ]]
+[% endfor %]
+[% else %]
+    {}
+[% endif %]
+
+resources:
+  requests:
+[% if values.resources.requests %]
+[% for key, value in values.resources.requests.items() %]
+    [[ key ]]: [[ value | yaml_scalar ]]
+[% endfor %]
+[% else %]
+    {}
+[% endif %]
+  limits:
+[% if values.resources.limits %]
+[% for key, value in values.resources.limits.items() %]
+    [[ key ]]: [[ value | yaml_scalar ]]
+[% endfor %]
+[% else %]
+    {}
+[% endif %]
+
+probes:
+  liveness: [[ values.probes.liveness | yaml_scalar ]]
+  readiness: [[ values.probes.readiness | yaml_scalar ]]
+
+autoscaling:
+  enabled: [[ values.autoscaling.enabled | lower ]]
+  minReplicas: [[ values.autoscaling.minReplicas ]]
+  maxReplicas: [[ values.autoscaling.maxReplicas ]]
+  targetCPUUtilizationPercentage: [[ values.autoscaling.targetCPUUtilizationPercentage ]]
+
+securityContext:
+  pod:
+    runAsNonRoot: true
+    runAsUser: 10001
+  container:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    dropAllCapabilities: true
+
+ingress:
+  enabled: [[ values.ingress.enabled | lower ]]
+  host: [[ values.ingress.host | yaml_scalar ]]

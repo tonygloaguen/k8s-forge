@@ -43,7 +43,11 @@ k8s-forge = "k8s_forge.cli:app"
 where = ["src"]
 
 [tool.setuptools.package-data]
-k8s_forge = ["templates/*.j2"]
+k8s_forge = [
+  "templates/*.j2",
+  "helm_templates/*.j2",
+  "helm_templates/templates/*.j2",
+]
 
 [tool.ruff]
 line-length = 88

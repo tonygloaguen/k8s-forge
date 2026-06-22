@@ -17,6 +17,7 @@ name.
 - create a starter `app.yaml` with `init`;
 - validate `app.yaml` with Pydantic models;
 - render Kubernetes YAML manifests locally;
+- generate a local Helm chart from the same `app.yaml`;
 - run guarded `kubectl` workflows for `dry-run`, `diff`, `apply`, and `status`;
 - check local Docker/kind/kubectl prerequisites and manage a local kind cluster;
 - keep generated manifests inspectable before cluster operations.
@@ -35,13 +36,13 @@ Included:
 - `doctor`
 - `cluster create`, `cluster status`, `cluster delete` for kind
 - `image load` for loading local Docker images into kind
+- `helm render` for generating a local Helm chart
 - generation of Namespace, ConfigMap, Secret, Deployment, Service, and optional HorizontalPodAutoscaler
 
 Out of scope:
 
 - Ingress
 - NetworkPolicy
-- Helm
 - Kustomize
 - LangGraph
 - real secret management
@@ -67,6 +68,7 @@ k8s-forge cluster status --name devsecops
 k8s-forge init demo-app
 k8s-forge check app.yaml
 k8s-forge render app.yaml --output generated/
+k8s-forge helm render app.yaml --output charts/
 k8s-forge image load demo-app:latest --cluster devsecops
 k8s-forge dry-run app.yaml --output generated/
 k8s-forge diff app.yaml --output generated/
@@ -89,6 +91,7 @@ k8s-forge init demo-app
 k8s-forge init demo-app --namespace demo --image demo-app:1.0.0 --port 8000
 k8s-forge check app.yaml
 k8s-forge render app.yaml --output generated/
+k8s-forge helm render app.yaml --output charts/
 k8s-forge dry-run app.yaml --output generated/
 k8s-forge diff app.yaml --output generated/
 k8s-forge apply app.yaml --output generated/
@@ -118,6 +121,21 @@ Optional resources are generated only when enabled by `app.yaml`:
 
 Known generated files are overwritten on each render. Files with other names in
 the output directory are left untouched.
+
+
+## Generated Helm Chart
+
+`k8s-forge helm render app.yaml --output charts/` writes a local chart to
+`charts/<app.name>/`. The chart includes `Chart.yaml`, `values.yaml`, and Helm
+templates for ConfigMap, Secret, Deployment, Service, and HPA. It does not
+contact the cluster and does not run `helm` automatically.
+
+After generation, validate manually:
+
+```bash
+helm lint charts/demo-app
+helm template demo-app charts/demo-app -n demo-app
+```
 
 ## Local kind Bootstrap
 
@@ -161,6 +179,7 @@ examples and tests.
 - [Configuration reference](docs/config-reference.md)
 - [Operational workflow](docs/operations.md)
 - [Module 2 Kubernetes raw workflow](docs/module-2-kubernetes.md)
+- [Module 2 Helm workflow](docs/module-2-helm.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Real app case study: weatherapi-platform](docs/real-app-weatherapi.md)
 - [Design notes](docs/design.md)

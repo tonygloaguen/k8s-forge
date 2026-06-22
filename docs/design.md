@@ -21,7 +21,8 @@ will render standard YAML manifests. The full configuration reference lives in
 - `cli.py`: Typer command surface.
 - `models.py`: Pydantic models for user configuration.
 - `config_loader.py`: YAML loading and validation entry points.
-- `renderer.py`: future Jinja2-based rendering.
+- `renderer.py`: raw Kubernetes manifest rendering.
+- `helm_renderer.py`: local Helm chart rendering from the same validated config.
 - `kubectl.py`: safe wrapper around `kubectl`.
 - `local_cluster.py`: safe local command helpers for Docker, kind, and kubectl diagnostics.
 - `exceptions.py`: project-specific exceptions.
@@ -37,5 +38,6 @@ The current raw Kubernetes render target is:
 - Service
 - optional HorizontalPodAutoscaler
 
-Ingress, NetworkPolicy, Helm, Kustomize, and direct Kubernetes API usage remain
-outside the current scope.
+The Helm renderer generates a local chart for the same application model. It
+does not run Helm and does not install releases. Ingress, NetworkPolicy,
+Kustomize, and direct Kubernetes API usage remain outside the current scope.

@@ -32,7 +32,16 @@ def test_cli_commands_exist() -> None:
     result = runner.invoke(app, ["--help"])
 
     assert result.exit_code == 0
-    for command in ("init", "check", "render", "dry-run", "diff", "apply", "status"):
+    for command in (
+        "init",
+        "check",
+        "render",
+        "dry-run",
+        "diff",
+        "apply",
+        "status",
+        "helm",
+    ):
         assert command in result.output
 
 
@@ -285,6 +294,55 @@ def test_cli_render_lists_hpa_when_autoscaling_enabled(tmp_path: Path) -> None:
     )
     assert "metrics-server" in result.output
     assert (output_dir / "50-hpa.yaml").exists()
+
+
+def test_cli_helm_render_generates_chart(tmp_path: Path) -> None:
+    output_dir = tmp_path / "charts"
+
+    result = runner.invoke(
+        app,
+        [
+            "helm",
+            "render",
+            str(ROOT / "examples" / "demo-app.yaml"),
+            "--output",
+            str(output_dir),
+        ],
+    )
+
+    chart_dir = output_dir / "demo-app"
+    assert result.exit_code == 0
+    assert "Rendering a Helm chart from app.yaml" in result.output
+    assert "does not contact the cluster and does not install anything" in result.output
+    assert "Helm chart generated" in result.output
+    assert "helm lint" in result.output
+    assert "helm template" in result.output
+    assert "ownership metadata" in result.output
+    assert (chart_dir / "Chart.yaml").exists()
+    assert (chart_dir / "values.yaml").exists()
+    assert (chart_dir / "templates" / "deployment.yaml").exists()
+
+
+def test_cli_helm_render_uses_custom_chart_name(tmp_path: Path) -> None:
+    output_dir = tmp_path / "charts"
+
+    result = runner.invoke(
+        app,
+        [
+            "helm",
+            "render",
+            str(ROOT / "examples" / "demo-app.yaml"),
+            "--output",
+            str(output_dir),
+            "--chart-name",
+            "sample-chart",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert (output_dir / "sample-chart" / "Chart.yaml").exists()
+    assert "helm lint" in result.output
+    assert "sample-chart" in result.output
 
 
 def test_cli_render_validation_error_does_not_generate(tmp_path: Path) -> None:

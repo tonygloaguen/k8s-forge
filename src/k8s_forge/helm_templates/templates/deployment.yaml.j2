@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "[[ chart_name ]].fullname" . }}
+  labels:
+    {{- include "[[ chart_name ]].labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "[[ chart_name ]].selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "[[ chart_name ]].labels" . | nindent 8 }}
+    spec:
+      securityContext:
+        runAsNonRoot: {{ .Values.securityContext.pod.runAsNonRoot }}
+        runAsUser: {{ .Values.securityContext.pod.runAsUser }}
+      containers:
+        - name: {{ include "[[ chart_name ]].name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          {{- if or .Values.config (and .Values.secrets.enabled .Values.secrets.values) }}
+          envFrom:
+            {{- if .Values.config }}
+            - configMapRef:
+                name: {{ include "[[ chart_name ]].configMapName" . }}
+            {{- end }}
+            {{- if and .Values.secrets.enabled .Values.secrets.values }}
+            - secretRef:
+                name: {{ include "[[ chart_name ]].secretName" . }}
+            {{- end }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.probes.liveness }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.liveness | quote }}
+              port: {{ .Values.service.targetPort }}
+          {{- end }}
+          {{- if .Values.probes.readiness }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness | quote }}
+              port: {{ .Values.service.targetPort }}
+          {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: {{ .Values.securityContext.container.allowPrivilegeEscalation }}
+            readOnlyRootFilesystem: {{ .Values.securityContext.container.readOnlyRootFilesystem }}
+            {{- if .Values.securityContext.container.dropAllCapabilities }}
+            capabilities:
+              drop:
+                - ALL
+            {{- end }}

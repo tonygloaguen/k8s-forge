@@ -1,0 +1,27 @@
+{{- define "[[ chart_name ]].name" -}}
+[[ app_name ]]
+{{- end -}}
+
+{{- define "[[ chart_name ]].fullname" -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "[[ chart_name ]].labels" -}}
+app: "[[ app_name ]]"
+app.kubernetes.io/name: "[[ app_name ]]"
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end -}}
+
+{{- define "[[ chart_name ]].selectorLabels" -}}
+app: "[[ app_name ]]"
+app.kubernetes.io/name: "[[ app_name ]]"
+{{- end -}}
+
+{{- define "[[ chart_name ]].configMapName" -}}
+{{ include "[[ chart_name ]].fullname" . }}-config
+{{- end -}}
+
+{{- define "[[ chart_name ]].secretName" -}}
+{{ include "[[ chart_name ]].fullname" . }}-secret
+{{- end -}}

@@ -169,6 +169,23 @@ kubectl -n kube-system get deploy metrics-server
 If metrics-server is missing, install it manually when HPA metrics are required.
 `k8s-forge` only reports the condition; it does not install cluster add-ons.
 
+
+## Helm Chart Generation
+
+The raw `render`, `dry-run`, `diff`, and `apply` commands remain focused on
+plain Kubernetes YAML. For Module 2 Helm, generate a local chart from the same
+configuration:
+
+```bash
+k8s-forge helm render app.yaml --output charts/
+helm lint charts/demo-app
+helm template demo-app charts/demo-app -n demo-app
+```
+
+`k8s-forge` does not run Helm automatically. If raw resources were previously
+applied with `k8s-forge apply`, delete them or use a fresh namespace before
+installing the Helm release so Helm ownership metadata is clean.
+
 ## Complete Operational Scenario
 
 ```bash
@@ -370,3 +387,4 @@ permissions.
 - [Real app case study: weatherapi-platform](real-app-weatherapi.md)
 
 - [Module 2 Kubernetes raw workflow](module-2-kubernetes.md)
+- [Module 2 Helm workflow](module-2-helm.md)

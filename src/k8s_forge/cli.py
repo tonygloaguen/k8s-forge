@@ -17,6 +17,7 @@ from k8s_forge.exceptions import (
     LocalCommandError,
     RenderError,
 )
+from k8s_forge.helm_renderer import render_helm_chart
 from k8s_forge.kubectl import KubectlResult, run_kubectl
 from k8s_forge.local_cluster import (
     LocalCommandResult,
@@ -41,6 +42,7 @@ app = typer.Typer(
 console = Console()
 cluster_app = typer.Typer(help="Manage local kind clusters.")
 image_app = typer.Typer(help="Manage local images for kind clusters.")
+helm_app = typer.Typer(help="Generate local Helm charts.")
 
 
 class _QuotedString(str):
@@ -154,6 +156,16 @@ def _print_render_summary(paths: list[Path]) -> None:
     table.add_column("File")
     for path in paths:
         table.add_row(path.name)
+    console.print(table)
+
+
+def _print_helm_chart_summary(paths: list[Path]) -> None:
+    """Print generated Helm chart paths."""
+    table = Table(title="Generated Helm chart files")
+    table.add_column("File")
+    chart_dir = paths[0].parent if paths else Path(".")
+    for path in paths:
+        table.add_row(str(path.relative_to(chart_dir)))
     console.print(table)
 
 
@@ -884,5 +896,55 @@ def image_load(
     console.print(f"[green]Loaded {image} into kind cluster {cluster}.[/green]")
 
 
+@helm_app.command("render")
+def helm_render(
+    config_path: Annotated[Path, typer.Argument(help="Path to app.yaml.")],
+    output: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Output directory for charts."),
+    ] = Path("charts"),
+    chart_name: Annotated[
+        str | None,
+        typer.Option("--chart-name", help="Generated chart directory name."),
+    ] = None,
+) -> None:
+    """Render a local Helm chart from app.yaml."""
+    _print_step("Rendering a Helm chart from app.yaml...")
+    _print_hint(
+        "Helm packages Kubernetes manifests into a reusable and configurable chart."
+    )
+    _print_hint("This step does not contact the cluster and does not install anything.")
+    try:
+        loaded = load_app_config(config_path)
+        generated = render_helm_chart(loaded, output, chart_name)
+    except (ConfigLoadError, RenderError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    resolved_chart_name = chart_name or loaded.app.name
+    chart_dir = output / resolved_chart_name
+    console.print(f"[green]Helm chart generated in {chart_dir}.[/green]")
+    _print_helm_chart_summary(generated)
+    _print_warning(
+        "If raw Kubernetes resources already exist from k8s-forge apply, Helm "
+        "may refuse to import them because of ownership metadata."
+    )
+    _print_hint(
+        "For a clean lab migration, delete the raw resources first or use a "
+        "fresh namespace."
+    )
+    _print_hint("Next validation commands:")
+    _print_hint(f"  helm lint {chart_dir}")
+    _print_hint(
+        f"  helm template {resolved_chart_name} {chart_dir} -n {loaded.app.namespace}"
+    )
+    _print_hint(
+        "  helm upgrade --install "
+        f"{resolved_chart_name} {chart_dir} -n {loaded.app.namespace} "
+        "--create-namespace"
+    )
+
+
 app.add_typer(cluster_app, name="cluster")
 app.add_typer(image_app, name="image")
+app.add_typer(helm_app, name="helm")
