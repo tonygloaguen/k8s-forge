@@ -11,6 +11,15 @@ from k8s_forge.local_cluster import (
     wait_for_nodes_ready,
 )
 
+METRICS_SERVER_COMMAND = [
+    "kubectl",
+    "-n",
+    "kube-system",
+    "get",
+    "deploy",
+    "metrics-server",
+]
+
 
 def test_run_local_command_success(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, Any] = {}
@@ -68,6 +77,7 @@ def test_check_environment_reports_multiple_missing_tools(
     assert report.kubectl.status == "missing"
     assert report.current_context.status == "unavailable"
     assert report.nodes.status == "unavailable"
+    assert report.metrics_server.status == "unavailable"
     assert report.ready is False
 
 
@@ -105,3 +115,48 @@ def test_wait_for_nodes_ready_calls_kubectl_wait(
     ]
     assert captured["kwargs"]["shell"] is False
     assert captured["kwargs"]["timeout"] == 120
+
+
+def test_check_environment_reports_metrics_server_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        outputs = {
+            ("docker", "version"): "Docker",
+            ("kind", "version"): "kind",
+            ("kubectl", "version", "--client"): "kubectl",
+            ("kubectl", "config", "current-context"): "kind-devsecops",
+            ("kubectl", "get", "nodes"): "node Ready",
+            (
+                "kubectl",
+                "-n",
+                "kube-system",
+                "get",
+                "deploy",
+                "metrics-server",
+            ): "metrics-server",
+        }
+        return subprocess.CompletedProcess(command, 0, outputs[tuple(command)], "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.metrics_server.status == "OK"
+    assert report.metrics_server.details == "metrics-server"
+
+
+def test_check_environment_reports_metrics_server_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == METRICS_SERVER_COMMAND:
+            return subprocess.CompletedProcess(command, 1, "", "not found")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.metrics_server.status == "error"
+    assert report.metrics_server.details == "not found"

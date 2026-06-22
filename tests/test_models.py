@@ -37,6 +37,12 @@ def _valid_config(name: str = "demo-app") -> dict[str, object]:
             "liveness": "/healthz",
             "readiness": "/readyz",
         },
+        "autoscaling": {
+            "enabled": False,
+            "minReplicas": 2,
+            "maxReplicas": 6,
+            "targetCPUUtilizationPercentage": 70,
+        },
         "ingress": {
             "enabled": False,
             "host": "demo.local",
@@ -116,3 +122,66 @@ def test_config_and_secrets_can_be_empty() -> None:
 
     assert config.config == {}
     assert config.secrets == {}
+
+
+def test_autoscaling_defaults_when_section_absent() -> None:
+    config_data = _valid_config()
+    del config_data["autoscaling"]
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.autoscaling.enabled is False
+    assert config.autoscaling.minReplicas == 2
+    assert config.autoscaling.maxReplicas == 6
+    assert config.autoscaling.targetCPUUtilizationPercentage == 70
+
+
+def test_autoscaling_enabled_config_is_valid() -> None:
+    config_data = _valid_config()
+    autoscaling = config_data["autoscaling"]
+    assert isinstance(autoscaling, dict)
+    autoscaling["enabled"] = True
+    autoscaling["minReplicas"] = 2
+    autoscaling["maxReplicas"] = 5
+    autoscaling["targetCPUUtilizationPercentage"] = 60
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.autoscaling.enabled is True
+    assert config.autoscaling.minReplicas == 2
+    assert config.autoscaling.maxReplicas == 5
+    assert config.autoscaling.targetCPUUtilizationPercentage == 60
+
+
+def test_autoscaling_rejects_zero_min_replicas() -> None:
+    config_data = _valid_config()
+    autoscaling = config_data["autoscaling"]
+    assert isinstance(autoscaling, dict)
+    autoscaling["enabled"] = True
+    autoscaling["minReplicas"] = 0
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_autoscaling_rejects_max_below_min() -> None:
+    config_data = _valid_config()
+    autoscaling = config_data["autoscaling"]
+    assert isinstance(autoscaling, dict)
+    autoscaling["enabled"] = True
+    autoscaling["minReplicas"] = 4
+    autoscaling["maxReplicas"] = 3
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_autoscaling_rejects_invalid_cpu_target() -> None:
+    config_data = _valid_config()
+    autoscaling = config_data["autoscaling"]
+    assert isinstance(autoscaling, dict)
+    autoscaling["enabled"] = True
+    autoscaling["targetCPUUtilizationPercentage"] = 101
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)

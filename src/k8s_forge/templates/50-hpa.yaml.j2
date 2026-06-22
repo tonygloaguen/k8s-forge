@@ -1,0 +1,22 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ app.name | tojson }}
+  namespace: {{ app.namespace | tojson }}
+  labels:
+    app: {{ app.name | tojson }}
+    app.kubernetes.io/managed-by: k8s-forge
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ app.name | tojson }}
+  minReplicas: {{ autoscaling.minReplicas }}
+  maxReplicas: {{ autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ autoscaling.targetCPUUtilizationPercentage }}

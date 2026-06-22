@@ -42,6 +42,7 @@ class DoctorReport:
     kubectl: ToolCheck
     current_context: ToolCheck
     nodes: ToolCheck
+    metrics_server: ToolCheck
 
     @property
     def ready(self) -> bool:
@@ -122,13 +123,21 @@ def check_environment(timeout: int = 30) -> DoctorReport:
             "current context", ["kubectl", "config", "current-context"], timeout
         )
         nodes = check_command("nodes", ["kubectl", "get", "nodes"], timeout)
+        metrics_server = check_command(
+            "metrics-server",
+            ["kubectl", "-n", "kube-system", "get", "deploy", "metrics-server"],
+            timeout,
+        )
     else:
         current_context = ToolCheck(
             "current context", "unavailable", "kubectl is not available"
         )
         nodes = ToolCheck("nodes", "unavailable", "kubectl is not available")
+        metrics_server = ToolCheck(
+            "metrics-server", "unavailable", "kubectl is not available"
+        )
 
-    return DoctorReport(docker, kind, kubectl, current_context, nodes)
+    return DoctorReport(docker, kind, kubectl, current_context, nodes, metrics_server)
 
 
 def get_kind_clusters(timeout: int = 30) -> list[str]:

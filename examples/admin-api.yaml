@@ -3,7 +3,7 @@ app:
   namespace: admin
   image: ghcr.io/example/admin-api:2.1.0
   containerPort: 8080
-  replicas: 1
+  replicas: 2
 
 config:
   APP_ENV: "staging"
@@ -29,6 +29,12 @@ resources:
 probes:
   liveness: "/live"
   readiness: "/ready"
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
 
 ingress:
   enabled: false

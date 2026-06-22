@@ -1,6 +1,6 @@
 """Pydantic models for application configuration."""
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
 
 
 class AppSpec(BaseModel):
@@ -51,6 +51,25 @@ class ProbesConfig(BaseModel):
     readiness: str | None = None
 
 
+class AutoscalingConfig(BaseModel):
+    """Horizontal Pod Autoscaler configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = False
+    minReplicas: int = Field(default=2, ge=1)
+    maxReplicas: int = Field(default=6, ge=1)
+    targetCPUUtilizationPercentage: int = Field(default=70, ge=1, le=100)
+
+    @model_validator(mode="after")
+    def validate_replica_bounds(self) -> "AutoscalingConfig":
+        """Ensure HPA maximum replicas is not lower than minimum replicas."""
+        if self.maxReplicas < self.minReplicas:
+            msg = "maxReplicas must be greater than or equal to minReplicas"
+            raise ValueError(msg)
+        return self
+
+
 class IngressConfig(BaseModel):
     """Ingress configuration reserved for a future renderer."""
 
@@ -71,4 +90,5 @@ class AppConfig(BaseModel):
     service: ServiceConfig = Field(default_factory=ServiceConfig)
     resources: ResourcesConfig = Field(default_factory=ResourcesConfig)
     probes: ProbesConfig = Field(default_factory=ProbesConfig)
+    autoscaling: AutoscalingConfig = Field(default_factory=AutoscalingConfig)
     ingress: IngressConfig = Field(default_factory=IngressConfig)

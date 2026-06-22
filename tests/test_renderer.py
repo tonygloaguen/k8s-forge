@@ -62,6 +62,7 @@ def test_render_generates_expected_files_for_admin_api(tmp_path: Path) -> None:
         "20-secret.yaml",
         "30-deployment.yaml",
         "40-service.yaml",
+        "50-hpa.yaml",
     ]
 
 
@@ -184,3 +185,80 @@ def test_renderer_does_not_delete_user_files(tmp_path: Path) -> None:
     _render_example("demo-app.yaml", tmp_path)
 
     assert user_file.read_text(encoding="utf-8") == "keep me"
+
+
+def test_hpa_absent_when_autoscaling_disabled(tmp_path: Path) -> None:
+    config_data = _base_config()
+    config_data["autoscaling"] = {
+        "enabled": False,
+        "minReplicas": 2,
+        "maxReplicas": 6,
+        "targetCPUUtilizationPercentage": 70,
+    }
+    config = AppConfig.model_validate(config_data)
+
+    render_manifests(config, tmp_path)
+
+    assert not (tmp_path / "50-hpa.yaml").exists()
+
+
+def test_hpa_generated_when_autoscaling_enabled(tmp_path: Path) -> None:
+    config_data = _base_config()
+    config_data["autoscaling"] = {
+        "enabled": True,
+        "minReplicas": 2,
+        "maxReplicas": 6,
+        "targetCPUUtilizationPercentage": 70,
+    }
+    config = AppConfig.model_validate(config_data)
+
+    generated = render_manifests(config, tmp_path)
+
+    assert "50-hpa.yaml" in [path.name for path in generated]
+    assert (tmp_path / "50-hpa.yaml").exists()
+
+
+def test_hpa_yaml_targets_deployment_and_namespace(tmp_path: Path) -> None:
+    _render_example("admin-api.yaml", tmp_path)
+
+    hpa = _load_yaml(tmp_path / "50-hpa.yaml")
+
+    assert hpa["apiVersion"] == "autoscaling/v2"
+    assert hpa["kind"] == "HorizontalPodAutoscaler"
+    assert hpa["metadata"]["name"] == "admin-api"
+    assert hpa["metadata"]["namespace"] == "admin"
+    assert hpa["spec"]["scaleTargetRef"] == {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "name": "admin-api",
+    }
+
+
+def test_hpa_labels_match_status_selector(tmp_path: Path) -> None:
+    _render_example("admin-api.yaml", tmp_path)
+
+    hpa = _load_yaml(tmp_path / "50-hpa.yaml")
+    labels = hpa["metadata"]["labels"]
+
+    assert labels["app"] == "admin-api"
+    assert labels["app.kubernetes.io/managed-by"] == "k8s-forge"
+
+
+def test_hpa_values_come_from_config(tmp_path: Path) -> None:
+    _render_example("admin-api.yaml", tmp_path)
+
+    hpa = _load_yaml(tmp_path / "50-hpa.yaml")
+
+    assert hpa["spec"]["minReplicas"] == 2
+    assert hpa["spec"]["maxReplicas"] == 6
+    metric = hpa["spec"]["metrics"][0]
+    assert metric["resource"]["target"]["averageUtilization"] == 70
+
+
+def test_renderer_cleans_previous_hpa_file_when_disabled(tmp_path: Path) -> None:
+    hpa_file = tmp_path / "50-hpa.yaml"
+    hpa_file.write_text("old hpa", encoding="utf-8")
+
+    _render_example("demo-app.yaml", tmp_path)
+
+    assert not hpa_file.exists()

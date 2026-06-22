@@ -11,6 +11,14 @@ from k8s_forge.kubectl import KubectlResult
 
 runner = CliRunner()
 ROOT = Path(__file__).resolve().parents[1]
+METRICS_SERVER_COMMAND = [
+    "kubectl",
+    "-n",
+    "kube-system",
+    "get",
+    "deploy",
+    "metrics-server",
+]
 
 
 def test_cli_help_responds() -> None:
@@ -84,6 +92,61 @@ def test_cli_init_options_override_defaults(
     assert config.app.containerPort == 8080
     assert config.app.replicas == 1
     assert config.service.port == 8081
+
+
+def test_cli_init_hpa_options_generate_autoscaling(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(
+        app,
+        [
+            "init",
+            "weatherapi",
+            "--image",
+            "weatherapi:0.1.0",
+            "--namespace",
+            "weather",
+            "--port",
+            "8000",
+            "--replicas",
+            "2",
+            "--hpa",
+            "--hpa-min",
+            "2",
+            "--hpa-max",
+            "6",
+            "--hpa-cpu",
+            "70",
+            "--output",
+            "k8s-forge-app.yaml",
+        ],
+    )
+
+    assert result.exit_code == 0
+    config = load_app_config(Path("k8s-forge-app.yaml"))
+    assert config.autoscaling.enabled is True
+    assert config.autoscaling.minReplicas == 2
+    assert config.autoscaling.maxReplicas == 6
+    assert config.autoscaling.targetCPUUtilizationPercentage == 70
+    text = Path("k8s-forge-app.yaml").read_text(encoding="utf-8")
+    assert "autoscaling:" in text
+    assert "enabled: true" in text
+
+
+def test_cli_init_hpa_warns_when_replicas_below_min(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(
+        app,
+        ["init", "demo-app", "--hpa", "--replicas", "1", "--hpa-min", "2"],
+    )
+
+    assert result.exit_code == 0
+    assert "app.replicas is lower than autoscaling.minReplicas" in result.output
 
 
 def test_cli_init_custom_output_path(
@@ -194,6 +257,24 @@ def test_cli_render_success(tmp_path: Path) -> None:
     assert "00-namespace.yaml" in result.output
     assert "40-service.yaml" in result.output
     assert (output_dir / "30-deployment.yaml").exists()
+
+
+def test_cli_render_lists_hpa_when_autoscaling_enabled(tmp_path: Path) -> None:
+    output_dir = tmp_path / "generated"
+
+    result = runner.invoke(
+        app,
+        [
+            "render",
+            str(ROOT / "examples" / "admin-api.yaml"),
+            "--output",
+            str(output_dir),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "50-hpa.yaml" in result.output
+    assert (output_dir / "50-hpa.yaml").exists()
 
 
 def test_cli_render_validation_error_does_not_generate(tmp_path: Path) -> None:
@@ -460,8 +541,73 @@ def test_cli_status_calls_kubectl(monkeypatch: pytest.MonkeyPatch) -> None:
     result = runner.invoke(app, ["status", "demo-app", "-n", "demo", "--timeout", "9"])
 
     assert result.exit_code == 0
-    assert calls == [(["-n", "demo", "get", "deploy,po,svc", "-l", "app=demo-app"], 9)]
+    assert calls == [
+        (["-n", "demo", "get", "deploy,po,svc", "-l", "app=demo-app"], 9),
+        (["-n", "demo", "get", "hpa", "-l", "app=demo-app"], 9),
+    ]
     assert "status output" in result.output
+
+
+def test_cli_status_reports_no_hpa_without_hiding_workloads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run_kubectl(args: list[str], timeout: int = 30) -> KubectlResult:
+        if args == ["-n", "demo", "get", "deploy,po,svc", "-l", "app=demo-app"]:
+            return KubectlResult(["kubectl", *args], 0, "deploy/demo-app ready", "")
+        return KubectlResult(
+            ["kubectl", *args],
+            0,
+            "No resources found in demo namespace.",
+            "",
+        )
+
+    monkeypatch.setattr("k8s_forge.cli.run_kubectl", fake_run_kubectl)
+
+    result = runner.invoke(app, ["status", "demo-app", "-n", "demo"])
+
+    assert result.exit_code == 0
+    assert "deploy/demo-app ready" in result.output
+    assert "No HPA found for app demo-app" in result.output
+
+
+def test_cli_status_prints_hpa_unknown_metrics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run_kubectl(args: list[str], timeout: int = 30) -> KubectlResult:
+        if args == ["-n", "demo", "get", "deploy,po,svc", "-l", "app=demo-app"]:
+            return KubectlResult(["kubectl", *args], 0, "pod/demo-app Running", "")
+        return KubectlResult(
+            ["kubectl", *args],
+            0,
+            "NAME REFERENCE TARGETS MINPODS MAXPODS REPLICAS AGE\n"
+            "demo-app Deployment/demo-app <unknown>/70% 2 6 2 1m",
+            "",
+        )
+
+    monkeypatch.setattr("k8s_forge.cli.run_kubectl", fake_run_kubectl)
+
+    result = runner.invoke(app, ["status", "demo-app", "-n", "demo"])
+
+    assert result.exit_code == 0
+    assert "<unknown>/70%" in result.output
+    assert "No HPA found" not in result.output
+
+
+def test_cli_status_hpa_error_is_not_silently_ignored(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run_kubectl(args: list[str], timeout: int = 30) -> KubectlResult:
+        if args == ["-n", "demo", "get", "deploy,po,svc", "-l", "app=demo-app"]:
+            return KubectlResult(["kubectl", *args], 0, "pod/demo-app Running", "")
+        return KubectlResult(["kubectl", *args], 2, "", "hpa forbidden")
+
+    monkeypatch.setattr("k8s_forge.cli.run_kubectl", fake_run_kubectl)
+
+    result = runner.invoke(app, ["status", "demo-app", "-n", "demo"])
+
+    assert result.exit_code == 2
+    assert "pod/demo-app Running" in result.output
+    assert "hpa forbidden" in result.output
 
 
 def test_cli_dry_run_missing_kubectl_reports_clear_error(
@@ -629,6 +775,14 @@ def test_cli_doctor_all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
             ("kubectl", "version", "--client"): "Client Version",
             ("kubectl", "config", "current-context"): "kind-devsecops",
             ("kubectl", "get", "nodes"): "node Ready",
+            (
+                "kubectl",
+                "-n",
+                "kube-system",
+                "get",
+                "deploy",
+                "metrics-server",
+            ): "metrics-server available",
         }
         return subprocess.CompletedProcess(command, 0, outputs[tuple(command)], "")
 
@@ -642,6 +796,7 @@ def test_cli_doctor_all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "kubectl" in result.output
     assert "kind-devsecops" in result.output
     assert "Ready for local kind workflows" in result.output
+    assert "metrics-server available" in result.output
 
 
 def test_cli_doctor_docker_absent(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -703,6 +858,37 @@ def test_cli_doctor_multiple_tools_absent(monkeypatch: pytest.MonkeyPatch) -> No
     assert result.exit_code == 0
     assert result.output.count("missing") >= 3
     assert "Missing or failing prerequisites" in result.output
+
+
+def test_cli_doctor_metrics_server_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == METRICS_SERVER_COMMAND:
+            return subprocess.CompletedProcess(command, 1, "", "not found")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "metrics-server" in result.output
+    assert "metrics-server not found" in result.output
+    assert "HPA CPU metrics may stay <unknown>" in result.output
+
+
+def test_cli_doctor_metrics_server_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == METRICS_SERVER_COMMAND:
+            return subprocess.CompletedProcess(command, 2, "", "api unavailable")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "api unavailable" in result.output
+    assert "HPA CPU metrics may stay <unknown>" in result.output
 
 
 def test_cli_cluster_create_calls_kind_create(monkeypatch: pytest.MonkeyPatch) -> None:

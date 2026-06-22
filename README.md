@@ -35,12 +35,11 @@ Included:
 - `doctor`
 - `cluster create`, `cluster status`, `cluster delete` for kind
 - `image load` for loading local Docker images into kind
-- generation of Namespace, ConfigMap, Secret, Deployment, and Service
+- generation of Namespace, ConfigMap, Secret, Deployment, Service, and optional HorizontalPodAutoscaler
 
 Out of scope:
 
 - Ingress
-- HPA
 - NetworkPolicy
 - Helm
 - Kustomize
@@ -107,6 +106,7 @@ generated/10-configmap.yaml
 generated/20-secret.yaml
 generated/30-deployment.yaml
 generated/40-service.yaml
+generated/50-hpa.yaml        # only when autoscaling.enabled is true
 ```
 
 Optional resources are generated only when enabled by `app.yaml`:
@@ -114,6 +114,7 @@ Optional resources are generated only when enabled by `app.yaml`:
 - ConfigMap is rendered only when `config` is non-empty.
 - Secret is rendered only when `secrets` is non-empty.
 - Service is rendered only when `service.enabled` is `true`.
+- HorizontalPodAutoscaler is rendered only when `autoscaling.enabled` is `true`.
 
 Known generated files are overwritten on each render. Files with other names in
 the output directory are left untouched.
@@ -151,6 +152,7 @@ examples and tests.
 - [Debian/Ubuntu installation](docs/debian-install.md)
 - [Configuration reference](docs/config-reference.md)
 - [Operational workflow](docs/operations.md)
+- [Module 2 Kubernetes raw workflow](docs/module-2-kubernetes.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Real app case study: weatherapi-platform](docs/real-app-weatherapi.md)
 - [Design notes](docs/design.md)

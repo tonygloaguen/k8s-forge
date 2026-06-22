@@ -28,13 +28,14 @@ will render standard YAML manifests. The full configuration reference lives in
 
 ## MVP Resources
 
-The planned MVP render target is:
+The current raw Kubernetes render target is:
 
 - Namespace
 - ConfigMap
 - Secret
 - Deployment
 - Service
+- optional HorizontalPodAutoscaler
 
-Ingress, HPA, NetworkPolicy, Helm, Kustomize, and direct Kubernetes API usage
-are outside the initial MVP.
+Ingress, NetworkPolicy, Helm, Kustomize, and direct Kubernetes API usage remain
+outside the current scope.

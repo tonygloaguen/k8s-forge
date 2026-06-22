@@ -64,6 +64,12 @@ Kubernetes or Helm assets. Use a dedicated config such as `k8s-forge-app.yaml`
 and render into a dedicated directory such as `generated-k8s-forge/`. See
 [real-app-weatherapi.md](real-app-weatherapi.md) for a tested FastAPI example.
 
+## Module 2 Kubernetes
+
+For the raw Kubernetes training workflow with multiple replicas, HPA,
+metrics-server notes, and Pod reconciliation, read
+[module-2-kubernetes.md](module-2-kubernetes.md).
+
 ## Next Step: Operational Workflow
 
 After generating and validating `app.yaml`, read [operations.md](operations.md)
@@ -77,6 +83,7 @@ real Kubernetes cluster.
 - [Real app case study](real-app-weatherapi.md)
 - [Configuration reference](config-reference.md)
 - [Operational workflow](operations.md)
+- [Module 2 Kubernetes raw workflow](module-2-kubernetes.md)
 - [Design notes](design.md)
 
 ## Local Release Check

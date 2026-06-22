@@ -15,6 +15,8 @@ on a Debian VM with a local kind cluster.
 | `kind cluster devsecops already exists; skipping create.` | The requested kind cluster already exists. | No action is required. `cluster create` is idempotent and does not recreate an existing cluster. | `kind get clusters` |
 | `namespace/weather created (server dry run)` followed by `namespaces "weather" not found` during `dry-run` | Server-side dry-run simulates namespace creation but does not persist it before validating namespaced resources. | `k8s-forge` now warns before dry-run when the namespace is missing. Create the namespace once with `kubectl create namespace weather`, then rerun `k8s-forge dry-run k8s-forge-app.yaml --output generated-k8s-forge/`. | `kubectl get namespace weather` |
 | `missing the kubectl.kubernetes.io/last-applied-configuration annotation` | The namespace was created manually instead of through `kubectl apply`, so it lacks the last-applied annotation. | This warning is non-blocking. `kubectl apply` will patch the annotation automatically. | Rerun `k8s-forge apply ...` and inspect the output. |
+| `<unknown>` in HPA `TARGETS` | metrics-server is absent, not ready, or cannot scrape metrics. | Check metrics-server and install it manually for kind if HPA CPU metrics are required. | `kubectl -n kube-system get deploy metrics-server` |
+| Only one Pod appears when Module 2 expects multiple Pods | `app.replicas` is still `1`, or HPA min replicas is not configured. | Set `app.replicas: 2` and, if HPA is enabled, `autoscaling.minReplicas: 2`. | `kubectl -n <namespace> get deploy,pods,hpa` |
 
 ## General Debugging Commands
 

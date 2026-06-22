@@ -72,6 +72,36 @@ def _service_state(config: AppConfig) -> str:
     return "disabled"
 
 
+def _autoscaling_state(config: AppConfig) -> str:
+    if not config.autoscaling.enabled:
+        return "disabled"
+    return (
+        "enabled "
+        f"min={config.autoscaling.minReplicas} "
+        f"max={config.autoscaling.maxReplicas} "
+        f"cpu={config.autoscaling.targetCPUUtilizationPercentage}%"
+    )
+
+
+def _autoscaling_warning(config: AppConfig) -> str | None:
+    if (
+        config.autoscaling.enabled
+        and config.app.replicas < config.autoscaling.minReplicas
+    ):
+        return (
+            "autoscaling is enabled but app.replicas is lower than "
+            "autoscaling.minReplicas; Kubernetes may scale from the HPA minimum "
+            "after the HorizontalPodAutoscaler is active."
+        )
+    return None
+
+
+def _print_autoscaling_warning(config: AppConfig) -> None:
+    warning = _autoscaling_warning(config)
+    if warning:
+        console.print(f"[yellow]{warning}[/yellow]")
+
+
 def _print_check_summary(config: AppConfig) -> None:
     """Print a concise validation summary."""
     table = Table(title="Application configuration")
@@ -83,6 +113,7 @@ def _print_check_summary(config: AppConfig) -> None:
     table.add_row("replicas", str(config.app.replicas))
     table.add_row("container port", str(config.app.containerPort))
     table.add_row("service", _service_state(config))
+    table.add_row("autoscaling", _autoscaling_state(config))
     console.print(table)
 
 
@@ -102,6 +133,10 @@ def _starter_config_data(
     port: int,
     replicas: int,
     service_port: int,
+    hpa_enabled: bool,
+    hpa_min: int,
+    hpa_max: int,
+    hpa_cpu: int,
 ) -> dict[str, Any]:
     app_namespace = namespace or name
     app_image = image or f"{name}:latest"
@@ -138,6 +173,12 @@ def _starter_config_data(
             "liveness": _QuotedString("/healthz"),
             "readiness": _QuotedString("/readyz"),
         },
+        "autoscaling": {
+            "enabled": hpa_enabled,
+            "minReplicas": hpa_min,
+            "maxReplicas": hpa_max,
+            "targetCPUUtilizationPercentage": hpa_cpu,
+        },
         "ingress": {
             "enabled": False,
             "host": None,
@@ -158,6 +199,13 @@ def _starter_config_yaml(data: dict[str, Any]) -> str:
 def _load_and_render(config_path: Path, output: Path) -> list[Path]:
     loaded = load_app_config(config_path)
     return render_manifests(loaded, output)
+
+
+def _load_config_and_render(
+    config_path: Path, output: Path
+) -> tuple[AppConfig, list[Path]]:
+    loaded = load_app_config(config_path)
+    return loaded, render_manifests(loaded, output)
 
 
 def _print_kubectl_result(result: KubectlResult) -> None:
@@ -334,6 +382,22 @@ def init(
         int,
         typer.Option("--service-port", help="Service port."),
     ] = 80,
+    hpa: Annotated[
+        bool,
+        typer.Option("--hpa", help="Enable Horizontal Pod Autoscaler."),
+    ] = False,
+    hpa_min: Annotated[
+        int,
+        typer.Option("--hpa-min", help="HPA minimum replicas."),
+    ] = 2,
+    hpa_max: Annotated[
+        int,
+        typer.Option("--hpa-max", help="HPA maximum replicas."),
+    ] = 6,
+    hpa_cpu: Annotated[
+        int,
+        typer.Option("--hpa-cpu", help="HPA target CPU utilization percentage."),
+    ] = 70,
     output: Annotated[
         Path,
         typer.Option("--output", "-o", help="Output app.yaml path."),
@@ -348,15 +412,27 @@ def init(
         console.print("[red]file already exists, use --force to overwrite[/red]")
         raise typer.Exit(code=1)
 
-    data = _starter_config_data(name, namespace, image, port, replicas, service_port)
+    data = _starter_config_data(
+        name,
+        namespace,
+        image,
+        port,
+        replicas,
+        service_port,
+        hpa,
+        hpa_min,
+        hpa_max,
+        hpa_cpu,
+    )
     try:
-        AppConfig.model_validate(data)
+        generated_config = AppConfig.model_validate(data)
     except ValidationError as exc:
         console.print(f"[red]Generated configuration is invalid: {exc}[/red]")
         raise typer.Exit(code=1) from exc
 
     if output.parent != Path(""):
         output.parent.mkdir(parents=True, exist_ok=True)
+    _print_autoscaling_warning(generated_config)
     output.write_text(_starter_config_yaml(data), encoding="utf-8")
     console.print(f"[green]created {output}[/green]")
 
@@ -374,6 +450,7 @@ def check(
 
     console.print("[green]configuration is valid[/green]")
     _print_check_summary(loaded)
+    _print_autoscaling_warning(loaded)
 
 
 @app.command()
@@ -386,11 +463,12 @@ def render(
 ) -> None:
     """Render Kubernetes manifests."""
     try:
-        generated = _load_and_render(config_path, output)
+        loaded, generated = _load_config_and_render(config_path, output)
     except (ConfigLoadError, RenderError) as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
 
+    _print_autoscaling_warning(loaded)
     console.print("[green]manifests generated[/green]")
     _print_render_summary(generated)
 
@@ -409,13 +487,13 @@ def dry_run(
 ) -> None:
     """Render manifests and run kubectl server-side dry-run."""
     try:
-        loaded = load_app_config(config_path)
-        generated = render_manifests(loaded, output)
+        loaded, generated = _load_config_and_render(config_path, output)
     except (ConfigLoadError, RenderError) as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
 
     _print_render_summary(generated)
+    _print_autoscaling_warning(loaded)
     _warn_if_namespace_missing(loaded.app.namespace, timeout)
 
     try:
@@ -448,12 +526,13 @@ def diff(
 ) -> None:
     """Render manifests and run kubectl diff."""
     try:
-        generated = _load_and_render(config_path, output)
+        loaded, generated = _load_config_and_render(config_path, output)
     except (ConfigLoadError, RenderError) as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
 
     _print_render_summary(generated)
+    _print_autoscaling_warning(loaded)
     result = _run_kubectl_or_exit(["diff", "-f", str(output)], timeout, (0, 1))
     if result.returncode == 1:
         console.print("[yellow]kubectl diff found changes[/yellow]")
@@ -477,12 +556,13 @@ def apply(
 ) -> None:
     """Render manifests and run controlled kubectl apply."""
     try:
-        generated = _load_and_render(config_path, output)
+        loaded, generated = _load_config_and_render(config_path, output)
     except (ConfigLoadError, RenderError) as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
 
     _print_render_summary(generated)
+    _print_autoscaling_warning(loaded)
     console.print(
         "[yellow]This will apply manifests to the current Kubernetes context.[/yellow]"
     )
@@ -511,6 +591,14 @@ def status(
         timeout,
     )
 
+    hpa_result = _run_kubectl_or_exit(
+        ["-n", namespace, "get", "hpa", "-l", f"app={name}"],
+        timeout,
+    )
+    combined = f"{hpa_result.stdout}\n{hpa_result.stderr}".strip().lower()
+    if not combined or "no resources found" in combined:
+        console.print(f"[yellow]No HPA found for app {name}[/yellow]")
+
 
 @app.command()
 def doctor(
@@ -528,8 +616,16 @@ def doctor(
             report.kubectl,
             report.current_context,
             report.nodes,
+            report.metrics_server,
         ]
     )
+    if report.metrics_server.status == "OK":
+        console.print("[green]metrics-server available[/green]")
+    else:
+        console.print(
+            "[yellow]metrics-server not found; HPA CPU metrics may stay "
+            "<unknown> on kind until metrics-server is installed.[/yellow]"
+        )
     if report.ready:
         console.print("[green]Ready for local kind workflows.[/green]")
     else:

@@ -31,6 +31,7 @@ GENERATED_FILENAMES = (
     "20-secret.yaml",
     "30-deployment.yaml",
     "40-service.yaml",
+    "50-hpa.yaml",
 )
 
 
@@ -97,6 +98,7 @@ def _context(config: AppConfig) -> dict[str, Any]:
         "resources": _resources(config),
         "env_from": _env_from(config),
         "probes": config.probes,
+        "autoscaling": config.autoscaling,
     }
 
 
@@ -118,6 +120,11 @@ def _template_specs(config: AppConfig) -> list[TemplateSpec]:
             "40-service.yaml.j2",
             "40-service.yaml",
             enabled=config.service.enabled,
+        ),
+        TemplateSpec(
+            "50-hpa.yaml.j2",
+            "50-hpa.yaml",
+            enabled=config.autoscaling.enabled,
         ),
     ]
 

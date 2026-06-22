@@ -28,6 +28,12 @@ probes:
   liveness: "/healthz"
   readiness: "/readyz"
 
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
 ingress:
   enabled: false
   host: demo.local

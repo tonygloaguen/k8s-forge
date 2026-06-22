@@ -16,6 +16,8 @@ Application details:
 - image: `weatherapi:0.1.0`
 - Kubernetes namespace: `weather`
 - application port: `8000`
+- Module 2 replicas: `2`
+- HPA range: `2` to `6` Pods at `70%` CPU target
 - Kubernetes Service port: `80`
 - tested endpoint: `/weather`
 
@@ -84,7 +86,11 @@ k8s-forge init weatherapi \
   --image weatherapi:0.1.0 \
   --namespace weather \
   --port 8000 \
-  --replicas 1 \
+  --replicas 2 \
+  --hpa \
+  --hpa-min 2 \
+  --hpa-max 6 \
+  --hpa-cpu 70 \
   --output k8s-forge-app.yaml \
   --force
 ```
@@ -184,3 +190,33 @@ k8s-forge dry-run k8s-forge-app.yaml --output generated-k8s-forge/
 After manually creating the namespace, `kubectl apply` may warn about a missing
 `kubectl.kubernetes.io/last-applied-configuration` annotation. This warning is
 not blocking; `kubectl apply` patches the annotation automatically.
+
+
+## Module 2 Validation
+
+For the Module 2 Kubernetes raw validation, use two replicas and HPA enabled:
+
+```bash
+k8s-forge check k8s-forge-app.yaml
+k8s-forge render k8s-forge-app.yaml --output generated-k8s-forge/
+kubectl create namespace weather --dry-run=client -o yaml | kubectl apply -f -
+k8s-forge dry-run k8s-forge-app.yaml --output generated-k8s-forge/
+k8s-forge apply k8s-forge-app.yaml --output generated-k8s-forge/
+k8s-forge status weatherapi -n weather
+
+kubectl -n weather get deploy,rs,pods,svc,hpa
+kubectl -n weather rollout status deploy/weatherapi
+```
+
+Test Kubernetes reconciliation by deleting one Pod:
+
+```bash
+POD=$(kubectl -n weather get pod -l app=weatherapi -o jsonpath='{.items[0].metadata.name}')
+kubectl -n weather delete pod "$POD"
+kubectl -n weather get pods -w
+```
+
+The Service should remain stable while the Deployment creates a replacement Pod.
+
+HPA CPU metrics require metrics-server. Without it, `kubectl -n weather get hpa`
+may show `<unknown>`, even though the HPA manifest was rendered and applied.

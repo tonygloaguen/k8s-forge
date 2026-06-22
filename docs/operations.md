@@ -142,10 +142,25 @@ k8s-forge status demo-app -n demo
 ```
 
 This command runs a `kubectl get` query filtered by the application label. It
-shows related Deployments, Pods, and Services for the selected namespace.
+shows related Deployments, Pods, and Services for the selected namespace. It also queries HPA resources separately so missing HPA output does not hide workload status.
 
 Use it to confirm that the application is visible in Kubernetes after applying
 manifests.
+
+## HPA And metrics-server
+
+When `autoscaling.enabled` is `true`, `render` writes `50-hpa.yaml` for an
+`autoscaling/v2` HorizontalPodAutoscaler. The HPA can be applied without
+metrics-server, but CPU targets may show `<unknown>` until metrics are available.
+
+`k8s-forge doctor` checks:
+
+```bash
+kubectl -n kube-system get deploy metrics-server
+```
+
+If metrics-server is missing, install it manually when HPA metrics are required.
+`k8s-forge` only reports the condition; it does not install cluster add-ons.
 
 ## Complete Operational Scenario
 
@@ -266,6 +281,21 @@ an error, or take too long to respond.
 Correction: update `app.yaml` to use real endpoints or implement the endpoints
 in the application.
 
+### HPA shows `<unknown>`
+
+Cause: metrics-server is missing, not ready, or cannot scrape node metrics. This
+is common on fresh kind clusters.
+
+Diagnostic:
+
+```bash
+kubectl -n kube-system get deploy metrics-server
+kubectl -n <namespace> get hpa
+```
+
+Correction: install and configure metrics-server manually for kind when CPU HPA
+metrics are required. See [module-2-kubernetes.md](module-2-kubernetes.md).
+
 ### Manual Namespace creation before dry-run
 
 Cause: server-side dry-run does not persist a Namespace created earlier in the
@@ -331,3 +361,5 @@ permissions.
 - [Debian/Ubuntu installation](debian-install.md)
 - [Troubleshooting](troubleshooting.md)
 - [Real app case study: weatherapi-platform](real-app-weatherapi.md)
+
+- [Module 2 Kubernetes raw workflow](module-2-kubernetes.md)
