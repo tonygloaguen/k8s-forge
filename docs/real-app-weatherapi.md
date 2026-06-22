@@ -7,6 +7,13 @@ This is a field report, not a new feature. The implementation remains generic:
 `weatherapi-platform` and `weatherapi` are real-world example values used only
 in this document.
 
+## Pedagogical CLI Output
+
+When replaying this workflow, expect `k8s-forge` to print explanatory messages
+before validation, rendering, dry-run, apply, status, and metrics-server checks.
+They are intended to make the Kubernetes control loop, Service stability, and
+HPA behavior easier to inspect during the TP.
+
 ## Validated Environment
 
 Application details:

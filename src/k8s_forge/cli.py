@@ -66,6 +66,18 @@ def _version_callback(value: bool) -> None:
         raise typer.Exit
 
 
+def _print_step(message: str) -> None:
+    console.print(f"[bold]{message}[/bold]")
+
+
+def _print_hint(message: str) -> None:
+    console.print(message)
+
+
+def _print_warning(message: str) -> None:
+    console.print(f"[yellow]{message}[/yellow]")
+
+
 def _service_state(config: AppConfig) -> str:
     if config.service.enabled:
         return f"enabled on port {config.service.port}"
@@ -89,9 +101,9 @@ def _autoscaling_warning(config: AppConfig) -> str | None:
         and config.app.replicas < config.autoscaling.minReplicas
     ):
         return (
-            "autoscaling is enabled but app.replicas is lower than "
-            "autoscaling.minReplicas; Kubernetes may scale from the HPA minimum "
-            "after the HorizontalPodAutoscaler is active."
+            "Warning: Deployment replicas is lower than HPA minReplicas. "
+            "Kubernetes will initially create the Deployment value, then the HPA "
+            "may reconcile it back to its minimum once metrics are available."
         )
     return None
 
@@ -99,7 +111,26 @@ def _autoscaling_warning(config: AppConfig) -> str | None:
 def _print_autoscaling_warning(config: AppConfig) -> None:
     warning = _autoscaling_warning(config)
     if warning:
-        console.print(f"[yellow]{warning}[/yellow]")
+        _print_warning(warning)
+
+
+def _print_autoscaling_summary(config: AppConfig) -> None:
+    if not config.autoscaling.enabled:
+        return
+    _print_hint("Autoscaling is enabled.")
+    _print_hint(
+        "The Deployment will start with "
+        f"{config.app.replicas} replicas, and the HPA will be allowed to scale "
+        f"between {config.autoscaling.minReplicas} and "
+        f"{config.autoscaling.maxReplicas} pods based on CPU usage."
+    )
+
+
+def _print_hpa_runtime_hint(config: AppConfig) -> None:
+    if not config.autoscaling.enabled:
+        return
+    _print_hint("Autoscaling is enabled, so an HPA manifest will be generated.")
+    _print_hint("The HPA requires metrics-server to calculate CPU usage at runtime.")
 
 
 def _print_check_summary(config: AppConfig) -> None:
@@ -274,6 +305,11 @@ def _print_namespace_dry_run_failure(
 
 
 def _warn_if_namespace_missing(namespace: str, timeout: int) -> None:
+    _print_step("Checking target namespace before dry-run...")
+    _print_hint(
+        "Server-side dry-run does not create the namespace for following "
+        "resources, so the namespace must already exist."
+    )
     try:
         result = run_kubectl(["get", "namespace", namespace], timeout=timeout)
     except KubectlError as exc:
@@ -442,6 +478,11 @@ def check(
     config_path: Annotated[Path, typer.Argument(help="Path to app.yaml.")],
 ) -> None:
     """Validate an app.yaml configuration file."""
+    _print_step("Validating application configuration...")
+    _print_hint(
+        "This step checks that app.yaml is structurally valid before "
+        "generating Kubernetes manifests."
+    )
     try:
         loaded = load_app_config(config_path)
     except ConfigLoadError as exc:
@@ -450,6 +491,7 @@ def check(
 
     console.print("[green]configuration is valid[/green]")
     _print_check_summary(loaded)
+    _print_autoscaling_summary(loaded)
     _print_autoscaling_warning(loaded)
 
 
@@ -462,15 +504,23 @@ def render(
     ] = Path("generated"),
 ) -> None:
     """Render Kubernetes manifests."""
+    _print_step("Rendering Kubernetes manifests from app.yaml...")
+    _print_hint(
+        "This does not contact the cluster. It only writes YAML files locally "
+        "so they can be reviewed before applying them."
+    )
     try:
         loaded, generated = _load_config_and_render(config_path, output)
     except (ConfigLoadError, RenderError) as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
 
+    _print_hpa_runtime_hint(loaded)
     _print_autoscaling_warning(loaded)
     console.print("[green]manifests generated[/green]")
     _print_render_summary(generated)
+    _print_hint(f"Generated manifests are ready for review in {output}.")
+    _print_hint("Review them before applying to the cluster.")
 
 
 @app.command("dry-run")
@@ -493,8 +543,20 @@ def dry_run(
         raise typer.Exit(code=1) from exc
 
     _print_render_summary(generated)
+    _print_step("Running Kubernetes server-side dry-run...")
+    _print_hint(
+        "This sends the manifests to the Kubernetes API for validation, but "
+        "does not persist changes."
+    )
+    _print_hint("No changes are persisted.")
     _print_autoscaling_warning(loaded)
     _warn_if_namespace_missing(loaded.app.namespace, timeout)
+    if loaded.autoscaling.enabled:
+        _print_step("Validating HPA manifest against the Kubernetes API...")
+        _print_hint(
+            "The HPA can be accepted even if metrics-server is not installed "
+            "yet; in that case CPU targets may appear as <unknown>."
+        )
 
     try:
         result = run_kubectl(
@@ -562,15 +624,26 @@ def apply(
         raise typer.Exit(code=1) from exc
 
     _print_render_summary(generated)
+    _print_step("Applying manifests to the current Kubernetes context...")
+    _print_hint(
+        "This will create or update Kubernetes resources to match the desired "
+        "state declared in app.yaml."
+    )
     _print_autoscaling_warning(loaded)
-    console.print(
-        "[yellow]This will apply manifests to the current Kubernetes context.[/yellow]"
+    _print_warning(
+        "Current context will be modified. Review the generated manifests and "
+        "the current context before continuing."
     )
     if not yes and not typer.confirm("Continue with kubectl apply?"):
         console.print("apply cancelled")
         return
 
     _run_kubectl_or_exit(["apply", "-f", str(output)], timeout)
+    console.print("[green]Apply completed.[/green]")
+    _print_hint(
+        "Next steps: check rollout status, verify pods are Running, then test "
+        "the Service."
+    )
 
 
 @app.command()
@@ -586,18 +659,46 @@ def status(
     ] = 30,
 ) -> None:
     """Show application status from kubectl."""
+    _print_step(
+        f"Reading Kubernetes status for application {name} in namespace {namespace}..."
+    )
+    _print_hint(
+        "This checks the Deployment, Pods, Service, and HPA associated with "
+        "the app label."
+    )
+    _print_hint(
+        "Deployment status shows whether Kubernetes reached the desired number "
+        "of replicas."
+    )
+    _print_hint("Pods are the actual running instances of the application containers.")
+    _print_hint(
+        "If a pod is deleted, the Deployment should recreate it to maintain "
+        "the desired state."
+    )
+    _print_hint(
+        "The Service provides a stable network entry point even when pods are "
+        "recreated."
+    )
     _run_kubectl_or_exit(
         ["-n", namespace, "get", "deploy,po,svc", "-l", f"app={name}"],
         timeout,
     )
 
+    _print_hint(
+        "The HPA controls scaling between minReplicas and maxReplicas based "
+        "on CPU metrics."
+    )
+    _print_hint(
+        "If TARGETS shows <unknown>, metrics-server is missing or not ready yet."
+    )
     hpa_result = _run_kubectl_or_exit(
         ["-n", namespace, "get", "hpa", "-l", f"app={name}"],
         timeout,
     )
     combined = f"{hpa_result.stdout}\n{hpa_result.stderr}".strip().lower()
     if not combined or "no resources found" in combined:
-        console.print(f"[yellow]No HPA found for app {name}[/yellow]")
+        _print_warning(f"No HPA found for app {name}.")
+        _print_hint("This is normal when autoscaling.enabled is false.")
 
 
 @app.command()
@@ -608,6 +709,16 @@ def doctor(
     ] = 30,
 ) -> None:
     """Check local Docker, kind, and kubectl prerequisites."""
+    _print_step("Checking local DevSecOps toolchain...")
+    _print_hint(
+        "This verifies that the required command-line tools are available "
+        "before using k8s-forge."
+    )
+    _print_step("Checking metrics-server availability...")
+    _print_hint(
+        "metrics-server is required for HPA CPU metrics. Without it, HPA "
+        "TARGETS may stay <unknown>."
+    )
     report = check_environment(timeout)
     _print_tool_checks(
         [
@@ -620,11 +731,13 @@ def doctor(
         ]
     )
     if report.metrics_server.status == "OK":
-        console.print("[green]metrics-server available[/green]")
+        console.print("[green]metrics-server available.[/green]")
+        _print_hint("HPA can read CPU and memory metrics from the cluster.")
     else:
-        console.print(
-            "[yellow]metrics-server not found; HPA CPU metrics may stay "
-            "<unknown> on kind until metrics-server is installed.[/yellow]"
+        _print_warning("metrics-server not found.")
+        _print_hint(
+            "HPA manifests can still be created, but CPU-based scaling will "
+            "not work until metrics-server is installed."
         )
     if report.ready:
         console.print("[green]Ready for local kind workflows.[/green]")
@@ -694,6 +807,8 @@ def cluster_status(
     ] = 30,
 ) -> None:
     """Show local kind cluster status."""
+    _print_step("Checking kind cluster status...")
+    _print_hint("A Ready node means Kubernetes can schedule and run pods.")
     clusters = _kind_clusters_or_exit(timeout)
     if name not in clusters:
         console.print(f"[red]kind cluster {name} does not exist.[/red]")
@@ -744,6 +859,11 @@ def image_load(
     ] = 120,
 ) -> None:
     """Load a local Docker image into a kind cluster."""
+    _print_step("Loading Docker image into kind cluster...")
+    _print_hint(
+        "kind nodes use their own containerd image store. Loading the image "
+        "makes it available to pods without pushing it to a registry."
+    )
     try:
         inspect = docker_image_inspect(image, timeout)
     except LocalCommandError as exc:

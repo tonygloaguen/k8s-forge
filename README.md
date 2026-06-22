@@ -127,6 +127,14 @@ visible nodes.
 does not already exist. `k8s-forge image load IMAGE --cluster devsecops` loads a
 local Docker image into that kind cluster.
 
+## Pedagogical CLI Output
+
+`k8s-forge` intentionally prints short explanations before important actions.
+The goal is to make the raw Kubernetes workflow understandable: local rendering,
+server-side dry-run, apply, Deployment replicas, Services, HPA, and
+metrics-server status. These messages are educational and do not change the
+underlying manifests or kubectl commands.
+
 ## Guardrails
 
 - `check` validates the configuration before rendering.

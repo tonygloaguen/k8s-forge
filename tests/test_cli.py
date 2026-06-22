@@ -146,7 +146,7 @@ def test_cli_init_hpa_warns_when_replicas_below_min(
     )
 
     assert result.exit_code == 0
-    assert "app.replicas is lower than autoscaling.minReplicas" in result.output
+    assert "Deployment replicas is lower than HPA minReplicas" in result.output
 
 
 def test_cli_init_custom_output_path(
@@ -208,6 +208,9 @@ def test_cli_check_success() -> None:
     result = runner.invoke(app, ["check", str(ROOT / "examples" / "demo-app.yaml")])
 
     assert result.exit_code == 0
+    assert "Validating application configuration" in result.output
+    assert "structurally valid" in result.output
+    assert "Kubernetes manifests" in result.output
     assert "configuration is valid" in result.output
     assert "demo-app" in result.output
     assert "demo" in result.output
@@ -253,9 +256,12 @@ def test_cli_render_success(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 0
+    assert "Rendering Kubernetes manifests from app.yaml" in result.output
+    assert "does not contact the cluster" in result.output
     assert "manifests generated" in result.output
     assert "00-namespace.yaml" in result.output
     assert "40-service.yaml" in result.output
+    assert "Generated manifests are ready for review" in result.output
     assert (output_dir / "30-deployment.yaml").exists()
 
 
@@ -274,6 +280,10 @@ def test_cli_render_lists_hpa_when_autoscaling_enabled(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert "50-hpa.yaml" in result.output
+    assert (
+        "Autoscaling is enabled, so an HPA manifest will be generated" in result.output
+    )
+    assert "metrics-server" in result.output
     assert (output_dir / "50-hpa.yaml").exists()
 
 
@@ -333,6 +343,10 @@ def test_cli_dry_run_calls_kubectl(
         (["get", "namespace", "demo"], 7),
         (["apply", "--dry-run=server", "-f", str(output_dir)], 7),
     ]
+    assert "Running Kubernetes server-side dry-run" in result.output
+    assert "Kubernetes API for validation" in result.output
+    assert "No changes are persisted" in result.output
+    assert "Checking target namespace before dry-run" in result.output
     assert "dry run ok" in result.output
     assert "does not exist" not in result.output
 
@@ -422,6 +436,30 @@ def test_cli_dry_run_explains_namespace_not_found_failure(
     assert str(output_dir) in result.output
 
 
+def test_cli_dry_run_explains_hpa_validation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_run_kubectl(args: list[str], timeout: int = 30) -> KubectlResult:
+        return KubectlResult(["kubectl", *args], 0, "dry run ok", "")
+
+    monkeypatch.setattr("k8s_forge.cli.run_kubectl", fake_run_kubectl)
+    output_dir = tmp_path / "generated"
+
+    result = runner.invoke(
+        app,
+        [
+            "dry-run",
+            str(ROOT / "examples" / "admin-api.yaml"),
+            "--output",
+            str(output_dir),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Validating HPA manifest against the Kubernetes API" in result.output
+    assert "CPU targets may appear as <unknown>" in result.output
+
+
 def test_cli_diff_calls_kubectl(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -498,6 +536,10 @@ def test_cli_apply_confirmation_calls_kubectl(
 
     assert result.exit_code == 0
     assert calls == [["apply", "-f", str(output_dir)]]
+    assert "Applying manifests to the current Kubernetes context" in result.output
+    assert "Current context will be modified" in result.output
+    assert "Apply completed" in result.output
+    assert "Next steps: check rollout status" in result.output
     assert "applied" in result.output
 
 
@@ -545,6 +587,11 @@ def test_cli_status_calls_kubectl(monkeypatch: pytest.MonkeyPatch) -> None:
         (["-n", "demo", "get", "deploy,po,svc", "-l", "app=demo-app"], 9),
         (["-n", "demo", "get", "hpa", "-l", "app=demo-app"], 9),
     ]
+    assert "Reading Kubernetes status for application demo-app" in result.output
+    assert "Deployment status shows" in result.output
+    assert "Pods are the actual running instances" in result.output
+    assert "stable network entry point" in result.output
+    assert "The HPA controls scaling" in result.output
     assert "status output" in result.output
 
 
@@ -568,6 +615,7 @@ def test_cli_status_reports_no_hpa_without_hiding_workloads(
     assert result.exit_code == 0
     assert "deploy/demo-app ready" in result.output
     assert "No HPA found for app demo-app" in result.output
+    assert "autoscaling.enabled is false" in result.output
 
 
 def test_cli_status_prints_hpa_unknown_metrics(
@@ -795,8 +843,11 @@ def test_cli_doctor_all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "kind" in result.output
     assert "kubectl" in result.output
     assert "kind-devsecops" in result.output
+    assert "Checking local DevSecOps toolchain" in result.output
+    assert "Checking metrics-server availability" in result.output
     assert "Ready for local kind workflows" in result.output
     assert "metrics-server available" in result.output
+    assert "HPA can read CPU and memory metrics" in result.output
 
 
 def test_cli_doctor_docker_absent(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -873,7 +924,7 @@ def test_cli_doctor_metrics_server_absent(monkeypatch: pytest.MonkeyPatch) -> No
     assert result.exit_code == 0
     assert "metrics-server" in result.output
     assert "metrics-server not found" in result.output
-    assert "HPA CPU metrics may stay <unknown>" in result.output
+    assert "CPU-based scaling will not work" in result.output
 
 
 def test_cli_doctor_metrics_server_error(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -888,7 +939,7 @@ def test_cli_doctor_metrics_server_error(monkeypatch: pytest.MonkeyPatch) -> Non
 
     assert result.exit_code == 0
     assert "api unavailable" in result.output
-    assert "HPA CPU metrics may stay <unknown>" in result.output
+    assert "CPU-based scaling will not work" in result.output
 
 
 def test_cli_cluster_create_calls_kind_create(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1014,6 +1065,8 @@ def test_cli_cluster_status_calls_expected_commands(
         ["kubectl", "config", "current-context"],
         ["kubectl", "get", "nodes"],
     ]
+    assert "Checking kind cluster status" in result.output
+    assert "A Ready node means Kubernetes can schedule and run pods" in result.output
     assert "kind cluster devsecops exists" in result.output
 
 
@@ -1113,6 +1166,8 @@ def test_cli_image_load_checks_image_and_loads_into_kind(
         ["docker", "image", "inspect", "demo-app:latest"],
         ["kind", "load", "docker-image", "demo-app:latest", "--name", "devsecops"],
     ]
+    assert "Loading Docker image into kind cluster" in result.output
+    assert "kind nodes use their own containerd image store" in result.output
     assert "Loaded demo-app:latest" in result.output
 
 

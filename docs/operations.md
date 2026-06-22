@@ -42,6 +42,13 @@ k8s-forge cluster delete --name devsecops
 k8s-forge cluster delete --name devsecops --yes
 ```
 
+## Pedagogical CLI Output
+
+Operational commands print short explanations before they run. Use these hints
+to verify what is local-only, what contacts the Kubernetes API, and what may
+modify the current context. The output also calls out HPA and metrics-server so
+`<unknown>` CPU targets are easier to understand during Module 2 practice.
+
 ## Recommended Pre-Checks
 
 ```bash

@@ -5,6 +5,13 @@ Kubernetes part of the DevSecOps Cloud-Native practical work. It stays strictly
 in Kubernetes manifests and `kubectl`; it does not use Helm, Ingress, Linkerd,
 NetworkPolicy, Kyverno, ArgoCD, Terraform, or Ansible.
 
+## Pedagogical CLI Output
+
+During Module 2, `k8s-forge` explains each step as it runs: manifest rendering,
+server-side validation, apply, status, HPA, and metrics-server checks. These
+messages are there to support learning Kubernetes before moving to higher-level
+tooling such as Helm.
+
 ## What Module 2 Demonstrates
 
 - A Deployment with multiple replicas, for example `replicas: 2`.
