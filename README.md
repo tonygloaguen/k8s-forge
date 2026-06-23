@@ -20,6 +20,7 @@ name.
 - generate a local Helm chart from the same `app.yaml`;
 - generate optional Ingress-NGINX compatible Ingress resources;
 - prepare Deployments for optional Linkerd service mesh injection;
+- generate optional ingress-only NetworkPolicy manifests;
 - run guarded `kubectl` workflows for `dry-run`, `diff`, `apply`, and `status`;
 - check local Docker/kind/kubectl prerequisites and manage a local kind cluster;
 - keep generated manifests inspectable before cluster operations.
@@ -39,7 +40,7 @@ Included:
 - `cluster create`, `cluster status`, `cluster delete` for kind
 - `image load` for loading local Docker images into kind
 - `helm render` for generating a local Helm chart
-- generation of Namespace, ConfigMap, Secret, Deployment, Service, optional HorizontalPodAutoscaler, optional Ingress, and optional Linkerd pod-template annotations
+- generation of Namespace, ConfigMap, Secret, Deployment, Service, optional HorizontalPodAutoscaler, optional Ingress, optional Linkerd pod-template annotations, and optional NetworkPolicy
 
 Out of scope:
 
@@ -147,6 +148,10 @@ When `ingress.enabled` is true, `k8s-forge` renders raw and Helm Ingress resourc
 
 When `mesh.enabled` and `mesh.inject` are true, `k8s-forge` adds Linkerd injection annotations to the Deployment pod template. It does not install Linkerd, annotate the Namespace, or run `linkerd inject`. Validate Linkerd manually and expect injected pods to show `2/2` containers: application plus `linkerd-proxy`.
 
+## Module 4 NetworkPolicy
+
+When `networkPolicy.enabled` is true, `k8s-forge` renders an ingress-only NetworkPolicy that allows traffic from the `ingress-nginx` namespace to the application container port. Enforcement depends on the cluster CNI; `k8s-forge` does not install or replace the CNI.
+
 ## Local kind Bootstrap
 
 `k8s-forge doctor` checks Docker, kind, kubectl, the current context, and
@@ -192,6 +197,7 @@ examples and tests.
 - [Module 2 Helm workflow](docs/module-2-helm.md)
 - [Module 3 Ingress workflow](docs/module-3-ingress.md)
 - [Module 3 Linkerd service mesh workflow](docs/module-3-linkerd.md)
+- [Module 4 NetworkPolicy workflow](docs/module-4-networkpolicy.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Real app case study: weatherapi-platform](docs/real-app-weatherapi.md)
 - [Design notes](docs/design.md)

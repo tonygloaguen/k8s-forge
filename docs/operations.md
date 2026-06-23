@@ -220,6 +220,19 @@ linkerd stat deploy -n <namespace>
 
 Injected pods usually show `2/2` containers: the application container plus `linkerd-proxy`.
 
+## NetworkPolicy Operations
+
+When `networkPolicy.enabled` is true, raw rendering writes `70-networkpolicy.yaml` and Helm rendering includes `templates/networkpolicy.yaml`. The ingress-only profile allows traffic from the `ingress-nginx` namespace to the application container port.
+
+Validate the object:
+
+```bash
+kubectl -n <namespace> get networkpolicy
+kubectl -n <namespace> describe networkpolicy <app>-ingress-only
+```
+
+NetworkPolicy enforcement depends on the CNI plugin. The object can exist without enforcement. `k8s-forge doctor` gives a heuristic CNI warning, but it cannot prove enforcement.
+
 ## Complete Operational Scenario
 
 ```bash
@@ -424,3 +437,4 @@ permissions.
 - [Module 2 Helm workflow](module-2-helm.md)
 - [Module 3 Ingress workflow](module-3-ingress.md)
 - [Module 3 Linkerd service mesh workflow](module-3-linkerd.md)
+- [Module 4 NetworkPolicy workflow](module-4-networkpolicy.md)

@@ -398,3 +398,100 @@ def test_mesh_does_not_annotate_namespace(tmp_path: Path) -> None:
     namespace = _load_yaml(tmp_path / "00-namespace.yaml")
 
     assert "annotations" not in namespace["metadata"]
+
+
+def test_network_policy_absent_when_disabled(tmp_path: Path) -> None:
+    config = AppConfig.model_validate(_base_config())
+
+    render_manifests(config, tmp_path)
+
+    assert not (tmp_path / "70-networkpolicy.yaml").exists()
+
+
+def test_network_policy_generated_when_enabled(tmp_path: Path) -> None:
+    config_data = _base_config()
+    config_data["networkPolicy"] = {
+        "enabled": True,
+        "profile": "ingress-only",
+    }
+    config = AppConfig.model_validate(config_data)
+
+    generated = render_manifests(config, tmp_path)
+    network_policy = _load_yaml(tmp_path / "70-networkpolicy.yaml")
+
+    assert "70-networkpolicy.yaml" in [path.name for path in generated]
+    assert network_policy["apiVersion"] == "networking.k8s.io/v1"
+    assert network_policy["kind"] == "NetworkPolicy"
+    assert network_policy["metadata"]["name"] == "generic-web-ingress-only"
+    assert network_policy["metadata"]["namespace"] == "generic"
+
+
+def test_network_policy_yaml_uses_app_selector_namespace_and_container_port(
+    tmp_path: Path,
+) -> None:
+    config_data = _base_config()
+    config_data["networkPolicy"] = {
+        "enabled": True,
+        "profile": "ingress-only",
+    }
+    config = AppConfig.model_validate(config_data)
+
+    render_manifests(config, tmp_path)
+    network_policy = _load_yaml(tmp_path / "70-networkpolicy.yaml")
+
+    assert network_policy["spec"]["podSelector"]["matchLabels"] == {
+        "app": "generic-web",
+        "app.kubernetes.io/name": "generic-web",
+    }
+    assert network_policy["spec"]["policyTypes"] == ["Ingress"]
+    rule = network_policy["spec"]["ingress"][0]
+    assert rule["from"] == [
+        {
+            "namespaceSelector": {
+                "matchLabels": {"kubernetes.io/metadata.name": "ingress-nginx"}
+            }
+        }
+    ]
+    assert rule["ports"] == [{"protocol": "TCP", "port": 9000}]
+
+
+def test_network_policy_uses_configured_namespaces_and_ports(tmp_path: Path) -> None:
+    config_data = _base_config()
+    config_data["networkPolicy"] = {
+        "enabled": True,
+        "profile": "ingress-only",
+        "ingress": {
+            "enabled": True,
+            "fromNamespaces": ["ingress-nginx", "edge"],
+            "ports": [9000, 9443],
+        },
+    }
+    config = AppConfig.model_validate(config_data)
+
+    render_manifests(config, tmp_path)
+    network_policy = _load_yaml(tmp_path / "70-networkpolicy.yaml")
+    rule = network_policy["spec"]["ingress"][0]
+
+    assert rule["from"] == [
+        {
+            "namespaceSelector": {
+                "matchLabels": {"kubernetes.io/metadata.name": "ingress-nginx"}
+            }
+        },
+        {"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "edge"}}},
+    ]
+    assert rule["ports"] == [
+        {"protocol": "TCP", "port": 9000},
+        {"protocol": "TCP", "port": 9443},
+    ]
+
+
+def test_renderer_cleans_previous_network_policy_file_when_disabled(
+    tmp_path: Path,
+) -> None:
+    network_policy_file = tmp_path / "70-networkpolicy.yaml"
+    network_policy_file.write_text("old network policy", encoding="utf-8")
+
+    render_manifests(AppConfig.model_validate(_base_config()), tmp_path)
+
+    assert not network_policy_file.exists()

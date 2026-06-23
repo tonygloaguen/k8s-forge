@@ -1,0 +1,33 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ (app.name ~ "-ingress-only") | tojson }}
+  namespace: {{ app.namespace | tojson }}
+  labels:
+{% for key, value in labels.items() %}
+    {{ key | tojson }}: {{ value | tojson }}
+{% endfor %}
+spec:
+  podSelector:
+    matchLabels:
+{% for key, value in selector_labels.items() %}
+      {{ key | tojson }}: {{ value | tojson }}
+{% endfor %}
+  policyTypes:
+    - Ingress
+{% if networkPolicy.ingress.enabled %}
+  ingress:
+    - from:
+{% for namespace in networkPolicy.ingress.fromNamespaces %}
+        - namespaceSelector:
+            matchLabels:
+              "kubernetes.io/metadata.name": {{ namespace | tojson }}
+{% endfor %}
+      ports:
+{% for port in network_policy_ports %}
+        - protocol: TCP
+          port: {{ port }}
+{% endfor %}
+{% else %}
+  ingress: []
+{% endif %}

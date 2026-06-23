@@ -33,6 +33,7 @@ GENERATED_FILENAMES = (
     "40-service.yaml",
     "50-hpa.yaml",
     "60-ingress.yaml",
+    "70-networkpolicy.yaml",
 )
 
 
@@ -93,6 +94,12 @@ def _pod_annotations(config: AppConfig) -> dict[str, str]:
     return {}
 
 
+def _network_policy_ports(config: AppConfig) -> list[int]:
+    if config.networkPolicy.ingress.ports:
+        return list(config.networkPolicy.ingress.ports)
+    return [config.app.containerPort]
+
+
 def _env_from(config: AppConfig) -> list[dict[str, str]]:
     sources: list[dict[str, str]] = []
     if config.config:
@@ -119,6 +126,8 @@ def _context(config: AppConfig) -> dict[str, Any]:
         "ingress_annotations": _ingress_annotations(config),
         "pod_annotations": _pod_annotations(config),
         "mesh": config.mesh,
+        "networkPolicy": config.networkPolicy,
+        "network_policy_ports": _network_policy_ports(config),
     }
 
 
@@ -150,6 +159,11 @@ def _template_specs(config: AppConfig) -> list[TemplateSpec]:
             "60-ingress.yaml.j2",
             "60-ingress.yaml",
             enabled=config.ingress.enabled,
+        ),
+        TemplateSpec(
+            "70-networkpolicy.yaml.j2",
+            "70-networkpolicy.yaml",
+            enabled=config.networkPolicy.enabled,
         ),
     ]
 

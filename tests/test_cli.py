@@ -40,6 +40,8 @@ LINKERD_CLI_COMMAND = ["linkerd", "version", "--client"]
 LINKERD_NAMESPACE_COMMAND = ["kubectl", "get", "ns", "linkerd"]
 LINKERD_CONTROL_PLANE_COMMAND = ["kubectl", "-n", "linkerd", "get", "deploy"]
 LINKERD_VIZ_COMMAND = ["kubectl", "get", "ns", "linkerd-viz"]
+CNI_PODS_COMMAND = ["kubectl", "-n", "kube-system", "get", "pods"]
+NETWORK_POLICY_COMMAND = ["kubectl", "get", "networkpolicy", "--all-namespaces"]
 
 
 def test_cli_help_responds() -> None:
@@ -1031,6 +1033,8 @@ def test_cli_doctor_all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
             ("kubectl", "get", "ns", "linkerd"): "linkerd",
             ("kubectl", "-n", "linkerd", "get", "deploy"): "linkerd-control-plane",
             ("kubectl", "get", "ns", "linkerd-viz"): "linkerd-viz",
+            ("kubectl", "-n", "kube-system", "get", "pods"): "calico-node",
+            ("kubectl", "get", "networkpolicy", "--all-namespaces"): "weather np",
         }
         return subprocess.CompletedProcess(command, 0, outputs[tuple(command)], "")
 
@@ -1055,6 +1059,8 @@ def test_cli_doctor_all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "Checking Linkerd service mesh readiness" in result.output
     assert "Linkerd control plane appears to be available" in result.output
     assert "Linkerd Viz appears to be available" in result.output
+    assert "Checking NetworkPolicy and CNI readiness" in result.output
+    assert "NetworkPolicy-capable CNI appears to be present" in result.output
 
 
 def test_cli_doctor_docker_absent(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1600,3 +1606,134 @@ def test_cli_doctor_linkerd_cli_present_namespace_absent_is_clear(
     assert "Install and validate Linkerd manually" in result.output
     assert "Linkerd Viz is optional and was not detected" in result.output
     assert "Ready for local kind workflows" in result.output
+
+
+def _write_network_policy_config(path: Path) -> None:
+    path.write_text(
+        """
+app:
+  name: weatherapi
+  namespace: weather
+  image: weatherapi:0.1.0
+  containerPort: 8000
+  replicas: 2
+service:
+  enabled: true
+  port: 80
+ingress:
+  enabled: true
+  host: weather.local
+networkPolicy:
+  enabled: true
+  profile: ingress-only
+  ingress:
+    enabled: true
+    fromNamespaces:
+      - ingress-nginx
+    ports:
+      - 8000
+  egress:
+    enabled: false
+""".strip(),
+        encoding="utf-8",
+    )
+
+
+def test_cli_check_mentions_network_policy_when_enabled(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    _write_network_policy_config(config_path)
+
+    result = runner.invoke(app, ["check", str(config_path)])
+
+    assert result.exit_code == 0
+    assert "NetworkPolicy support is enabled" in result.output
+    assert "restricts which traffic" in result.output
+    assert "ingress-only profile" in result.output
+    assert "kubectl -n weather get networkpolicy" in result.output
+
+
+def test_cli_render_mentions_network_policy(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated"
+    _write_network_policy_config(config_path)
+
+    result = runner.invoke(
+        app, ["render", str(config_path), "--output", str(output_dir)]
+    )
+
+    assert result.exit_code == 0
+    assert "70-networkpolicy.yaml" in result.output
+    assert "NetworkPolicy enforcement depends on the CNI plugin" in result.output
+    assert "does not install or replace the CNI" in result.output
+    assert (output_dir / "70-networkpolicy.yaml").exists()
+
+
+def test_cli_helm_render_mentions_network_policy(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "charts"
+    _write_network_policy_config(config_path)
+
+    result = runner.invoke(
+        app, ["helm", "render", str(config_path), "--output", str(output_dir)]
+    )
+
+    chart_dir = output_dir / "weatherapi"
+    assert result.exit_code == 0
+    assert "templates/networkpolicy.yaml" in result.output
+    assert "NetworkPolicy support is enabled" in result.output
+    assert "helm template" in result.output
+    assert (chart_dir / "templates" / "networkpolicy.yaml").exists()
+
+
+def test_cli_doctor_reports_kindnet_cni_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == CNI_PODS_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "kindnet", "")
+        if command == NETWORK_POLICY_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "No resources found", "")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "Checking NetworkPolicy and CNI readiness" in result.output
+    assert "Detected kindnet" in result.output
+    assert "does not install or replace the CNI" in result.output
+    assert "Ready for local kind workflows" in result.output
+
+
+def test_cli_doctor_reports_unknown_cni(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == CNI_PODS_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "custom-network", "")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "Could not identify a NetworkPolicy-enforcing CNI" in result.output
+
+
+def test_cli_doctor_reports_cilium_or_calico_as_capable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == CNI_PODS_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "cilium-agent", "")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "NetworkPolicy-capable CNI appears to be present" in result.output
+    assert "cilium" in result.output

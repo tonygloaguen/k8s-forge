@@ -100,3 +100,18 @@ mesh:
 [% else %]
     {}
 [% endif %]
+networkPolicy:
+  enabled: [[ values.networkPolicy.enabled | lower ]]
+  profile: [[ values.networkPolicy.profile | yaml_scalar ]]
+  ingress:
+    enabled: [[ values.networkPolicy.ingress.enabled | lower ]]
+    fromNamespaces:
+[% for namespace in values.networkPolicy.ingress.fromNamespaces %]
+      - [[ namespace | yaml_scalar ]]
+[% endfor %]
+    ports:
+[% for port in values.networkPolicy.ingress.ports %]
+      - [[ port ]]
+[% endfor %]
+  egress:
+    enabled: [[ values.networkPolicy.egress.enabled | lower ]]

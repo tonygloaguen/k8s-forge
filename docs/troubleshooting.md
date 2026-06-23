@@ -23,6 +23,8 @@ on a Debian VM with a local kind cluster.
 | Pods stay `1/1` after enabling mesh | Linkerd is not installed, the workload was not restarted, or injection is disabled. | Run `linkerd check`, verify `mesh.enabled` and `mesh.inject`, then restart the Deployment. | `kubectl -n <namespace> get pods` |
 | `linkerd` command not found | Linkerd CLI is not installed or not in `PATH`. | Install the Linkerd CLI manually. | `linkerd version --client` |
 | Linkerd metrics missing | Linkerd control plane or Viz is absent/not ready. | Validate Linkerd manually; install Viz only if mesh metrics are needed. | `linkerd check && linkerd viz check` |
+| NetworkPolicy object exists but traffic is not restricted | The CNI may not enforce NetworkPolicy. | Use a NetworkPolicy-capable CNI such as Calico or Cilium for enforcement. | `kubectl -n kube-system get pods` |
+| Application unreachable after NetworkPolicy | The allowed namespace or pod port is wrong. | Check ingress-nginx namespace and use the application container port, not Service port. | `kubectl -n <namespace> describe networkpolicy <app>-ingress-only` |
 
 ## General Debugging Commands
 

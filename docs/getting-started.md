@@ -94,6 +94,10 @@ For HTTP routing with ingress-nginx and optional cert-manager annotations, read 
 
 For service mesh readiness with Linkerd, read [module-3-linkerd.md](module-3-linkerd.md). `k8s-forge` can annotate the Deployment pod template for Linkerd injection, but it does not install Linkerd or run `linkerd inject`.
 
+## Module 4 NetworkPolicy
+
+For Kubernetes network security readiness, read [module-4-networkpolicy.md](module-4-networkpolicy.md). `k8s-forge` renders an ingress-only policy but does not install or replace the CNI plugin.
+
 ## Next Step: Operational Workflow
 
 After generating and validating `app.yaml`, read [operations.md](operations.md)
@@ -111,6 +115,7 @@ real Kubernetes cluster.
 - [Module 2 Helm workflow](module-2-helm.md)
 - [Module 3 Ingress workflow](module-3-ingress.md)
 - [Module 3 Linkerd service mesh workflow](module-3-linkerd.md)
+- [Module 4 NetworkPolicy workflow](module-4-networkpolicy.md)
 - [Design notes](design.md)
 
 ## Local Release Check

@@ -49,6 +49,8 @@ class DoctorReport:
     linkerd_namespace: ToolCheck
     linkerd_control_plane: ToolCheck
     linkerd_viz: ToolCheck
+    cni_pods: ToolCheck
+    network_policies: ToolCheck
 
     @property
     def ready(self) -> bool:
@@ -193,6 +195,14 @@ def check_environment(timeout: int = 30) -> DoctorReport:
         linkerd_viz = _linkerd_optional_check(
             "Linkerd Viz", ["kubectl", "get", "ns", "linkerd-viz"], timeout
         )
+        cni_pods = check_command(
+            "CNI pods", ["kubectl", "-n", "kube-system", "get", "pods"], timeout
+        )
+        network_policies = check_command(
+            "NetworkPolicy objects",
+            ["kubectl", "get", "networkpolicy", "--all-namespaces"],
+            timeout,
+        )
     else:
         current_context = ToolCheck(
             "current context", "unavailable", "kubectl is not available"
@@ -216,6 +226,10 @@ def check_environment(timeout: int = 30) -> DoctorReport:
         linkerd_viz = ToolCheck(
             "Linkerd Viz", "unavailable", "kubectl is not available"
         )
+        cni_pods = ToolCheck("CNI pods", "unavailable", "kubectl is not available")
+        network_policies = ToolCheck(
+            "NetworkPolicy objects", "unavailable", "kubectl is not available"
+        )
 
     return DoctorReport(
         docker,
@@ -230,6 +244,8 @@ def check_environment(timeout: int = 30) -> DoctorReport:
         linkerd_namespace,
         linkerd_control_plane,
         linkerd_viz,
+        cni_pods,
+        network_policies,
     )
 
 

@@ -2,7 +2,14 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    field_validator,
+    model_validator,
+)
 
 
 class AppSpec(BaseModel):
@@ -147,6 +154,55 @@ class MeshConfig(BaseModel):
     )
 
 
+class NetworkPolicyIngressConfig(BaseModel):
+    """Ingress rules for the educational NetworkPolicy profile."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+    fromNamespaces: list[str] = Field(default_factory=lambda: ["ingress-nginx"])
+    ports: list[int] = Field(default_factory=list)
+
+    @field_validator("fromNamespaces")
+    @classmethod
+    def validate_from_namespaces(cls, value: list[str]) -> list[str]:
+        """Require non-empty namespace names when provided."""
+        if any(not namespace for namespace in value):
+            msg = "networkPolicy.ingress.fromNamespaces values must be non-empty"
+            raise ValueError(msg)
+        return value
+
+    @field_validator("ports")
+    @classmethod
+    def validate_ports(cls, value: list[int]) -> list[int]:
+        """Ensure NetworkPolicy ports are valid TCP ports."""
+        if any(port < 1 or port > 65535 for port in value):
+            msg = "networkPolicy.ingress.ports values must be between 1 and 65535"
+            raise ValueError(msg)
+        return value
+
+
+class NetworkPolicyEgressConfig(BaseModel):
+    """Future egress policy switch. Not rendered in v0.6.0."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = False
+
+
+class NetworkPolicyConfig(BaseModel):
+    """NetworkPolicy readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = False
+    profile: Literal["ingress-only"] = "ingress-only"
+    ingress: NetworkPolicyIngressConfig = Field(
+        default_factory=NetworkPolicyIngressConfig
+    )
+    egress: NetworkPolicyEgressConfig = Field(default_factory=NetworkPolicyEgressConfig)
+
+
 class AppConfig(BaseModel):
     """Top-level user configuration."""
 
@@ -161,6 +217,7 @@ class AppConfig(BaseModel):
     autoscaling: AutoscalingConfig = Field(default_factory=AutoscalingConfig)
     ingress: IngressConfig = Field(default_factory=IngressConfig)
     mesh: MeshConfig = Field(default_factory=MeshConfig)
+    networkPolicy: NetworkPolicyConfig = Field(default_factory=NetworkPolicyConfig)
 
     @model_validator(mode="after")
     def validate_ingress_service(self) -> "AppConfig":

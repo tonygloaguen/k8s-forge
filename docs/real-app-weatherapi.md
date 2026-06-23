@@ -298,3 +298,48 @@ linkerd stat deploy -n weather-helm
 
 Expected signal: the `weatherapi` pod shows `2/2` containers, meaning the application container and the `linkerd-proxy` sidecar are both ready.
 
+## NetworkPolicy Follow-Up
+
+After the Linkerd readiness step, create a NetworkPolicy-specific config:
+
+```bash
+cp k8s-forge-app-mesh.yaml k8s-forge-app-netpol.yaml
+```
+
+Add:
+
+```yaml
+networkPolicy:
+  enabled: true
+  profile: ingress-only
+  ingress:
+    enabled: true
+    fromNamespaces:
+      - ingress-nginx
+    ports:
+      - 8000
+  egress:
+    enabled: false
+```
+
+Render and upgrade the Helm release:
+
+```bash
+k8s-forge helm render k8s-forge-app-netpol.yaml --output charts-generated-netpol
+helm upgrade --install weatherapi charts-generated-netpol/weatherapi \
+  -n weather-helm \
+  --create-namespace
+kubectl -n weather-helm get networkpolicy
+kubectl -n weather-helm describe networkpolicy weatherapi-ingress-only
+```
+
+Then verify the Ingress path still works:
+
+```bash
+curl -k --resolve weather.local:8443:127.0.0.1 https://weather.local:8443/weather
+curl -k --resolve weather.local:8443:127.0.0.1 https://weather.local:8443/healthz
+curl -k --resolve weather.local:8443:127.0.0.1 https://weather.local:8443/readyz
+```
+
+If the CNI does not support NetworkPolicy, the object can exist without enforcement.
+

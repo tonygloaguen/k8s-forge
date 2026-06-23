@@ -353,3 +353,70 @@ def test_mesh_preserves_custom_annotations() -> None:
         "linkerd.io/inject": "enabled",
         "config.linkerd.io/proxy-cpu-request": "20m",
     }
+
+
+def test_network_policy_defaults_when_section_absent() -> None:
+    config_data = _valid_config()
+    config_data.pop("networkPolicy", None)
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.networkPolicy.enabled is False
+    assert config.networkPolicy.profile == "ingress-only"
+    assert config.networkPolicy.ingress.enabled is True
+    assert config.networkPolicy.ingress.fromNamespaces == ["ingress-nginx"]
+    assert config.networkPolicy.ingress.ports == []
+    assert config.networkPolicy.egress.enabled is False
+
+
+def test_network_policy_accepts_ingress_only_profile() -> None:
+    config_data = _valid_config()
+    config_data["networkPolicy"] = {
+        "enabled": True,
+        "profile": "ingress-only",
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.networkPolicy.enabled is True
+    assert config.networkPolicy.profile == "ingress-only"
+
+
+def test_network_policy_rejects_invalid_profile() -> None:
+    config_data = _valid_config()
+    config_data["networkPolicy"] = {"enabled": True, "profile": "default-deny"}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_network_policy_preserves_custom_namespaces_and_ports() -> None:
+    config_data = _valid_config()
+    config_data["networkPolicy"] = {
+        "enabled": True,
+        "profile": "ingress-only",
+        "ingress": {
+            "enabled": True,
+            "fromNamespaces": ["ingress-nginx", "edge"],
+            "ports": [8000, 9000],
+        },
+        "egress": {"enabled": False},
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.networkPolicy.ingress.fromNamespaces == ["ingress-nginx", "edge"]
+    assert config.networkPolicy.ingress.ports == [8000, 9000]
+    assert config.networkPolicy.egress.enabled is False
+
+
+def test_network_policy_rejects_invalid_port() -> None:
+    config_data = _valid_config()
+    config_data["networkPolicy"] = {
+        "enabled": True,
+        "profile": "ingress-only",
+        "ingress": {"ports": [0]},
+    }
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)

@@ -85,6 +85,18 @@ mesh:
   inject: false
   annotations:
     linkerd.io/inject: enabled
+
+networkPolicy:
+  enabled: false
+  profile: ingress-only
+  ingress:
+    enabled: true
+    fromNamespaces:
+      - ingress-nginx
+    ports:
+      - 8000
+  egress:
+    enabled: false
 ```
 
 ## Field Reference
@@ -124,6 +136,12 @@ mesh:
 | `mesh.provider` | string | No | `linkerd` | only `linkerd` in v0.5.0 | Documents the mesh provider targeted by annotations |
 | `mesh.inject` | boolean | No | `false` | boolean only | Controls whether pod template annotations are rendered |
 | `mesh.annotations` | map of strings | No | `linkerd.io/inject: enabled` | keys and values must be strings | Deployment pod template annotations when mesh injection is enabled |
+| `networkPolicy.enabled` | boolean | No | `false` | boolean only | Controls whether NetworkPolicy is rendered |
+| `networkPolicy.profile` | string | No | `ingress-only` | only `ingress-only` in v0.6.0 | Selects the educational NetworkPolicy profile |
+| `networkPolicy.ingress.enabled` | boolean | No | `true` | boolean only | Controls ingress allow rule rendering inside the policy |
+| `networkPolicy.ingress.fromNamespaces` | list of strings | No | `ingress-nginx` | namespace names must be non-empty | Namespace selectors allowed to reach app Pods |
+| `networkPolicy.ingress.ports` | list of integers | No | `app.containerPort` | `1` to `65535` | Pod ports allowed by the policy |
+| `networkPolicy.egress.enabled` | boolean | No | `false` | accepted but not rendered in v0.6.0 | Reserved for future egress policy support |
 
 ## Section Details
 
@@ -282,6 +300,36 @@ linkerd stat deploy -n <namespace>
 Injected pods usually show `2/2` containers: the application container plus
 `linkerd-proxy`.
 
+### `networkPolicy`
+
+The `networkPolicy` section controls optional NetworkPolicy rendering. In
+v0.6.0, only the `ingress-only` profile is supported. It selects the application
+Pods and allows ingress traffic from configured namespaces, usually
+`ingress-nginx`, to the application container port.
+
+The port is the Pod/container port, not the Service port. For example, if the
+Service exposes `80` and targets container port `8000`, the NetworkPolicy should
+allow `8000`.
+
+`k8s-forge` does not install or replace the CNI. The NetworkPolicy object can
+exist even when enforcement does not happen on the cluster.
+
+Example:
+
+```yaml
+networkPolicy:
+  enabled: true
+  profile: ingress-only
+  ingress:
+    enabled: true
+    fromNamespaces:
+      - ingress-nginx
+    ports:
+      - 8000
+  egress:
+    enabled: false
+```
+
 ## Invalid Examples
 
 ### Port set to `0`
@@ -368,6 +416,16 @@ ingress:
 
 `ingress.host` is required when `ingress.enabled` is `true`.
 
+### Invalid NetworkPolicy profile
+
+```yaml
+networkPolicy:
+  enabled: true
+  profile: default-deny
+```
+
+Only `profile: ingress-only` is supported in v0.6.0.
+
 ### Invalid mesh provider
 
 ```yaml
@@ -403,6 +461,7 @@ ingress:
 - Run `dry-run` and `diff` before `apply`.
 - For Ingress, validate ingress-nginx, cert-manager, kind port mappings, and `/etc/hosts` manually before testing traffic.
 - For mesh readiness, install and validate Linkerd manually before expecting pods to show `2/2` containers or mesh metrics.
+- For NetworkPolicy, verify the CNI plugin before assuming enforcement. The object can exist without traffic being restricted.
 
 ## Associated Commands
 

@@ -53,6 +53,7 @@ def test_render_helm_chart_generates_expected_files(tmp_path: Path) -> None:
         Path("templates/service.yaml"),
         Path("templates/hpa.yaml"),
         Path("templates/ingress.yaml"),
+        Path("templates/networkpolicy.yaml"),
     ]
 
 
@@ -247,3 +248,70 @@ def test_two_configs_generate_different_mesh_values(tmp_path: Path) -> None:
     assert mesh_values["mesh"]["inject"] is True
     assert demo_values["mesh"]["enabled"] is False
     assert mesh_values["mesh"] != demo_values["mesh"]
+
+
+def test_values_yaml_contains_network_policy_section(tmp_path: Path) -> None:
+    _render_example("demo-app.yaml", tmp_path)
+
+    values = _load_yaml(tmp_path / "demo-app" / "values.yaml")
+
+    assert values["networkPolicy"] == {
+        "enabled": False,
+        "profile": "ingress-only",
+        "ingress": {
+            "enabled": True,
+            "fromNamespaces": ["ingress-nginx"],
+            "ports": [8000],
+        },
+        "egress": {"enabled": False},
+    }
+
+
+def test_network_policy_template_is_generated_and_conditional(tmp_path: Path) -> None:
+    _render_example("demo-app.yaml", tmp_path)
+
+    template = (tmp_path / "demo-app" / "templates" / "networkpolicy.yaml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "{{- if .Values.networkPolicy.enabled }}" in template
+    assert "kind: NetworkPolicy" in template
+    assert "kubernetes.io/metadata.name" in template
+    assert ".Values.networkPolicy.ingress.fromNamespaces" in template
+    assert ".Values.networkPolicy.ingress.ports" in template
+
+
+def test_two_configs_generate_different_network_policy_values(tmp_path: Path) -> None:
+    base = {
+        "app": {
+            "name": "netpol-app",
+            "namespace": "netpol",
+            "image": "netpol-app:1.0.0",
+            "containerPort": 9000,
+            "replicas": 2,
+        },
+        "service": {"enabled": True, "port": 80},
+        "networkPolicy": {
+            "enabled": True,
+            "profile": "ingress-only",
+            "ingress": {
+                "enabled": True,
+                "fromNamespaces": ["ingress-nginx", "edge"],
+                "ports": [9000],
+            },
+        },
+    }
+    render_helm_chart(AppConfig.model_validate(base), tmp_path)
+    _render_example("demo-app.yaml", tmp_path)
+
+    netpol_values = _load_yaml(tmp_path / "netpol-app" / "values.yaml")
+    demo_values = _load_yaml(tmp_path / "demo-app" / "values.yaml")
+
+    assert netpol_values["networkPolicy"]["enabled"] is True
+    assert netpol_values["networkPolicy"]["ingress"]["ports"] == [9000]
+    assert netpol_values["networkPolicy"]["ingress"]["fromNamespaces"] == [
+        "ingress-nginx",
+        "edge",
+    ]
+    assert demo_values["networkPolicy"]["enabled"] is False
+    assert netpol_values["networkPolicy"] != demo_values["networkPolicy"]

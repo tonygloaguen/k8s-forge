@@ -20,6 +20,7 @@ from k8s_forge.exceptions import (
 from k8s_forge.helm_renderer import render_helm_chart
 from k8s_forge.kubectl import KubectlResult, run_kubectl
 from k8s_forge.local_cluster import (
+    DoctorReport,
     LocalCommandResult,
     ToolCheck,
     check_environment,
@@ -225,6 +226,102 @@ def _print_mesh_runtime_hint(config: AppConfig) -> None:
     _print_mesh_validation_commands(config.app.namespace)
 
 
+def _network_policy_name(config: AppConfig) -> str:
+    return f"{config.app.name}-ingress-only"
+
+
+def _print_network_policy_summary(config: AppConfig) -> None:
+    if not config.networkPolicy.enabled:
+        return
+    _print_hint("NetworkPolicy support is enabled.")
+    _print_hint(
+        "A NetworkPolicy restricts which traffic is allowed to reach selected pods."
+    )
+    _print_hint(
+        "This manifest is useful only if the cluster CNI enforces NetworkPolicy."
+    )
+    if config.networkPolicy.profile == "ingress-only":
+        _print_hint(
+            "The ingress-only profile allows traffic to the application pods "
+            "from the ingress-nginx namespace."
+        )
+        _print_hint(
+            "This keeps the application reachable through Ingress while "
+            "reducing direct pod-to-pod exposure."
+        )
+    if not config.ingress.enabled:
+        _print_warning(
+            "networkPolicy.profile is ingress-only, but ingress.enabled is false. "
+            "The policy can still be rendered, but the expected lab path uses Ingress."
+        )
+
+
+def _print_network_policy_cni_warning() -> None:
+    _print_warning("NetworkPolicy enforcement depends on the CNI plugin.")
+    _print_hint("Some local kind clusters do not enforce NetworkPolicy by default.")
+    _print_hint(
+        "k8s-forge generates the policy but does not install or replace the CNI."
+    )
+
+
+def _print_network_policy_validation_commands(config: AppConfig) -> None:
+    namespace = config.app.namespace
+    policy_name = _network_policy_name(config)
+    _print_hint("NetworkPolicy validation commands:")
+    _print_hint(f"  kubectl -n {namespace} get networkpolicy")
+    _print_hint(f"  kubectl -n {namespace} describe networkpolicy {policy_name}")
+    _print_hint(f"  kubectl -n {namespace} get pods")
+    host = config.ingress.host or "weather.local"
+    _print_hint(
+        f"  curl -k --resolve {host}:8443:127.0.0.1 https://{host}:8443/weather"
+    )
+
+
+def _print_network_policy_runtime_hint(config: AppConfig) -> None:
+    if not config.networkPolicy.enabled:
+        return
+    _print_network_policy_summary(config)
+    _print_network_policy_cni_warning()
+    _print_network_policy_validation_commands(config)
+
+
+def _cni_summary(details: str) -> str:
+    normalized = details.lower()
+    if "calico" in normalized:
+        return "calico"
+    if "cilium" in normalized:
+        return "cilium"
+    if "kindnet" in normalized or "kind-net" in normalized:
+        return "kindnet"
+    if "flannel" in normalized:
+        return "flannel"
+    if details.strip():
+        return "unknown"
+    return "unavailable"
+
+
+def _print_cni_diagnostics(report: DoctorReport) -> None:
+    _print_step("Checking NetworkPolicy and CNI readiness...")
+    _print_network_policy_cni_warning()
+    cni = _cni_summary(
+        report.cni_pods.details if report.cni_pods.status == "OK" else ""
+    )
+    if cni in {"calico", "cilium"}:
+        console.print(
+            f"[green]A NetworkPolicy-capable CNI appears to be present ({cni}).[/green]"
+        )
+    elif cni in {"kindnet", "flannel"}:
+        _print_warning(
+            f"Detected {cni}; NetworkPolicy enforcement may be unavailable or limited."
+        )
+    else:
+        _print_warning("Could not identify a NetworkPolicy-enforcing CNI.")
+    _print_hint(
+        "The presence of a NetworkPolicy object does not prove that traffic is "
+        "actually enforced by the cluster network plugin."
+    )
+
+
 def _print_check_summary(config: AppConfig) -> None:
     """Print a concise validation summary."""
     table = Table(title="Application configuration")
@@ -334,6 +431,18 @@ def _starter_config_data(
             "inject": False,
             "annotations": {
                 "linkerd.io/inject": _QuotedString("enabled"),
+            },
+        },
+        "networkPolicy": {
+            "enabled": False,
+            "profile": _QuotedString("ingress-only"),
+            "ingress": {
+                "enabled": True,
+                "fromNamespaces": [_QuotedString("ingress-nginx")],
+                "ports": [port],
+            },
+            "egress": {
+                "enabled": False,
             },
         },
     }
@@ -618,6 +727,9 @@ def check(
     _print_mesh_summary(loaded)
     if loaded.mesh.enabled:
         _print_mesh_validation_commands(loaded.app.namespace)
+    _print_network_policy_summary(loaded)
+    if loaded.networkPolicy.enabled:
+        _print_network_policy_validation_commands(loaded)
     _print_autoscaling_warning(loaded)
 
 
@@ -644,6 +756,7 @@ def render(
     _print_hpa_runtime_hint(loaded)
     _print_ingress_runtime_hint(loaded)
     _print_mesh_runtime_hint(loaded)
+    _print_network_policy_runtime_hint(loaded)
     _print_autoscaling_warning(loaded)
     console.print("[green]manifests generated[/green]")
     _print_render_summary(generated)
@@ -862,6 +975,8 @@ def doctor(
             report.linkerd_namespace,
             report.linkerd_control_plane,
             report.linkerd_viz,
+            report.cni_pods,
+            report.network_policies,
         ]
     )
     if report.metrics_server.status == "OK":
@@ -922,6 +1037,8 @@ def doctor(
         console.print("[green]Linkerd Viz appears to be available.[/green]")
     else:
         _print_hint("Linkerd Viz is optional and was not detected.")
+
+    _print_cni_diagnostics(report)
 
     if report.ready:
         console.print("[green]Ready for local kind workflows.[/green]")
@@ -1099,6 +1216,7 @@ def helm_render(
     _print_helm_chart_summary(generated)
     _print_helm_ingress_hint(loaded)
     _print_mesh_runtime_hint(loaded)
+    _print_network_policy_runtime_hint(loaded)
     _print_warning(
         "If raw Kubernetes resources already exist from k8s-forge apply, Helm "
         "may refuse to import them because of ownership metadata."

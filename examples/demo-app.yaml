@@ -54,3 +54,16 @@ mesh:
   inject: false
   annotations:
     linkerd.io/inject: "enabled"
+
+networkPolicy:
+  enabled: false
+  profile: ingress-only
+  ingress:
+    enabled: true
+    fromNamespaces:
+      - ingress-nginx
+    ports:
+      - 8000
+  egress:
+    enabled: false
+

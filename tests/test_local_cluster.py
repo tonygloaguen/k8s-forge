@@ -40,6 +40,8 @@ LINKERD_CLI_COMMAND = ["linkerd", "version", "--client"]
 LINKERD_NAMESPACE_COMMAND = ["kubectl", "get", "ns", "linkerd"]
 LINKERD_CONTROL_PLANE_COMMAND = ["kubectl", "-n", "linkerd", "get", "deploy"]
 LINKERD_VIZ_COMMAND = ["kubectl", "get", "ns", "linkerd-viz"]
+CNI_PODS_COMMAND = ["kubectl", "-n", "kube-system", "get", "pods"]
+NETWORK_POLICY_COMMAND = ["kubectl", "get", "networkpolicy", "--all-namespaces"]
 
 
 def test_run_local_command_success(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -105,6 +107,8 @@ def test_check_environment_reports_multiple_missing_tools(
     assert report.linkerd_namespace.status == "unavailable"
     assert report.linkerd_control_plane.status == "unavailable"
     assert report.linkerd_viz.status == "unavailable"
+    assert report.cni_pods.status == "unavailable"
+    assert report.network_policies.status == "unavailable"
     assert report.ready is False
 
 
@@ -182,6 +186,8 @@ def test_check_environment_reports_metrics_server_present(
             ("kubectl", "get", "ns", "linkerd"): "linkerd",
             ("kubectl", "-n", "linkerd", "get", "deploy"): "linkerd-control-plane",
             ("kubectl", "get", "ns", "linkerd-viz"): "linkerd-viz",
+            ("kubectl", "-n", "kube-system", "get", "pods"): "calico-node",
+            ("kubectl", "get", "networkpolicy", "--all-namespaces"): "default np",
         }
         return subprocess.CompletedProcess(command, 0, outputs[tuple(command)], "")
 
@@ -197,6 +203,9 @@ def test_check_environment_reports_metrics_server_present(
     assert report.linkerd_namespace.status == "OK"
     assert report.linkerd_control_plane.status == "OK"
     assert report.linkerd_viz.status == "OK"
+    assert report.cni_pods.status == "OK"
+    assert report.cni_pods.details == "calico-node"
+    assert report.network_policies.status == "OK"
 
 
 def test_check_environment_reports_metrics_server_absent(
@@ -339,4 +348,45 @@ def test_check_environment_reports_empty_linkerd_control_plane_as_missing(
     assert report.linkerd_namespace.status == "OK"
     assert report.linkerd_control_plane.status == "missing"
     assert "No resources found" in report.linkerd_control_plane.details
+    assert report.ready is True
+
+
+def test_check_environment_reports_cni_pods(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == CNI_PODS_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "cilium-agent", "")
+        if command == NETWORK_POLICY_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "No resources found", "")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.cni_pods.status == "OK"
+    assert report.cni_pods.details == "cilium-agent"
+    assert report.network_policies.status == "OK"
+    assert report.ready is True
+
+
+def test_check_environment_keeps_cni_errors_non_blocking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == CNI_PODS_COMMAND:
+            return subprocess.CompletedProcess(command, 1, "", "api unavailable")
+        if command == NETWORK_POLICY_COMMAND:
+            return subprocess.CompletedProcess(command, 1, "", "forbidden")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.cni_pods.status == "error"
+    assert report.cni_pods.details == "api unavailable"
+    assert report.network_policies.status == "error"
+    assert report.network_policies.details == "forbidden"
     assert report.ready is True

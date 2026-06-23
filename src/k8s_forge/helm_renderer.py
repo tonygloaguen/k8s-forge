@@ -36,6 +36,7 @@ GENERATED_HELM_FILES = (
     "templates/service.yaml",
     "templates/hpa.yaml",
     "templates/ingress.yaml",
+    "templates/networkpolicy.yaml",
 )
 
 
@@ -89,6 +90,9 @@ def _template_specs() -> list[HelmTemplateSpec]:
         HelmTemplateSpec("templates/service.yaml.j2", "templates/service.yaml"),
         HelmTemplateSpec("templates/hpa.yaml.j2", "templates/hpa.yaml"),
         HelmTemplateSpec("templates/ingress.yaml.j2", "templates/ingress.yaml"),
+        HelmTemplateSpec(
+            "templates/networkpolicy.yaml.j2", "templates/networkpolicy.yaml"
+        ),
     ]
 
 
@@ -97,6 +101,13 @@ def _clear_previous_generated_files(chart_dir: Path) -> None:
         path = chart_dir / filename
         if path.exists():
             path.unlink()
+
+
+def _network_policy_values(config: AppConfig) -> dict[str, Any]:
+    network_policy = config.networkPolicy.model_dump()
+    if not network_policy["ingress"]["ports"]:
+        network_policy["ingress"]["ports"] = [config.app.containerPort]
+    return network_policy
 
 
 def _values_context(config: AppConfig) -> dict[str, Any]:
@@ -116,6 +127,7 @@ def _values_context(config: AppConfig) -> dict[str, Any]:
         "autoscaling": config.autoscaling,
         "ingress": config.ingress,
         "mesh": config.mesh,
+        "networkPolicy": _network_policy_values(config),
     }
 
 
