@@ -34,6 +34,7 @@ GENERATED_FILENAMES = (
     "50-hpa.yaml",
     "60-ingress.yaml",
     "70-networkpolicy.yaml",
+    "80-kyverno-policy.yaml",
 )
 
 
@@ -128,6 +129,7 @@ def _context(config: AppConfig) -> dict[str, Any]:
         "mesh": config.mesh,
         "networkPolicy": config.networkPolicy,
         "network_policy_ports": _network_policy_ports(config),
+        "policy": config.policy,
     }
 
 
@@ -164,6 +166,11 @@ def _template_specs(config: AppConfig) -> list[TemplateSpec]:
             "70-networkpolicy.yaml.j2",
             "70-networkpolicy.yaml",
             enabled=config.networkPolicy.enabled,
+        ),
+        TemplateSpec(
+            "80-kyverno-policy.yaml.j2",
+            "80-kyverno-policy.yaml",
+            enabled=config.policy.enabled and config.policy.provider == "kyverno",
         ),
     ]
 

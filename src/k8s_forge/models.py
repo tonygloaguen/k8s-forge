@@ -203,6 +203,31 @@ class NetworkPolicyConfig(BaseModel):
     egress: NetworkPolicyEgressConfig = Field(default_factory=NetworkPolicyEgressConfig)
 
 
+class PolicyRulesConfig(BaseModel):
+    """Baseline Kyverno policy rules."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    requireRecommendedLabels: StrictBool = True
+    disallowPrivilegedContainers: StrictBool = True
+    requireRunAsNonRoot: StrictBool = True
+    requireResources: StrictBool = True
+    disallowLatestTag: StrictBool = True
+
+
+class PolicyConfig(BaseModel):
+    """Admission policy readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = False
+    provider: Literal["kyverno"] = "kyverno"
+    profile: Literal["baseline"] = "baseline"
+    validationFailureAction: Literal["Audit", "Enforce"] = "Audit"
+    background: StrictBool = True
+    rules: PolicyRulesConfig = Field(default_factory=PolicyRulesConfig)
+
+
 class AppConfig(BaseModel):
     """Top-level user configuration."""
 
@@ -218,6 +243,7 @@ class AppConfig(BaseModel):
     ingress: IngressConfig = Field(default_factory=IngressConfig)
     mesh: MeshConfig = Field(default_factory=MeshConfig)
     networkPolicy: NetworkPolicyConfig = Field(default_factory=NetworkPolicyConfig)
+    policy: PolicyConfig = Field(default_factory=PolicyConfig)
 
     @model_validator(mode="after")
     def validate_ingress_service(self) -> "AppConfig":

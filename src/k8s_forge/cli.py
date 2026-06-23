@@ -300,6 +300,30 @@ def _cni_summary(details: str) -> str:
     return "unavailable"
 
 
+def _print_kyverno_diagnostics(report: DoctorReport) -> None:
+    _print_step("Checking Kyverno policy readiness...")
+    if (
+        report.kyverno_namespace.status == "OK"
+        and report.kyverno_deployments.status == "OK"
+        and report.kyverno_crds.status == "OK"
+    ):
+        console.print("[green]Kyverno appears to be installed.[/green]")
+        _print_hint(
+            "Generated policies can be applied and observed through PolicyReports."
+        )
+    else:
+        _print_warning("Kyverno does not appear to be installed in this cluster.")
+        _print_hint("k8s-forge will not install it automatically.")
+        _print_hint(
+            "Generated policies can be reviewed locally, but the cluster will "
+            "audit or enforce them only after Kyverno is installed."
+        )
+    if report.policy_reports.status == "OK":
+        _print_hint("PolicyReports are available in the cluster.")
+    else:
+        _print_hint("PolicyReports are not available yet or no reports were found.")
+
+
 def _print_cni_diagnostics(report: DoctorReport) -> None:
     _print_step("Checking NetworkPolicy and CNI readiness...")
     _print_network_policy_cni_warning()
@@ -320,6 +344,61 @@ def _print_cni_diagnostics(report: DoctorReport) -> None:
         "The presence of a NetworkPolicy object does not prove that traffic is "
         "actually enforced by the cluster network plugin."
     )
+
+
+def _policy_name(config: AppConfig) -> str:
+    return f"{config.app.name}-baseline"
+
+
+def _print_kyverno_prerequisite_warning() -> None:
+    _print_warning("k8s-forge generates Kyverno policies but does not install Kyverno.")
+    _print_hint(
+        "Install and validate Kyverno manually before expecting policy reports."
+    )
+
+
+def _print_policy_mode_hint(config: AppConfig) -> None:
+    if config.policy.validationFailureAction == "Audit":
+        _print_hint("The generated Kyverno policy uses Audit mode.")
+        _print_hint("Violations are reported by Kyverno but resources are not blocked.")
+        _print_hint("Use Enforce only after validating the policy impact.")
+        return
+    _print_warning("The generated Kyverno policy uses Enforce mode.")
+    _print_hint("Resources that violate the policy may be rejected by the cluster.")
+    _print_hint("Use this only after validating the policy in Audit mode.")
+
+
+def _print_policy_summary(config: AppConfig) -> None:
+    if not config.policy.enabled:
+        return
+    _print_hint("Kyverno policy support is enabled.")
+    _print_hint(
+        "Kyverno is an admission controller that can validate Kubernetes "
+        "resources before they are accepted by the cluster."
+    )
+    _print_hint(
+        "This profile generates audit-mode policies by default so the lab can "
+        "observe compliance without blocking deployments."
+    )
+    _print_policy_mode_hint(config)
+
+
+def _print_policy_validation_commands(config: AppConfig) -> None:
+    namespace = config.app.namespace
+    policy_name = _policy_name(config)
+    _print_hint("Kyverno validation commands:")
+    _print_hint(f"  kubectl -n {namespace} get policy")
+    _print_hint(f"  kubectl -n {namespace} describe policy {policy_name}")
+    _print_hint("  kubectl -n kyverno get pods")
+    _print_hint("  kubectl get policyreport -A")
+
+
+def _print_policy_runtime_hint(config: AppConfig) -> None:
+    if not config.policy.enabled:
+        return
+    _print_policy_summary(config)
+    _print_kyverno_prerequisite_warning()
+    _print_policy_validation_commands(config)
 
 
 def _print_check_summary(config: AppConfig) -> None:
@@ -443,6 +522,20 @@ def _starter_config_data(
             },
             "egress": {
                 "enabled": False,
+            },
+        },
+        "policy": {
+            "enabled": False,
+            "provider": _QuotedString("kyverno"),
+            "profile": _QuotedString("baseline"),
+            "validationFailureAction": _QuotedString("Audit"),
+            "background": True,
+            "rules": {
+                "requireRecommendedLabels": True,
+                "disallowPrivilegedContainers": True,
+                "requireRunAsNonRoot": True,
+                "requireResources": True,
+                "disallowLatestTag": True,
             },
         },
     }
@@ -730,6 +823,10 @@ def check(
     _print_network_policy_summary(loaded)
     if loaded.networkPolicy.enabled:
         _print_network_policy_validation_commands(loaded)
+    _print_policy_summary(loaded)
+    if loaded.policy.enabled:
+        _print_kyverno_prerequisite_warning()
+        _print_policy_validation_commands(loaded)
     _print_autoscaling_warning(loaded)
 
 
@@ -757,6 +854,7 @@ def render(
     _print_ingress_runtime_hint(loaded)
     _print_mesh_runtime_hint(loaded)
     _print_network_policy_runtime_hint(loaded)
+    _print_policy_runtime_hint(loaded)
     _print_autoscaling_warning(loaded)
     console.print("[green]manifests generated[/green]")
     _print_render_summary(generated)
@@ -977,6 +1075,10 @@ def doctor(
             report.linkerd_viz,
             report.cni_pods,
             report.network_policies,
+            report.kyverno_namespace,
+            report.kyverno_deployments,
+            report.kyverno_crds,
+            report.policy_reports,
         ]
     )
     if report.metrics_server.status == "OK":
@@ -1039,6 +1141,7 @@ def doctor(
         _print_hint("Linkerd Viz is optional and was not detected.")
 
     _print_cni_diagnostics(report)
+    _print_kyverno_diagnostics(report)
 
     if report.ready:
         console.print("[green]Ready for local kind workflows.[/green]")
@@ -1217,6 +1320,7 @@ def helm_render(
     _print_helm_ingress_hint(loaded)
     _print_mesh_runtime_hint(loaded)
     _print_network_policy_runtime_hint(loaded)
+    _print_policy_runtime_hint(loaded)
     _print_warning(
         "If raw Kubernetes resources already exist from k8s-forge apply, Helm "
         "may refuse to import them because of ownership metadata."

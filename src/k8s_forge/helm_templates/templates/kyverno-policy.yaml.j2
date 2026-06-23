@@ -1,0 +1,123 @@
+{{- if and .Values.policy.enabled (eq .Values.policy.provider "kyverno") }}
+apiVersion: kyverno.io/v1
+kind: Policy
+metadata:
+  name: {{ include "[[ chart_name ]].fullname" . }}-baseline
+  labels:
+    {{- include "[[ chart_name ]].labels" . | nindent 4 }}
+spec:
+  validationFailureAction: {{ .Values.policy.validationFailureAction }}
+  background: {{ .Values.policy.background }}
+  rules:
+    {{- if .Values.policy.rules.requireRecommendedLabels }}
+    - name: require-recommended-labels
+      match:
+        any:
+          - resources:
+              kinds:
+                - Deployment
+                - Service
+                - ConfigMap
+                - Secret
+                - Ingress
+                - NetworkPolicy
+      validate:
+        message: "Recommended Kubernetes app labels are required."
+        pattern:
+          metadata:
+            labels:
+              app.kubernetes.io/name: "?*"
+              app.kubernetes.io/managed-by: "?*"
+    {{- end }}
+    {{- if .Values.policy.rules.disallowPrivilegedContainers }}
+    - name: disallow-privileged-containers
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+                - Deployment
+      validate:
+        message: "Privileged containers are not allowed."
+        pattern:
+          spec:
+            =(template):
+              spec:
+                containers:
+                  - =(securityContext):
+                      =(privileged): false
+            =(containers):
+              - =(securityContext):
+                  =(privileged): false
+    {{- end }}
+    {{- if .Values.policy.rules.requireRunAsNonRoot }}
+    - name: require-run-as-non-root
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+                - Deployment
+      validate:
+        message: "Pods should run as non-root."
+        anyPattern:
+          - spec:
+              securityContext:
+                runAsNonRoot: true
+          - spec:
+              template:
+                spec:
+                  securityContext:
+                    runAsNonRoot: true
+    {{- end }}
+    {{- if .Values.policy.rules.requireResources }}
+    - name: require-resources
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+                - Deployment
+      validate:
+        message: "Containers should define CPU and memory requests and limits."
+        pattern:
+          spec:
+            =(template):
+              spec:
+                containers:
+                  - resources:
+                      requests:
+                        cpu: "?*"
+                        memory: "?*"
+                      limits:
+                        cpu: "?*"
+                        memory: "?*"
+            =(containers):
+              - resources:
+                  requests:
+                    cpu: "?*"
+                    memory: "?*"
+                  limits:
+                    cpu: "?*"
+                    memory: "?*"
+    {{- end }}
+    {{- if .Values.policy.rules.disallowLatestTag }}
+    - name: disallow-latest-tag
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+                - Deployment
+      validate:
+        message: "Container images should use an explicit tag instead of latest."
+        pattern:
+          spec:
+            =(template):
+              spec:
+                containers:
+                  - image: "!*:latest"
+            =(containers):
+              - image: "!*:latest"
+    {{- end }}
+{{- end }}

@@ -69,3 +69,15 @@ networkPolicy:
   egress:
     enabled: false
 
+policy:
+  enabled: false
+  provider: kyverno
+  profile: baseline
+  validationFailureAction: Audit
+  background: true
+  rules:
+    requireRecommendedLabels: true
+    disallowPrivilegedContainers: true
+    requireRunAsNonRoot: true
+    requireResources: true
+    disallowLatestTag: true

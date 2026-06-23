@@ -37,6 +37,7 @@ GENERATED_HELM_FILES = (
     "templates/hpa.yaml",
     "templates/ingress.yaml",
     "templates/networkpolicy.yaml",
+    "templates/kyverno-policy.yaml",
 )
 
 
@@ -93,6 +94,9 @@ def _template_specs() -> list[HelmTemplateSpec]:
         HelmTemplateSpec(
             "templates/networkpolicy.yaml.j2", "templates/networkpolicy.yaml"
         ),
+        HelmTemplateSpec(
+            "templates/kyverno-policy.yaml.j2", "templates/kyverno-policy.yaml"
+        ),
     ]
 
 
@@ -128,6 +132,7 @@ def _values_context(config: AppConfig) -> dict[str, Any]:
         "ingress": config.ingress,
         "mesh": config.mesh,
         "networkPolicy": _network_policy_values(config),
+        "policy": config.policy,
     }
 
 

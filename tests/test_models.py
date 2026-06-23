@@ -420,3 +420,93 @@ def test_network_policy_rejects_invalid_port() -> None:
 
     with pytest.raises(ValidationError):
         AppConfig.model_validate(config_data)
+
+
+def test_policy_defaults_when_section_absent() -> None:
+    config_data = _valid_config()
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.policy.enabled is False
+    assert config.policy.provider == "kyverno"
+    assert config.policy.profile == "baseline"
+    assert config.policy.validationFailureAction == "Audit"
+    assert config.policy.background is True
+    assert config.policy.rules.requireRecommendedLabels is True
+    assert config.policy.rules.disallowLatestTag is True
+
+
+def test_policy_accepts_kyverno_baseline_audit() -> None:
+    config_data = _valid_config()
+    config_data["policy"] = {
+        "enabled": True,
+        "provider": "kyverno",
+        "profile": "baseline",
+        "validationFailureAction": "Audit",
+        "background": True,
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.policy.enabled is True
+    assert config.policy.provider == "kyverno"
+    assert config.policy.profile == "baseline"
+    assert config.policy.validationFailureAction == "Audit"
+
+
+def test_policy_rejects_invalid_provider() -> None:
+    config_data = _valid_config()
+    config_data["policy"] = {"enabled": True, "provider": "gatekeeper"}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_policy_rejects_invalid_profile() -> None:
+    config_data = _valid_config()
+    config_data["policy"] = {"enabled": True, "profile": "restricted"}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_policy_accepts_enforce_but_not_as_default() -> None:
+    config_data = _valid_config()
+    config_data["policy"] = {
+        "enabled": True,
+        "provider": "kyverno",
+        "profile": "baseline",
+        "validationFailureAction": "Enforce",
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.policy.validationFailureAction == "Enforce"
+
+
+def test_policy_rejects_invalid_validation_failure_action() -> None:
+    config_data = _valid_config()
+    config_data["policy"] = {"enabled": True, "validationFailureAction": "Warn"}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_policy_rules_can_be_disabled() -> None:
+    config_data = _valid_config()
+    config_data["policy"] = {
+        "enabled": True,
+        "rules": {
+            "requireRecommendedLabels": False,
+            "disallowPrivilegedContainers": True,
+            "requireRunAsNonRoot": False,
+            "requireResources": True,
+            "disallowLatestTag": False,
+        },
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.policy.rules.requireRecommendedLabels is False
+    assert config.policy.rules.requireRunAsNonRoot is False
+    assert config.policy.rules.disallowLatestTag is False

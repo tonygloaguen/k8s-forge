@@ -495,3 +495,82 @@ def test_renderer_cleans_previous_network_policy_file_when_disabled(
     render_manifests(AppConfig.model_validate(_base_config()), tmp_path)
 
     assert not network_policy_file.exists()
+
+
+def test_kyverno_policy_absent_when_disabled(tmp_path: Path) -> None:
+    config = AppConfig.model_validate(_base_config())
+
+    render_manifests(config, tmp_path)
+
+    assert not (tmp_path / "80-kyverno-policy.yaml").exists()
+
+
+def test_kyverno_policy_generated_when_enabled(tmp_path: Path) -> None:
+    config_data = _base_config()
+    config_data["policy"] = {"enabled": True, "provider": "kyverno"}
+    config = AppConfig.model_validate(config_data)
+
+    generated = render_manifests(config, tmp_path)
+    policy = _load_yaml(tmp_path / "80-kyverno-policy.yaml")
+
+    assert "80-kyverno-policy.yaml" in [path.name for path in generated]
+    assert policy["apiVersion"] == "kyverno.io/v1"
+    assert policy["kind"] == "Policy"
+    assert policy["metadata"]["name"] == "generic-web-baseline"
+    assert policy["metadata"]["namespace"] == "generic"
+
+
+def test_kyverno_policy_uses_audit_background_and_rules(tmp_path: Path) -> None:
+    config_data = _base_config()
+    config_data["policy"] = {"enabled": True, "provider": "kyverno"}
+    config = AppConfig.model_validate(config_data)
+
+    render_manifests(config, tmp_path)
+    policy = _load_yaml(tmp_path / "80-kyverno-policy.yaml")
+
+    assert policy["spec"]["validationFailureAction"] == "Audit"
+    assert policy["spec"]["background"] is True
+    rule_names = {rule["name"] for rule in policy["spec"]["rules"]}
+    assert rule_names == {
+        "require-recommended-labels",
+        "disallow-privileged-containers",
+        "require-run-as-non-root",
+        "require-resources",
+        "disallow-latest-tag",
+    }
+    assert "ClusterPolicy" not in (tmp_path / "80-kyverno-policy.yaml").read_text(
+        encoding="utf-8"
+    )
+
+
+def test_kyverno_policy_respects_disabled_rules(tmp_path: Path) -> None:
+    config_data = _base_config()
+    config_data["policy"] = {
+        "enabled": True,
+        "provider": "kyverno",
+        "rules": {
+            "requireRecommendedLabels": True,
+            "disallowPrivilegedContainers": False,
+            "requireRunAsNonRoot": False,
+            "requireResources": True,
+            "disallowLatestTag": False,
+        },
+    }
+    config = AppConfig.model_validate(config_data)
+
+    render_manifests(config, tmp_path)
+    policy = _load_yaml(tmp_path / "80-kyverno-policy.yaml")
+
+    rule_names = {rule["name"] for rule in policy["spec"]["rules"]}
+    assert rule_names == {"require-recommended-labels", "require-resources"}
+
+
+def test_renderer_cleans_previous_kyverno_policy_file_when_disabled(
+    tmp_path: Path,
+) -> None:
+    policy_file = tmp_path / "80-kyverno-policy.yaml"
+    policy_file.write_text("old policy", encoding="utf-8")
+
+    render_manifests(AppConfig.model_validate(_base_config()), tmp_path)
+
+    assert not policy_file.exists()

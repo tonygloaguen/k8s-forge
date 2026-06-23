@@ -343,3 +343,24 @@ curl -k --resolve weather.local:8443:127.0.0.1 https://weather.local:8443/readyz
 
 If the CNI does not support NetworkPolicy, the object can exist without enforcement.
 
+
+## Kyverno readiness follow-up
+
+After the NetworkPolicy lab, copy the config and enable the baseline Kyverno policy in Audit mode:
+
+```bash
+cp k8s-forge-app-netpol.yaml k8s-forge-app-kyverno.yaml
+```
+
+Add `policy.enabled: true`, render raw and Helm output, then validate locally:
+
+```bash
+k8s-forge check k8s-forge-app-kyverno.yaml
+k8s-forge render k8s-forge-app-kyverno.yaml --output generated-k8s-forge-kyverno/
+k8s-forge helm render k8s-forge-app-kyverno.yaml --output charts-generated-kyverno
+helm lint charts-generated-kyverno/weatherapi
+helm template weatherapi charts-generated-kyverno/weatherapi -n weather-helm
+k8s-forge doctor
+```
+
+Without Kyverno installed, the policy can be reviewed but the cluster will not create PolicyReports.

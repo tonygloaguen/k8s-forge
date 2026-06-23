@@ -42,3 +42,6 @@ kubectl -n <namespace> get deploy,po,svc
 kubectl -n <namespace> describe pod <pod-name>
 kubectl -n <namespace> logs <pod-name>
 ```
+
+| `Kyverno does not appear to be installed in this cluster.` | Kyverno namespace, deployments, or CRDs are missing. | Install and validate Kyverno manually before expecting PolicyReports. | `kubectl -n kyverno get pods` |
+| No PolicyReports are visible | Kyverno is absent, not ready, or no reports have been created yet. | Check Kyverno pods and CRDs, then re-apply or wait for background scans. | `kubectl get policyreport -A` |

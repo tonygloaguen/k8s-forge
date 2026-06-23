@@ -21,6 +21,7 @@ name.
 - generate optional Ingress-NGINX compatible Ingress resources;
 - prepare Deployments for optional Linkerd service mesh injection;
 - generate optional ingress-only NetworkPolicy manifests;
+- generate optional Kyverno baseline Policy manifests in Audit mode;
 - run guarded `kubectl` workflows for `dry-run`, `diff`, `apply`, and `status`;
 - check local Docker/kind/kubectl prerequisites and manage a local kind cluster;
 - keep generated manifests inspectable before cluster operations.
@@ -40,12 +41,12 @@ Included:
 - `cluster create`, `cluster status`, `cluster delete` for kind
 - `image load` for loading local Docker images into kind
 - `helm render` for generating a local Helm chart
-- generation of Namespace, ConfigMap, Secret, Deployment, Service, optional HorizontalPodAutoscaler, optional Ingress, optional Linkerd pod-template annotations, and optional NetworkPolicy
+- generation of Namespace, ConfigMap, Secret, Deployment, Service, optional HorizontalPodAutoscaler, optional Ingress, optional Linkerd pod-template annotations, optional NetworkPolicy, and optional Kyverno Policy
 
 Out of scope:
 
 - automatic Linkerd installation or `linkerd inject`
-- NetworkPolicy
+- automatic Kyverno installation or cluster-wide ClusterPolicy generation
 - Kustomize
 - LangGraph
 - real secret management
@@ -152,6 +153,10 @@ When `mesh.enabled` and `mesh.inject` are true, `k8s-forge` adds Linkerd injecti
 
 When `networkPolicy.enabled` is true, `k8s-forge` renders an ingress-only NetworkPolicy that allows traffic from the `ingress-nginx` namespace to the application container port. Enforcement depends on the cluster CNI; `k8s-forge` does not install or replace the CNI.
 
+## Module 4 Kyverno
+
+When `policy.enabled` is true and `provider` is `kyverno`, `k8s-forge` renders a namespace-scoped Kyverno `Policy` using the baseline profile. The default mode is `Audit` so violations can be observed without blocking lab deployments. `k8s-forge` does not install Kyverno.
+
 ## Local kind Bootstrap
 
 `k8s-forge doctor` checks Docker, kind, kubectl, the current context, and
@@ -198,6 +203,7 @@ examples and tests.
 - [Module 3 Ingress workflow](docs/module-3-ingress.md)
 - [Module 3 Linkerd service mesh workflow](docs/module-3-linkerd.md)
 - [Module 4 NetworkPolicy workflow](docs/module-4-networkpolicy.md)
+- [Module 4 Kyverno workflow](docs/module-4-kyverno.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Real app case study: weatherapi-platform](docs/real-app-weatherapi.md)
 - [Design notes](docs/design.md)

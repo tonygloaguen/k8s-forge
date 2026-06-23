@@ -130,3 +130,7 @@ bash scripts/check_release.sh
 This builds the wheel and sdist, installs the wheel into a clean temporary
 virtualenv, checks `k8s-forge --help`, and renders manifests from the installed
 console command.
+
+## Next step: Kyverno readiness
+
+After NetworkPolicy readiness, see [Module 4 Kyverno](module-4-kyverno.md) to generate namespace-scoped Audit policies and understand PolicyReports.

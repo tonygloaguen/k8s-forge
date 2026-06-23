@@ -54,6 +54,7 @@ def test_render_helm_chart_generates_expected_files(tmp_path: Path) -> None:
         Path("templates/hpa.yaml"),
         Path("templates/ingress.yaml"),
         Path("templates/networkpolicy.yaml"),
+        Path("templates/kyverno-policy.yaml"),
     ]
 
 
@@ -315,3 +316,82 @@ def test_two_configs_generate_different_network_policy_values(tmp_path: Path) ->
     ]
     assert demo_values["networkPolicy"]["enabled"] is False
     assert netpol_values["networkPolicy"] != demo_values["networkPolicy"]
+
+
+def test_values_yaml_contains_policy_section(tmp_path: Path) -> None:
+    _render_example("demo-app.yaml", tmp_path)
+
+    values = _load_yaml(tmp_path / "demo-app" / "values.yaml")
+
+    assert values["policy"] == {
+        "enabled": False,
+        "provider": "kyverno",
+        "profile": "baseline",
+        "validationFailureAction": "Audit",
+        "background": True,
+        "rules": {
+            "requireRecommendedLabels": True,
+            "disallowPrivilegedContainers": True,
+            "requireRunAsNonRoot": True,
+            "requireResources": True,
+            "disallowLatestTag": True,
+        },
+    }
+
+
+def test_kyverno_policy_template_is_generated_and_conditional(tmp_path: Path) -> None:
+    _render_example("demo-app.yaml", tmp_path)
+
+    template = (tmp_path / "demo-app" / "templates" / "kyverno-policy.yaml").read_text(
+        encoding="utf-8"
+    )
+
+    assert (
+        '{{- if and .Values.policy.enabled (eq .Values.policy.provider "kyverno") }}'
+        in template
+    )
+    assert "kind: Policy" in template
+    assert "ClusterPolicy" not in template
+    assert (
+        "validationFailureAction: {{ .Values.policy.validationFailureAction }}"
+        in template
+    )
+    assert "require-recommended-labels" in template
+    assert "disallow-latest-tag" in template
+
+
+def test_two_configs_generate_different_policy_values(tmp_path: Path) -> None:
+    base = {
+        "app": {
+            "name": "policy-app",
+            "namespace": "policy",
+            "image": "policy-app:1.0.0",
+            "containerPort": 8000,
+            "replicas": 2,
+        },
+        "service": {"enabled": True, "port": 80},
+        "policy": {
+            "enabled": True,
+            "provider": "kyverno",
+            "profile": "baseline",
+            "validationFailureAction": "Enforce",
+            "background": False,
+            "rules": {
+                "requireRecommendedLabels": True,
+                "disallowPrivilegedContainers": False,
+                "requireRunAsNonRoot": True,
+                "requireResources": False,
+                "disallowLatestTag": True,
+            },
+        },
+    }
+    render_helm_chart(AppConfig.model_validate(base), tmp_path)
+    _render_example("demo-app.yaml", tmp_path)
+
+    policy_values = _load_yaml(tmp_path / "policy-app" / "values.yaml")
+    demo_values = _load_yaml(tmp_path / "demo-app" / "values.yaml")
+
+    assert policy_values["policy"]["enabled"] is True
+    assert policy_values["policy"]["validationFailureAction"] == "Enforce"
+    assert policy_values["policy"]["background"] is False
+    assert policy_values["policy"] != demo_values["policy"]

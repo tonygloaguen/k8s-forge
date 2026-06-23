@@ -115,3 +115,15 @@ networkPolicy:
 [% endfor %]
   egress:
     enabled: [[ values.networkPolicy.egress.enabled | lower ]]
+policy:
+  enabled: [[ values.policy.enabled | lower ]]
+  provider: [[ values.policy.provider | yaml_scalar ]]
+  profile: [[ values.policy.profile | yaml_scalar ]]
+  validationFailureAction: [[ values.policy.validationFailureAction | yaml_scalar ]]
+  background: [[ values.policy.background | lower ]]
+  rules:
+    requireRecommendedLabels: [[ values.policy.rules.requireRecommendedLabels | lower ]]
+    disallowPrivilegedContainers: [[ values.policy.rules.disallowPrivilegedContainers | lower ]]
+    requireRunAsNonRoot: [[ values.policy.rules.requireRunAsNonRoot | lower ]]
+    requireResources: [[ values.policy.rules.requireResources | lower ]]
+    disallowLatestTag: [[ values.policy.rules.disallowLatestTag | lower ]]

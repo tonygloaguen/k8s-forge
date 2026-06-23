@@ -42,6 +42,10 @@ LINKERD_CONTROL_PLANE_COMMAND = ["kubectl", "-n", "linkerd", "get", "deploy"]
 LINKERD_VIZ_COMMAND = ["kubectl", "get", "ns", "linkerd-viz"]
 CNI_PODS_COMMAND = ["kubectl", "-n", "kube-system", "get", "pods"]
 NETWORK_POLICY_COMMAND = ["kubectl", "get", "networkpolicy", "--all-namespaces"]
+KYVERNO_NAMESPACE_COMMAND = ["kubectl", "get", "ns", "kyverno"]
+KYVERNO_DEPLOY_COMMAND = ["kubectl", "-n", "kyverno", "get", "deploy"]
+KYVERNO_CRD_COMMAND = ["kubectl", "get", "crd"]
+POLICY_REPORT_COMMAND = ["kubectl", "get", "policyreport", "--all-namespaces"]
 
 
 def test_run_local_command_success(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -109,6 +113,10 @@ def test_check_environment_reports_multiple_missing_tools(
     assert report.linkerd_viz.status == "unavailable"
     assert report.cni_pods.status == "unavailable"
     assert report.network_policies.status == "unavailable"
+    assert report.kyverno_namespace.status == "unavailable"
+    assert report.kyverno_deployments.status == "unavailable"
+    assert report.kyverno_crds.status == "unavailable"
+    assert report.policy_reports.status == "unavailable"
     assert report.ready is False
 
 
@@ -188,6 +196,16 @@ def test_check_environment_reports_metrics_server_present(
             ("kubectl", "get", "ns", "linkerd-viz"): "linkerd-viz",
             ("kubectl", "-n", "kube-system", "get", "pods"): "calico-node",
             ("kubectl", "get", "networkpolicy", "--all-namespaces"): "default np",
+            ("kubectl", "get", "ns", "kyverno"): "kyverno",
+            (
+                "kubectl",
+                "-n",
+                "kyverno",
+                "get",
+                "deploy",
+            ): "kyverno-admission-controller",
+            ("kubectl", "get", "crd"): "policies.kyverno.io",
+            ("kubectl", "get", "policyreport", "--all-namespaces"): "weather report",
         }
         return subprocess.CompletedProcess(command, 0, outputs[tuple(command)], "")
 
@@ -206,6 +224,10 @@ def test_check_environment_reports_metrics_server_present(
     assert report.cni_pods.status == "OK"
     assert report.cni_pods.details == "calico-node"
     assert report.network_policies.status == "OK"
+    assert report.kyverno_namespace.status == "OK"
+    assert report.kyverno_deployments.status == "OK"
+    assert report.kyverno_crds.status == "OK"
+    assert report.policy_reports.status == "OK"
 
 
 def test_check_environment_reports_metrics_server_absent(
@@ -389,4 +411,71 @@ def test_check_environment_keeps_cni_errors_non_blocking(
     assert report.cni_pods.details == "api unavailable"
     assert report.network_policies.status == "error"
     assert report.network_policies.details == "forbidden"
+    assert report.ready is True
+
+
+def test_check_environment_reports_kyverno_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == KYVERNO_NAMESPACE_COMMAND:
+            return subprocess.CompletedProcess(
+                command, 1, "", 'namespaces "kyverno" not found'
+            )
+        if command == KYVERNO_DEPLOY_COMMAND:
+            raise AssertionError("deployments must not be checked without namespace")
+        if command == KYVERNO_CRD_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "deployments.apps", "")
+        if command == POLICY_REPORT_COMMAND:
+            return subprocess.CompletedProcess(
+                command, 1, "", "the server doesn't have a resource type"
+            )
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.kyverno_namespace.status == "missing"
+    assert report.kyverno_deployments.status == "missing"
+    assert report.kyverno_crds.status == "missing"
+    assert report.policy_reports.status == "error"
+    assert report.ready is True
+
+
+def test_check_environment_reports_kyverno_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == KYVERNO_CRD_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "policies.kyverno.io", "")
+        if command == POLICY_REPORT_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "weather report", "")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.kyverno_namespace.status == "OK"
+    assert report.kyverno_deployments.status == "OK"
+    assert report.kyverno_crds.status == "OK"
+    assert report.policy_reports.status == "OK"
+
+
+def test_check_environment_reports_policyreports_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == KYVERNO_CRD_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "policies.kyverno.io", "")
+        if command == POLICY_REPORT_COMMAND:
+            return subprocess.CompletedProcess(command, 1, "", "not found")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.policy_reports.status == "missing"
     assert report.ready is True

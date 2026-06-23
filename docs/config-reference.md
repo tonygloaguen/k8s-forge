@@ -473,3 +473,37 @@ k8s-forge dry-run app.yaml --output generated/
 k8s-forge diff app.yaml --output generated/
 k8s-forge apply app.yaml --output generated/
 ```
+
+## `policy`
+
+`policy` controls optional admission policy manifests. In v0.7.0 only the `kyverno` provider and `baseline` profile are supported.
+
+```yaml
+policy:
+  enabled: false
+  provider: kyverno
+  profile: baseline
+  validationFailureAction: Audit
+  background: true
+  rules:
+    requireRecommendedLabels: true
+    disallowPrivilegedContainers: true
+    requireRunAsNonRoot: true
+    requireResources: true
+    disallowLatestTag: true
+```
+
+| Field | Type | Required | Default via `init` | Constraints | Kubernetes usage |
+| --- | --- | --- | --- | --- | --- |
+| `policy.enabled` | boolean | no | `false` | `true` or `false` | Generates a Kyverno `Policy` when enabled. |
+| `policy.provider` | string | no | `kyverno` | only `kyverno` in v0.7.0 | Selects the policy engine. |
+| `policy.profile` | string | no | `baseline` | only `baseline` in v0.7.0 | Selects the generated baseline rule set. |
+| `policy.validationFailureAction` | string | no | `Audit` | `Audit` or `Enforce` | Controls whether Kyverno reports or rejects violations. |
+| `policy.background` | boolean | no | `true` | `true` or `false` | Allows Kyverno background scans when supported. |
+| `policy.rules.requireRecommendedLabels` | boolean | no | `true` | `true` or `false` | Requires recommended app labels. |
+| `policy.rules.disallowPrivilegedContainers` | boolean | no | `true` | `true` or `false` | Audits privileged containers. |
+| `policy.rules.requireRunAsNonRoot` | boolean | no | `true` | `true` or `false` | Audits workloads without non-root execution. |
+| `policy.rules.requireResources` | boolean | no | `true` | `true` or `false` | Audits containers without requests and limits. |
+| `policy.rules.disallowLatestTag` | boolean | no | `true` | `true` or `false` | Audits image tags using `latest`. |
+
+`Audit` is the recommended lab default because it reports violations without blocking the deployment. Use `Enforce` only after validating the policy impact.

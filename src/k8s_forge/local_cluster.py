@@ -51,6 +51,10 @@ class DoctorReport:
     linkerd_viz: ToolCheck
     cni_pods: ToolCheck
     network_policies: ToolCheck
+    kyverno_namespace: ToolCheck
+    kyverno_deployments: ToolCheck
+    kyverno_crds: ToolCheck
+    policy_reports: ToolCheck
 
     @property
     def ready(self) -> bool:
@@ -145,6 +149,17 @@ def _linkerd_control_plane_check(timeout: int = 30) -> ToolCheck:
     return check
 
 
+def _kyverno_crd_check(timeout: int = 30) -> ToolCheck:
+    check = check_command("Kyverno CRDs", ["kubectl", "get", "crd"], timeout)
+    if check.status != "OK":
+        if _looks_missing(check.details):
+            return ToolCheck("Kyverno CRDs", "missing", check.details)
+        return check
+    if "kyverno.io" not in check.details.lower():
+        return ToolCheck("Kyverno CRDs", "missing", "No kyverno.io CRDs found")
+    return check
+
+
 def check_environment(timeout: int = 30) -> DoctorReport:
     """Check Docker, kind, kubectl, current context, and nodes."""
     docker = check_command("Docker", ["docker", "version"], timeout)
@@ -203,6 +218,27 @@ def check_environment(timeout: int = 30) -> DoctorReport:
             ["kubectl", "get", "networkpolicy", "--all-namespaces"],
             timeout,
         )
+        kyverno_namespace = _linkerd_optional_check(
+            "Kyverno namespace", ["kubectl", "get", "ns", "kyverno"], timeout
+        )
+        if kyverno_namespace.status == "OK":
+            kyverno_deployments = _linkerd_optional_check(
+                "Kyverno deployments",
+                ["kubectl", "-n", "kyverno", "get", "deploy"],
+                timeout,
+            )
+        else:
+            kyverno_deployments = ToolCheck(
+                "Kyverno deployments",
+                "missing",
+                "Kyverno namespace is missing; deployments were not checked",
+            )
+        kyverno_crds = _kyverno_crd_check(timeout)
+        policy_reports = _linkerd_optional_check(
+            "PolicyReports",
+            ["kubectl", "get", "policyreport", "--all-namespaces"],
+            timeout,
+        )
     else:
         current_context = ToolCheck(
             "current context", "unavailable", "kubectl is not available"
@@ -230,6 +266,18 @@ def check_environment(timeout: int = 30) -> DoctorReport:
         network_policies = ToolCheck(
             "NetworkPolicy objects", "unavailable", "kubectl is not available"
         )
+        kyverno_namespace = ToolCheck(
+            "Kyverno namespace", "unavailable", "kubectl is not available"
+        )
+        kyverno_deployments = ToolCheck(
+            "Kyverno deployments", "unavailable", "kubectl is not available"
+        )
+        kyverno_crds = ToolCheck(
+            "Kyverno CRDs", "unavailable", "kubectl is not available"
+        )
+        policy_reports = ToolCheck(
+            "PolicyReports", "unavailable", "kubectl is not available"
+        )
 
     return DoctorReport(
         docker,
@@ -246,6 +294,10 @@ def check_environment(timeout: int = 30) -> DoctorReport:
         linkerd_viz,
         cni_pods,
         network_policies,
+        kyverno_namespace,
+        kyverno_deployments,
+        kyverno_crds,
+        policy_reports,
     )
 
 

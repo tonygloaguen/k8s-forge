@@ -42,6 +42,10 @@ LINKERD_CONTROL_PLANE_COMMAND = ["kubectl", "-n", "linkerd", "get", "deploy"]
 LINKERD_VIZ_COMMAND = ["kubectl", "get", "ns", "linkerd-viz"]
 CNI_PODS_COMMAND = ["kubectl", "-n", "kube-system", "get", "pods"]
 NETWORK_POLICY_COMMAND = ["kubectl", "get", "networkpolicy", "--all-namespaces"]
+KYVERNO_NAMESPACE_COMMAND = ["kubectl", "get", "ns", "kyverno"]
+KYVERNO_DEPLOY_COMMAND = ["kubectl", "-n", "kyverno", "get", "deploy"]
+KYVERNO_CRD_COMMAND = ["kubectl", "get", "crd"]
+POLICY_REPORT_COMMAND = ["kubectl", "get", "policyreport", "--all-namespaces"]
 
 
 def test_cli_help_responds() -> None:
@@ -1035,6 +1039,16 @@ def test_cli_doctor_all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
             ("kubectl", "get", "ns", "linkerd-viz"): "linkerd-viz",
             ("kubectl", "-n", "kube-system", "get", "pods"): "calico-node",
             ("kubectl", "get", "networkpolicy", "--all-namespaces"): "weather np",
+            ("kubectl", "get", "ns", "kyverno"): "kyverno",
+            (
+                "kubectl",
+                "-n",
+                "kyverno",
+                "get",
+                "deploy",
+            ): "kyverno-admission-controller",
+            ("kubectl", "get", "crd"): "policies.kyverno.io",
+            ("kubectl", "get", "policyreport", "--all-namespaces"): "weather report",
         }
         return subprocess.CompletedProcess(command, 0, outputs[tuple(command)], "")
 
@@ -1061,6 +1075,8 @@ def test_cli_doctor_all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "Linkerd Viz appears to be available" in result.output
     assert "Checking NetworkPolicy and CNI readiness" in result.output
     assert "NetworkPolicy-capable CNI appears to be present" in result.output
+    assert "Checking Kyverno policy readiness" in result.output
+    assert "Kyverno appears to be installed" in result.output
 
 
 def test_cli_doctor_docker_absent(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1737,3 +1753,133 @@ def test_cli_doctor_reports_cilium_or_calico_as_capable(
     assert result.exit_code == 0
     assert "NetworkPolicy-capable CNI appears to be present" in result.output
     assert "cilium" in result.output
+
+
+def _write_policy_config(path: Path, action: str = "Audit") -> None:
+    path.write_text(
+        f"""
+app:
+  name: weatherapi
+  namespace: weather
+  image: weatherapi:0.1.0
+  containerPort: 8000
+  replicas: 2
+service:
+  enabled: true
+  port: 80
+policy:
+  enabled: true
+  provider: kyverno
+  profile: baseline
+  validationFailureAction: {action}
+  background: true
+  rules:
+    requireRecommendedLabels: true
+    disallowPrivilegedContainers: true
+    requireRunAsNonRoot: true
+    requireResources: true
+    disallowLatestTag: true
+""".strip(),
+        encoding="utf-8",
+    )
+
+
+def test_cli_check_mentions_kyverno_policy_when_enabled(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    _write_policy_config(config_path)
+
+    result = runner.invoke(app, ["check", str(config_path)])
+
+    assert result.exit_code == 0
+    assert "Kyverno policy support is enabled" in result.output
+    assert "admission controller" in result.output
+    assert "Audit mode" in result.output
+    assert "kubectl -n weather get policy" in result.output
+    assert "kubectl get policyreport -A" in result.output
+
+
+def test_cli_check_mentions_kyverno_enforce_mode(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    _write_policy_config(config_path, action="Enforce")
+
+    result = runner.invoke(app, ["check", str(config_path)])
+
+    assert result.exit_code == 0
+    assert "Enforce mode" in result.output
+    assert "may be rejected" in result.output
+
+
+def test_cli_render_mentions_kyverno_policy(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated"
+    _write_policy_config(config_path)
+
+    result = runner.invoke(
+        app, ["render", str(config_path), "--output", str(output_dir)]
+    )
+
+    assert result.exit_code == 0
+    assert "80-kyverno-policy.yaml" in result.output
+    assert "does not install Kyverno" in result.output
+    assert (output_dir / "80-kyverno-policy.yaml").exists()
+
+
+def test_cli_helm_render_mentions_kyverno_policy(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "charts"
+    _write_policy_config(config_path)
+
+    result = runner.invoke(
+        app, ["helm", "render", str(config_path), "--output", str(output_dir)]
+    )
+
+    chart_dir = output_dir / "weatherapi"
+    assert result.exit_code == 0
+    assert "templates/kyverno-policy.yaml" in result.output
+    assert "Kyverno policy support is enabled" in result.output
+    assert "helm template" in result.output
+    assert (chart_dir / "templates" / "kyverno-policy.yaml").exists()
+
+
+def test_cli_doctor_reports_kyverno_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command in (KYVERNO_NAMESPACE_COMMAND, KYVERNO_DEPLOY_COMMAND):
+            return subprocess.CompletedProcess(command, 1, "", "not found")
+        if command == KYVERNO_CRD_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "deployments.apps", "")
+        if command == POLICY_REPORT_COMMAND:
+            return subprocess.CompletedProcess(
+                command, 1, "", "the server doesn't have a resource type"
+            )
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "Checking Kyverno policy readiness" in result.output
+    assert "Kyverno does not appear to be installed" in result.output
+    assert "will not install it automatically" in result.output
+    assert "reviewed locally" in result.output
+
+
+def test_cli_doctor_reports_kyverno_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == KYVERNO_CRD_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "policies.kyverno.io", "")
+        if command == POLICY_REPORT_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "weather report", "")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "Kyverno appears to be installed" in result.output
+    assert "PolicyReports are available" in result.output
