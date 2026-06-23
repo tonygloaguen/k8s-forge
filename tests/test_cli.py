@@ -1864,6 +1864,11 @@ def test_cli_doctor_reports_kyverno_absent(
     assert "Kyverno does not appear to be installed" in result.output
     assert "will not install it automatically" in result.output
     assert "reviewed locally" in result.output
+    assert "PolicyReport resource type is not available" in result.output
+    assert (
+        "PolicyReports are not available yet or no reports were found" in result.output
+    )
+    assert "Ready for local kind workflows" in result.output
 
 
 def test_cli_doctor_reports_kyverno_present(

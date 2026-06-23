@@ -160,6 +160,27 @@ def _kyverno_crd_check(timeout: int = 30) -> ToolCheck:
     return check
 
 
+def _policy_reports_check(timeout: int = 30) -> ToolCheck:
+    check = _linkerd_optional_check(
+        "PolicyReports",
+        ["kubectl", "get", "policyreport", "--all-namespaces"],
+        timeout,
+    )
+    if check.status == "error":
+        normalized = check.details.lower()
+        if (
+            "doesn't have a resource type" in normalized
+            or "does not have a resource type" in normalized
+        ):
+            return ToolCheck(
+                "PolicyReports",
+                "missing",
+                "PolicyReport resource type is not available because "
+                "Kyverno CRDs are not installed.",
+            )
+    return check
+
+
 def check_environment(timeout: int = 30) -> DoctorReport:
     """Check Docker, kind, kubectl, current context, and nodes."""
     docker = check_command("Docker", ["docker", "version"], timeout)
@@ -234,11 +255,7 @@ def check_environment(timeout: int = 30) -> DoctorReport:
                 "Kyverno namespace is missing; deployments were not checked",
             )
         kyverno_crds = _kyverno_crd_check(timeout)
-        policy_reports = _linkerd_optional_check(
-            "PolicyReports",
-            ["kubectl", "get", "policyreport", "--all-namespaces"],
-            timeout,
-        )
+        policy_reports = _policy_reports_check(timeout)
     else:
         current_context = ToolCheck(
             "current context", "unavailable", "kubectl is not available"

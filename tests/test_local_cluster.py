@@ -439,7 +439,10 @@ def test_check_environment_reports_kyverno_absent(
     assert report.kyverno_namespace.status == "missing"
     assert report.kyverno_deployments.status == "missing"
     assert report.kyverno_crds.status == "missing"
-    assert report.policy_reports.status == "error"
+    assert report.policy_reports.status == "missing"
+    assert (
+        "PolicyReport resource type is not available" in report.policy_reports.details
+    )
     assert report.ready is True
 
 
@@ -478,4 +481,30 @@ def test_check_environment_reports_policyreports_absent(
     report = check_environment()
 
     assert report.policy_reports.status == "missing"
+    assert report.ready is True
+
+
+def test_check_environment_reports_policyreport_resource_type_absent_as_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == POLICY_REPORT_COMMAND:
+            return subprocess.CompletedProcess(
+                command,
+                1,
+                "",
+                'error: the server doesn\'t have a resource type "policyreport"',
+            )
+        if command == KYVERNO_CRD_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "deployments.apps", "")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.policy_reports.status == "missing"
+    assert (
+        "PolicyReport resource type is not available" in report.policy_reports.details
+    )
     assert report.ready is True
