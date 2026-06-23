@@ -87,6 +87,12 @@ def _ingress_annotations(config: AppConfig) -> dict[str, str]:
     return annotations
 
 
+def _pod_annotations(config: AppConfig) -> dict[str, str]:
+    if config.mesh.enabled and config.mesh.inject:
+        return dict(config.mesh.annotations)
+    return {}
+
+
 def _env_from(config: AppConfig) -> list[dict[str, str]]:
     sources: list[dict[str, str]] = []
     if config.config:
@@ -111,6 +117,8 @@ def _context(config: AppConfig) -> dict[str, Any]:
         "autoscaling": config.autoscaling,
         "ingress": config.ingress,
         "ingress_annotations": _ingress_annotations(config),
+        "pod_annotations": _pod_annotations(config),
+        "mesh": config.mesh,
     }
 
 

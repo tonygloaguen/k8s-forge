@@ -197,6 +197,29 @@ kubectl -n cert-manager get deploy cert-manager
 
 For local hosts, add `127.0.0.1 <host>` manually to `/etc/hosts`. On kind, direct access to ports 80/443 requires cluster port mappings; otherwise use port-forwarding.
 
+## Linkerd Service Mesh Readiness
+
+When `mesh.enabled` and `mesh.inject` are true, raw and Helm Deployment outputs include Linkerd pod-template annotations. This prepares the workload for Linkerd injection, but `k8s-forge` does not install Linkerd, does not annotate the Namespace, and does not run `linkerd inject`.
+
+Validate prerequisites manually:
+
+```bash
+linkerd check
+kubectl get ns linkerd
+kubectl -n linkerd get deploy
+kubectl get ns linkerd-viz
+```
+
+Validate an injected workload:
+
+```bash
+kubectl -n <namespace> get pods
+kubectl -n <namespace> describe pod <pod>
+linkerd stat deploy -n <namespace>
+```
+
+Injected pods usually show `2/2` containers: the application container plus `linkerd-proxy`.
+
 ## Complete Operational Scenario
 
 ```bash
@@ -400,3 +423,4 @@ permissions.
 - [Module 2 Kubernetes raw workflow](module-2-kubernetes.md)
 - [Module 2 Helm workflow](module-2-helm.md)
 - [Module 3 Ingress workflow](module-3-ingress.md)
+- [Module 3 Linkerd service mesh workflow](module-3-linkerd.md)

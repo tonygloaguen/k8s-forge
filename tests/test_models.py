@@ -278,3 +278,78 @@ def test_ingress_rejects_invalid_path_type() -> None:
 
     with pytest.raises(ValidationError):
         AppConfig.model_validate(config_data)
+
+
+def test_mesh_defaults_when_section_absent() -> None:
+    config_data = _valid_config()
+    config_data.pop("mesh", None)
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.mesh.enabled is False
+    assert config.mesh.provider == "linkerd"
+    assert config.mesh.inject is False
+    assert config.mesh.annotations == {"linkerd.io/inject": "enabled"}
+
+
+def test_mesh_accepts_linkerd_provider() -> None:
+    config_data = _valid_config()
+    config_data["mesh"] = {
+        "enabled": True,
+        "provider": "linkerd",
+        "inject": False,
+        "annotations": {"linkerd.io/inject": "enabled"},
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.mesh.enabled is True
+    assert config.mesh.provider == "linkerd"
+    assert config.mesh.inject is False
+
+
+def test_mesh_rejects_invalid_provider() -> None:
+    config_data = _valid_config()
+    config_data["mesh"] = {
+        "enabled": True,
+        "provider": "istio",
+        "inject": True,
+        "annotations": {"sidecar.istio.io/inject": "true"},
+    }
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_mesh_inject_true_is_valid() -> None:
+    config_data = _valid_config()
+    config_data["mesh"] = {
+        "enabled": True,
+        "provider": "linkerd",
+        "inject": True,
+        "annotations": {"linkerd.io/inject": "enabled"},
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.mesh.inject is True
+
+
+def test_mesh_preserves_custom_annotations() -> None:
+    config_data = _valid_config()
+    config_data["mesh"] = {
+        "enabled": True,
+        "provider": "linkerd",
+        "inject": True,
+        "annotations": {
+            "linkerd.io/inject": "enabled",
+            "config.linkerd.io/proxy-cpu-request": "20m",
+        },
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.mesh.annotations == {
+        "linkerd.io/inject": "enabled",
+        "config.linkerd.io/proxy-cpu-request": "20m",
+    }

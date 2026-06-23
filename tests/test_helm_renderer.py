@@ -5,6 +5,7 @@ import yaml
 
 from k8s_forge.config_loader import load_app_config
 from k8s_forge.helm_renderer import render_helm_chart, split_image
+from k8s_forge.models import AppConfig
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -190,3 +191,59 @@ def test_two_configs_generate_different_ingress_values(tmp_path: Path) -> None:
     assert demo["ingress"]["host"] == "demo.local"
     assert admin["ingress"]["host"] == "admin.local"
     assert demo["ingress"] != admin["ingress"]
+
+
+def test_values_yaml_contains_mesh_section(tmp_path: Path) -> None:
+    _render_example("demo-app.yaml", tmp_path)
+
+    values = _load_yaml(tmp_path / "demo-app" / "values.yaml")
+
+    assert values["mesh"] == {
+        "enabled": False,
+        "provider": "linkerd",
+        "inject": False,
+        "annotations": {"linkerd.io/inject": "enabled"},
+    }
+
+
+def test_deployment_template_contains_conditional_mesh_annotations(
+    tmp_path: Path,
+) -> None:
+    _render_example("demo-app.yaml", tmp_path)
+
+    deployment_template = (
+        tmp_path / "demo-app" / "templates" / "deployment.yaml"
+    ).read_text(encoding="utf-8")
+
+    assert "{{- if and .Values.mesh.enabled .Values.mesh.inject" in deployment_template
+    assert "toYaml .Values.mesh.annotations" in deployment_template
+    assert "annotations:" in deployment_template
+
+
+def test_two_configs_generate_different_mesh_values(tmp_path: Path) -> None:
+    base = {
+        "app": {
+            "name": "mesh-app",
+            "namespace": "mesh",
+            "image": "mesh-app:1.0.0",
+            "containerPort": 8000,
+            "replicas": 2,
+        },
+        "service": {"enabled": True, "port": 80},
+        "mesh": {
+            "enabled": True,
+            "provider": "linkerd",
+            "inject": True,
+            "annotations": {"linkerd.io/inject": "enabled"},
+        },
+    }
+    render_helm_chart(AppConfig.model_validate(base), tmp_path)
+    _render_example("demo-app.yaml", tmp_path)
+
+    mesh_values = _load_yaml(tmp_path / "mesh-app" / "values.yaml")
+    demo_values = _load_yaml(tmp_path / "demo-app" / "values.yaml")
+
+    assert mesh_values["mesh"]["enabled"] is True
+    assert mesh_values["mesh"]["inject"] is True
+    assert demo_values["mesh"]["enabled"] is False
+    assert mesh_values["mesh"] != demo_values["mesh"]

@@ -88,3 +88,15 @@ ingress:
 [% else %]
     {}
 [% endif %]
+mesh:
+  enabled: [[ values.mesh.enabled | lower ]]
+  provider: [[ values.mesh.provider | yaml_scalar ]]
+  inject: [[ values.mesh.inject | lower ]]
+  annotations:
+[% if values.mesh.annotations %]
+[% for key, value in values.mesh.annotations.items() %]
+    [[ key | yaml_scalar ]]: [[ value | yaml_scalar ]]
+[% endfor %]
+[% else %]
+    {}
+[% endif %]

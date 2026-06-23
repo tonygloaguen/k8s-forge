@@ -36,6 +36,11 @@ CERT_MANAGER_COMMAND = [
     "cert-manager",
 ]
 
+LINKERD_CLI_COMMAND = ["linkerd", "version", "--client"]
+LINKERD_NAMESPACE_COMMAND = ["kubectl", "get", "ns", "linkerd"]
+LINKERD_CONTROL_PLANE_COMMAND = ["kubectl", "-n", "linkerd", "get", "deploy"]
+LINKERD_VIZ_COMMAND = ["kubectl", "get", "ns", "linkerd-viz"]
+
 
 def test_cli_help_responds() -> None:
     result = runner.invoke(app, ["--help"])
@@ -1022,6 +1027,10 @@ def test_cli_doctor_all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
                 "deploy",
                 "cert-manager",
             ): "cert-manager available",
+            ("linkerd", "version", "--client"): "Client version: stable",
+            ("kubectl", "get", "ns", "linkerd"): "linkerd",
+            ("kubectl", "-n", "linkerd", "get", "deploy"): "linkerd-control-plane",
+            ("kubectl", "get", "ns", "linkerd-viz"): "linkerd-viz",
         }
         return subprocess.CompletedProcess(command, 0, outputs[tuple(command)], "")
 
@@ -1043,6 +1052,9 @@ def test_cli_doctor_all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "ingress-nginx available" in result.output
     assert "Checking cert-manager readiness" in result.output
     assert "cert-manager available" in result.output
+    assert "Checking Linkerd service mesh readiness" in result.output
+    assert "Linkerd control plane appears to be available" in result.output
+    assert "Linkerd Viz appears to be available" in result.output
 
 
 def test_cli_doctor_docker_absent(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1417,3 +1429,139 @@ def test_cli_image_load_fails_if_image_missing(
     assert calls == [["docker", "image", "inspect", "demo-app:latest"]]
     assert "No such image" in result.output
     assert "was not found locally" in result.output
+
+
+def _write_mesh_config(path: Path) -> None:
+    path.write_text(
+        """
+app:
+  name: weatherapi
+  namespace: weather
+  image: weatherapi:0.1.0
+  containerPort: 8000
+  replicas: 2
+config:
+  APP_ENV: "dev"
+secrets:
+  API_TOKEN: "change-me"
+service:
+  enabled: true
+  port: 80
+resources:
+  requests:
+    cpu: "50m"
+    memory: "64Mi"
+  limits:
+    cpu: "250m"
+    memory: "128Mi"
+probes:
+  liveness: "/healthz"
+  readiness: "/readyz"
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+ingress:
+  enabled: false
+  host: null
+mesh:
+  enabled: true
+  provider: linkerd
+  inject: true
+  annotations:
+    linkerd.io/inject: enabled
+""".strip(),
+        encoding="utf-8",
+    )
+
+
+def test_cli_check_mentions_mesh_when_enabled(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    _write_mesh_config(config_path)
+
+    result = runner.invoke(app, ["check", str(config_path)])
+
+    assert result.exit_code == 0
+    assert "Service mesh support is enabled" in result.output
+    assert "sidecar proxy" in result.output
+    assert "2/2 containers" in result.output
+    assert "Linkerd injection is enabled" in result.output
+    assert "linkerd.io/inject: enabled" in result.output
+    assert "linkerd check" in result.output
+
+
+def test_cli_render_mentions_linkerd_annotation(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated"
+    _write_mesh_config(config_path)
+
+    result = runner.invoke(
+        app, ["render", str(config_path), "--output", str(output_dir)]
+    )
+
+    deployment = (output_dir / "30-deployment.yaml").read_text(encoding="utf-8")
+    assert result.exit_code == 0
+    assert "Linkerd injection is enabled" in result.output
+    assert "does not install Linkerd" in result.output
+    assert "kubectl -n weather get pods" in result.output
+    assert "linkerd.io/inject" in deployment
+
+
+def test_cli_helm_render_mentions_linkerd_annotation(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "charts"
+    _write_mesh_config(config_path)
+
+    result = runner.invoke(
+        app, ["helm", "render", str(config_path), "--output", str(output_dir)]
+    )
+
+    deployment = (
+        output_dir / "weatherapi" / "templates" / "deployment.yaml"
+    ).read_text(encoding="utf-8")
+    assert result.exit_code == 0
+    assert "Linkerd injection is enabled" in result.output
+    assert "helm upgrade" in result.output
+    assert "linkerd stat deploy -n weather" in result.output
+    assert ".Values.mesh.enabled" in deployment
+
+
+def test_cli_doctor_linkerd_absent_is_non_blocking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command[0] == "linkerd" or command in (
+            LINKERD_NAMESPACE_COMMAND,
+            LINKERD_CONTROL_PLANE_COMMAND,
+            LINKERD_VIZ_COMMAND,
+        ):
+            if command[0] == "linkerd":
+                raise FileNotFoundError
+            return subprocess.CompletedProcess(command, 1, "", "not found")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "Checking Linkerd service mesh readiness" in result.output
+    assert "Linkerd does not appear to be installed" in result.output
+    assert "will not install it automatically" in result.output
+    assert "Ready for local kind workflows" in result.output
+
+
+def test_cli_doctor_linkerd_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "Linkerd control plane appears to be available" in result.output
+    assert "Linkerd Viz appears to be available" in result.output

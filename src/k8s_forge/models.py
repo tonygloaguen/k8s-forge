@@ -134,6 +134,19 @@ class IngressConfig(BaseModel):
         return self
 
 
+class MeshConfig(BaseModel):
+    """Service mesh readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = False
+    provider: Literal["linkerd"] = "linkerd"
+    inject: StrictBool = False
+    annotations: dict[str, str] = Field(
+        default_factory=lambda: {"linkerd.io/inject": "enabled"}
+    )
+
+
 class AppConfig(BaseModel):
     """Top-level user configuration."""
 
@@ -147,6 +160,7 @@ class AppConfig(BaseModel):
     probes: ProbesConfig = Field(default_factory=ProbesConfig)
     autoscaling: AutoscalingConfig = Field(default_factory=AutoscalingConfig)
     ingress: IngressConfig = Field(default_factory=IngressConfig)
+    mesh: MeshConfig = Field(default_factory=MeshConfig)
 
     @model_validator(mode="after")
     def validate_ingress_service(self) -> "AppConfig":

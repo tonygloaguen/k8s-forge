@@ -20,6 +20,9 @@ on a Debian VM with a local kind cluster.
 | `weather.local` does not resolve | Local DNS does not know the lab hostname. | Add `127.0.0.1 weather.local` to `/etc/hosts` manually. | `getent hosts weather.local` |
 | Ingress returns connection refused on kind | kind was created without ports 80/443 mapped, or ingress-nginx is not ready. | Use port-forwarding or recreate kind with extraPortMappings. | `kubectl -n ingress-nginx get deploy,pods,svc` |
 | TLS certificate is not ready | cert-manager or the referenced ClusterIssuer is missing or not ready. | Install cert-manager and create the ClusterIssuer manually. | `kubectl get clusterissuer && kubectl -n <namespace> describe certificate` |
+| Pods stay `1/1` after enabling mesh | Linkerd is not installed, the workload was not restarted, or injection is disabled. | Run `linkerd check`, verify `mesh.enabled` and `mesh.inject`, then restart the Deployment. | `kubectl -n <namespace> get pods` |
+| `linkerd` command not found | Linkerd CLI is not installed or not in `PATH`. | Install the Linkerd CLI manually. | `linkerd version --client` |
+| Linkerd metrics missing | Linkerd control plane or Viz is absent/not ready. | Validate Linkerd manually; install Viz only if mesh metrics are needed. | `linkerd check && linkerd viz check` |
 
 ## General Debugging Commands
 

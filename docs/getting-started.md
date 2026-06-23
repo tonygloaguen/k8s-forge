@@ -90,6 +90,10 @@ migration from raw `k8s-forge` resources.
 
 For HTTP routing with ingress-nginx and optional cert-manager annotations, read [module-3-ingress.md](module-3-ingress.md). `k8s-forge` renders Ingress resources but does not install ingress-nginx, cert-manager, or edit `/etc/hosts`.
 
+## Module 3 Linkerd
+
+For service mesh readiness with Linkerd, read [module-3-linkerd.md](module-3-linkerd.md). `k8s-forge` can annotate the Deployment pod template for Linkerd injection, but it does not install Linkerd or run `linkerd inject`.
+
 ## Next Step: Operational Workflow
 
 After generating and validating `app.yaml`, read [operations.md](operations.md)
@@ -106,6 +110,7 @@ real Kubernetes cluster.
 - [Module 2 Kubernetes raw workflow](module-2-kubernetes.md)
 - [Module 2 Helm workflow](module-2-helm.md)
 - [Module 3 Ingress workflow](module-3-ingress.md)
+- [Module 3 Linkerd service mesh workflow](module-3-linkerd.md)
 - [Design notes](design.md)
 
 ## Local Release Check

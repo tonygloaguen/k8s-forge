@@ -115,6 +115,7 @@ def _values_context(config: AppConfig) -> dict[str, Any]:
         "probes": config.probes,
         "autoscaling": config.autoscaling,
         "ingress": config.ingress,
+        "mesh": config.mesh,
     }
 
 

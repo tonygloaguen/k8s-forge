@@ -38,6 +38,7 @@ The current raw Kubernetes render target is:
 - Service
 - optional HorizontalPodAutoscaler
 - optional Ingress
+- optional Linkerd pod-template annotations
 
 The Helm renderer generates a local chart for the same application model. It
-does not run Helm and does not install releases. Ingress rendering targets existing ingress-nginx and optional cert-manager prerequisites. NetworkPolicy, Kustomize, and direct Kubernetes API usage remain outside the current scope.
+does not run Helm and does not install releases. Ingress rendering targets existing ingress-nginx and optional cert-manager prerequisites. Mesh readiness targets existing Linkerd prerequisites and only annotates Deployment pod templates when explicitly enabled. NetworkPolicy, Kustomize, and direct Kubernetes API usage remain outside the current scope.

@@ -49,3 +49,10 @@ ingress:
     enabled: false
     clusterIssuer: null
   annotations: {}
+
+mesh:
+  enabled: false
+  provider: linkerd
+  inject: false
+  annotations:
+    linkerd.io/inject: "enabled"

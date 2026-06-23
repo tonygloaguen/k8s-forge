@@ -45,6 +45,10 @@ class DoctorReport:
     metrics_server: ToolCheck
     ingress_nginx: ToolCheck
     cert_manager: ToolCheck
+    linkerd_cli: ToolCheck
+    linkerd_namespace: ToolCheck
+    linkerd_control_plane: ToolCheck
+    linkerd_viz: ToolCheck
 
     @property
     def ready(self) -> bool:
@@ -119,6 +123,9 @@ def check_environment(timeout: int = 30) -> DoctorReport:
     docker = check_command("Docker", ["docker", "version"], timeout)
     kind = check_command("kind", ["kind", "version"], timeout)
     kubectl = check_command("kubectl", ["kubectl", "version", "--client"], timeout)
+    linkerd_cli = check_command(
+        "Linkerd CLI", ["linkerd", "version", "--client"], timeout
+    )
 
     if kubectl.status == "OK":
         current_context = check_command(
@@ -147,6 +154,17 @@ def check_environment(timeout: int = 30) -> DoctorReport:
             ["kubectl", "-n", "cert-manager", "get", "deploy", "cert-manager"],
             timeout,
         )
+        linkerd_namespace = check_command(
+            "Linkerd namespace", ["kubectl", "get", "ns", "linkerd"], timeout
+        )
+        linkerd_control_plane = check_command(
+            "Linkerd control plane",
+            ["kubectl", "-n", "linkerd", "get", "deploy"],
+            timeout,
+        )
+        linkerd_viz = check_command(
+            "Linkerd Viz", ["kubectl", "get", "ns", "linkerd-viz"], timeout
+        )
     else:
         current_context = ToolCheck(
             "current context", "unavailable", "kubectl is not available"
@@ -161,6 +179,15 @@ def check_environment(timeout: int = 30) -> DoctorReport:
         cert_manager = ToolCheck(
             "cert-manager", "unavailable", "kubectl is not available"
         )
+        linkerd_namespace = ToolCheck(
+            "Linkerd namespace", "unavailable", "kubectl is not available"
+        )
+        linkerd_control_plane = ToolCheck(
+            "Linkerd control plane", "unavailable", "kubectl is not available"
+        )
+        linkerd_viz = ToolCheck(
+            "Linkerd Viz", "unavailable", "kubectl is not available"
+        )
 
     return DoctorReport(
         docker,
@@ -171,6 +198,10 @@ def check_environment(timeout: int = 30) -> DoctorReport:
         metrics_server,
         ingress_nginx,
         cert_manager,
+        linkerd_cli,
+        linkerd_namespace,
+        linkerd_control_plane,
+        linkerd_viz,
     )
 
 

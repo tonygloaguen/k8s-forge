@@ -262,3 +262,39 @@ If kind does not expose ports 80/443, use:
 kubectl -n ingress-nginx port-forward svc/ingress-nginx-controller 8082:80
 curl -H "Host: weather.local" http://127.0.0.1:8082/weather
 ```
+
+## Linkerd Follow-Up
+
+After the Ingress validation, create a mesh-specific copy of the app config and enable Linkerd readiness annotations:
+
+```bash
+cp k8s-forge-app-ingress.yaml k8s-forge-app-mesh.yaml
+```
+
+Add:
+
+```yaml
+mesh:
+  enabled: true
+  provider: linkerd
+  inject: true
+  annotations:
+    linkerd.io/inject: enabled
+```
+
+Validate Linkerd manually, then render and upgrade the Helm release:
+
+```bash
+linkerd check
+k8s-forge helm render k8s-forge-app-mesh.yaml --output charts-generated-mesh
+helm upgrade --install weatherapi charts-generated-mesh/weatherapi \
+  -n weather-helm \
+  --create-namespace
+kubectl -n weather-helm rollout restart deploy/weatherapi
+kubectl -n weather-helm rollout status deploy/weatherapi --timeout=120s
+kubectl -n weather-helm get pods
+linkerd stat deploy -n weather-helm
+```
+
+Expected signal: the `weatherapi` pod shows `2/2` containers, meaning the application container and the `linkerd-proxy` sidecar are both ready.
+

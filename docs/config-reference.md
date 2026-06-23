@@ -78,6 +78,13 @@ ingress:
     enabled: false
     clusterIssuer: null
   annotations: {}
+
+mesh:
+  enabled: false
+  provider: linkerd
+  inject: false
+  annotations:
+    linkerd.io/inject: enabled
 ```
 
 ## Field Reference
@@ -113,6 +120,10 @@ ingress:
 | `ingress.certManager.enabled` | boolean | No | `false` | boolean only | Controls cert-manager ClusterIssuer annotation |
 | `ingress.certManager.clusterIssuer` | string or null | Required if cert-manager enabled | `null` | required when `ingress.certManager.enabled` is `true` | `cert-manager.io/cluster-issuer` annotation |
 | `ingress.annotations` | map of strings | No | `{}` | keys and values must be strings | Ingress metadata annotations |
+| `mesh.enabled` | boolean | No | `false` | boolean only | Controls service mesh readiness annotations |
+| `mesh.provider` | string | No | `linkerd` | only `linkerd` in v0.5.0 | Documents the mesh provider targeted by annotations |
+| `mesh.inject` | boolean | No | `false` | boolean only | Controls whether pod template annotations are rendered |
+| `mesh.annotations` | map of strings | No | `linkerd.io/inject: enabled` | keys and values must be strings | Deployment pod template annotations when mesh injection is enabled |
 
 ## Section Details
 
@@ -236,6 +247,41 @@ ingress:
   annotations: {}
 ```
 
+### `mesh`
+
+The `mesh` section controls service mesh readiness. In v0.5.0, only Linkerd is
+supported and `k8s-forge` only renders annotations; it does not install Linkerd
+and does not run `linkerd inject`.
+
+When `mesh.enabled: true` and `mesh.inject: true`, raw rendering adds
+`mesh.annotations` to `Deployment.spec.template.metadata.annotations`. Helm
+rendering writes the same values into `values.yaml` and renders conditional pod
+template annotations in the Deployment template. The Namespace is not annotated
+in v0.5.0 to avoid injecting every workload in the namespace by surprise.
+
+Example:
+
+```yaml
+mesh:
+  enabled: true
+  provider: linkerd
+  inject: true
+  annotations:
+    linkerd.io/inject: enabled
+```
+
+After applying or upgrading a mesh-enabled workload, validate Linkerd manually:
+
+```bash
+linkerd check
+kubectl -n <namespace> get pods
+kubectl -n <namespace> describe pod <pod>
+linkerd stat deploy -n <namespace>
+```
+
+Injected pods usually show `2/2` containers: the application container plus
+`linkerd-proxy`.
+
 ## Invalid Examples
 
 ### Port set to `0`
@@ -322,6 +368,19 @@ ingress:
 
 `ingress.host` is required when `ingress.enabled` is `true`.
 
+### Invalid mesh provider
+
+```yaml
+mesh:
+  enabled: true
+  provider: istio
+  inject: true
+  annotations:
+    sidecar.istio.io/inject: "true"
+```
+
+Only `provider: linkerd` is supported in v0.5.0.
+
 ### Ingress TLS enabled without secret name
 
 ```yaml
@@ -343,6 +402,7 @@ ingress:
 - Run `k8s-forge check app.yaml` before rendering.
 - Run `dry-run` and `diff` before `apply`.
 - For Ingress, validate ingress-nginx, cert-manager, kind port mappings, and `/etc/hosts` manually before testing traffic.
+- For mesh readiness, install and validate Linkerd manually before expecting pods to show `2/2` containers or mesh metrics.
 
 ## Associated Commands
 

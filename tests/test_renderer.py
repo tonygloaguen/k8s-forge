@@ -337,3 +337,64 @@ def test_renderer_cleans_previous_ingress_file_when_disabled(tmp_path: Path) -> 
     render_manifests(AppConfig.model_validate(_base_config()), tmp_path)
 
     assert not ingress_file.exists()
+
+
+def test_mesh_disabled_does_not_add_pod_template_annotations(tmp_path: Path) -> None:
+    config = AppConfig.model_validate(_base_config())
+
+    render_manifests(config, tmp_path)
+    deployment = _load_yaml(tmp_path / "30-deployment.yaml")
+
+    metadata = deployment["spec"]["template"]["metadata"]
+    assert "annotations" not in metadata
+
+
+def test_mesh_inject_adds_linkerd_annotation_to_pod_template(tmp_path: Path) -> None:
+    config_data = _base_config()
+    config_data["mesh"] = {
+        "enabled": True,
+        "provider": "linkerd",
+        "inject": True,
+        "annotations": {"linkerd.io/inject": "enabled"},
+    }
+    config = AppConfig.model_validate(config_data)
+
+    render_manifests(config, tmp_path)
+    deployment = _load_yaml(tmp_path / "30-deployment.yaml")
+
+    annotations = deployment["spec"]["template"]["metadata"]["annotations"]
+    assert annotations == {"linkerd.io/inject": "enabled"}
+
+
+def test_mesh_inject_preserves_pod_template_labels(tmp_path: Path) -> None:
+    config_data = _base_config()
+    config_data["mesh"] = {
+        "enabled": True,
+        "provider": "linkerd",
+        "inject": True,
+        "annotations": {"linkerd.io/inject": "enabled"},
+    }
+    config = AppConfig.model_validate(config_data)
+
+    render_manifests(config, tmp_path)
+    deployment = _load_yaml(tmp_path / "30-deployment.yaml")
+
+    labels = deployment["spec"]["template"]["metadata"]["labels"]
+    assert labels["app"] == "generic-web"
+    assert labels["app.kubernetes.io/managed-by"] == "k8s-forge"
+
+
+def test_mesh_does_not_annotate_namespace(tmp_path: Path) -> None:
+    config_data = _base_config()
+    config_data["mesh"] = {
+        "enabled": True,
+        "provider": "linkerd",
+        "inject": True,
+        "annotations": {"linkerd.io/inject": "enabled"},
+    }
+    config = AppConfig.model_validate(config_data)
+
+    render_manifests(config, tmp_path)
+    namespace = _load_yaml(tmp_path / "00-namespace.yaml")
+
+    assert "annotations" not in namespace["metadata"]

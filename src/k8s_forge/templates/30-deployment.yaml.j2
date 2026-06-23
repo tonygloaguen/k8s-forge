@@ -20,6 +20,12 @@ spec:
 {% for key, value in labels.items() %}
         {{ key | tojson }}: {{ value | tojson }}
 {% endfor %}
+{% if pod_annotations %}
+      annotations:
+{% for key, value in pod_annotations.items() %}
+        {{ key | tojson }}: {{ value | tojson }}
+{% endfor %}
+{% endif %}
     spec:
       securityContext:
         runAsNonRoot: true

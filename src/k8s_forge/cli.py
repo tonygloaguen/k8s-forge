@@ -187,6 +187,44 @@ def _print_local_ingress_hints(config: AppConfig) -> None:
     )
 
 
+def _print_mesh_summary(config: AppConfig) -> None:
+    if not config.mesh.enabled:
+        return
+    _print_hint("Service mesh support is enabled.")
+    _print_hint(
+        "A service mesh adds a sidecar proxy next to your application container."
+    )
+    _print_hint(
+        "With Linkerd, injected pods usually show 2/2 containers: app + linkerd-proxy."
+    )
+    if config.mesh.inject:
+        _print_hint("Linkerd injection is enabled for this workload.")
+        _print_hint(
+            "The generated Deployment includes the annotation "
+            "linkerd.io/inject: enabled."
+        )
+        _print_hint(
+            "After apply or helm upgrade, restart/rollout the Deployment and "
+            "verify pods show 2/2 containers."
+        )
+
+
+def _print_mesh_validation_commands(namespace: str) -> None:
+    _print_hint("Mesh validation commands:")
+    _print_hint("  linkerd check")
+    _print_hint(f"  kubectl -n {namespace} get pods")
+    _print_hint(f"  kubectl -n {namespace} describe pod <pod>")
+    _print_hint(f"  linkerd stat deploy -n {namespace}")
+
+
+def _print_mesh_runtime_hint(config: AppConfig) -> None:
+    if not config.mesh.enabled:
+        return
+    _print_mesh_summary(config)
+    _print_hint("k8s-forge does not install Linkerd and does not run linkerd inject.")
+    _print_mesh_validation_commands(config.app.namespace)
+
+
 def _print_check_summary(config: AppConfig) -> None:
     """Print a concise validation summary."""
     table = Table(title="Application configuration")
@@ -289,6 +327,14 @@ def _starter_config_data(
                 "clusterIssuer": None,
             },
             "annotations": {},
+        },
+        "mesh": {
+            "enabled": False,
+            "provider": _QuotedString("linkerd"),
+            "inject": False,
+            "annotations": {
+                "linkerd.io/inject": _QuotedString("enabled"),
+            },
         },
     }
 
@@ -569,6 +615,9 @@ def check(
     _print_check_summary(loaded)
     _print_autoscaling_summary(loaded)
     _print_ingress_summary(loaded)
+    _print_mesh_summary(loaded)
+    if loaded.mesh.enabled:
+        _print_mesh_validation_commands(loaded.app.namespace)
     _print_autoscaling_warning(loaded)
 
 
@@ -594,6 +643,7 @@ def render(
 
     _print_hpa_runtime_hint(loaded)
     _print_ingress_runtime_hint(loaded)
+    _print_mesh_runtime_hint(loaded)
     _print_autoscaling_warning(loaded)
     console.print("[green]manifests generated[/green]")
     _print_render_summary(generated)
@@ -808,6 +858,10 @@ def doctor(
             report.metrics_server,
             report.ingress_nginx,
             report.cert_manager,
+            report.linkerd_cli,
+            report.linkerd_namespace,
+            report.linkerd_control_plane,
+            report.linkerd_viz,
         ]
     )
     if report.metrics_server.status == "OK":
@@ -845,6 +899,29 @@ def doctor(
             "k8s-forge will not install cert-manager automatically; install "
             "it manually before using cert-manager annotations."
         )
+
+    _print_step("Checking Linkerd service mesh readiness...")
+    _print_hint(
+        "Linkerd adds a sidecar proxy to injected pods so service-to-service "
+        "traffic can be observed and secured."
+    )
+    if (
+        report.linkerd_cli.status == "OK"
+        and report.linkerd_namespace.status == "OK"
+        and report.linkerd_control_plane.status == "OK"
+    ):
+        console.print("[green]Linkerd control plane appears to be available.[/green]")
+    else:
+        _print_warning("Linkerd does not appear to be installed in this cluster.")
+        _print_hint("k8s-forge will not install it automatically.")
+        _print_hint(
+            "Install and validate Linkerd manually before expecting sidecars "
+            "or mesh metrics."
+        )
+    if report.linkerd_viz.status == "OK":
+        console.print("[green]Linkerd Viz appears to be available.[/green]")
+    else:
+        _print_hint("Linkerd Viz is optional and was not detected.")
 
     if report.ready:
         console.print("[green]Ready for local kind workflows.[/green]")
@@ -1021,6 +1098,7 @@ def helm_render(
     console.print(f"[green]Helm chart generated in {chart_dir}.[/green]")
     _print_helm_chart_summary(generated)
     _print_helm_ingress_hint(loaded)
+    _print_mesh_runtime_hint(loaded)
     _print_warning(
         "If raw Kubernetes resources already exist from k8s-forge apply, Helm "
         "may refuse to import them because of ownership metadata."
