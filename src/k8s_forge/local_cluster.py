@@ -118,6 +118,31 @@ def check_command(name: str, command: list[str], timeout: int = 30) -> ToolCheck
     return ToolCheck(name, "error", _compact_output(result))
 
 
+def _looks_missing(details: str) -> bool:
+    normalized = details.lower()
+    return "not found" in normalized or "notfound" in normalized
+
+
+def _linkerd_optional_check(
+    name: str, command: list[str], timeout: int = 30
+) -> ToolCheck:
+    check = check_command(name, command, timeout)
+    if check.status == "error" and _looks_missing(check.details):
+        return ToolCheck(name, "missing", check.details)
+    return check
+
+
+def _linkerd_control_plane_check(timeout: int = 30) -> ToolCheck:
+    check = _linkerd_optional_check(
+        "Linkerd control plane",
+        ["kubectl", "-n", "linkerd", "get", "deploy"],
+        timeout,
+    )
+    if check.status == "OK" and "no resources found" in check.details.lower():
+        return ToolCheck("Linkerd control plane", "missing", check.details)
+    return check
+
+
 def check_environment(timeout: int = 30) -> DoctorReport:
     """Check Docker, kind, kubectl, current context, and nodes."""
     docker = check_command("Docker", ["docker", "version"], timeout)
@@ -154,15 +179,18 @@ def check_environment(timeout: int = 30) -> DoctorReport:
             ["kubectl", "-n", "cert-manager", "get", "deploy", "cert-manager"],
             timeout,
         )
-        linkerd_namespace = check_command(
+        linkerd_namespace = _linkerd_optional_check(
             "Linkerd namespace", ["kubectl", "get", "ns", "linkerd"], timeout
         )
-        linkerd_control_plane = check_command(
-            "Linkerd control plane",
-            ["kubectl", "-n", "linkerd", "get", "deploy"],
-            timeout,
-        )
-        linkerd_viz = check_command(
+        if linkerd_namespace.status == "OK":
+            linkerd_control_plane = _linkerd_control_plane_check(timeout)
+        else:
+            linkerd_control_plane = ToolCheck(
+                "Linkerd control plane",
+                "missing",
+                "Linkerd namespace is missing; control plane was not checked",
+            )
+        linkerd_viz = _linkerd_optional_check(
             "Linkerd Viz", ["kubectl", "get", "ns", "linkerd-viz"], timeout
         )
     else:

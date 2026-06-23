@@ -268,7 +268,10 @@ def test_check_environment_reports_linkerd_cli_absent(
 def test_check_environment_reports_linkerd_namespace_absent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    calls: list[list[str]] = []
+
     def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
         if command == LINKERD_NAMESPACE_COMMAND:
             return subprocess.CompletedProcess(command, 1, "", "not found")
         return subprocess.CompletedProcess(command, 0, "ok", "")
@@ -277,8 +280,11 @@ def test_check_environment_reports_linkerd_namespace_absent(
 
     report = check_environment()
 
-    assert report.linkerd_namespace.status == "error"
+    assert report.linkerd_namespace.status == "missing"
     assert report.linkerd_namespace.details == "not found"
+    assert report.linkerd_control_plane.status == "missing"
+    assert "namespace is missing" in report.linkerd_control_plane.details
+    assert LINKERD_CONTROL_PLANE_COMMAND not in calls
     assert report.ready is True
 
 
@@ -294,7 +300,7 @@ def test_check_environment_reports_linkerd_control_plane_absent(
 
     report = check_environment()
 
-    assert report.linkerd_control_plane.status == "error"
+    assert report.linkerd_control_plane.status == "missing"
     assert report.linkerd_control_plane.details == "not found"
     assert report.ready is True
 
@@ -311,6 +317,26 @@ def test_check_environment_reports_linkerd_viz_absent(
 
     report = check_environment()
 
-    assert report.linkerd_viz.status == "error"
+    assert report.linkerd_viz.status == "missing"
     assert report.linkerd_viz.details == "not found"
+    assert report.ready is True
+
+
+def test_check_environment_reports_empty_linkerd_control_plane_as_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == LINKERD_CONTROL_PLANE_COMMAND:
+            return subprocess.CompletedProcess(
+                command, 0, "No resources found in linkerd namespace.", ""
+            )
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.linkerd_namespace.status == "OK"
+    assert report.linkerd_control_plane.status == "missing"
+    assert "No resources found" in report.linkerd_control_plane.details
     assert report.ready is True

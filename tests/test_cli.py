@@ -1565,3 +1565,38 @@ def test_cli_doctor_linkerd_present(
     assert result.exit_code == 0
     assert "Linkerd control plane appears to be available" in result.output
     assert "Linkerd Viz appears to be available" in result.output
+
+
+def test_cli_doctor_linkerd_cli_present_namespace_absent_is_clear(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == LINKERD_NAMESPACE_COMMAND:
+            return subprocess.CompletedProcess(
+                command, 1, "", 'namespaces "linkerd" not found'
+            )
+        if command == LINKERD_VIZ_COMMAND:
+            return subprocess.CompletedProcess(
+                command, 1, "", 'namespaces "linkerd-viz" not found'
+            )
+        if command == LINKERD_CONTROL_PLANE_COMMAND:
+            raise AssertionError("control plane must not be checked without namespace")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "Linkerd CLI" in result.output
+    assert "OK" in result.output
+    assert "Linkerd namespace" in result.output
+    assert "missing" in result.output
+    assert "Linkerd namespace is missing" in result.output
+    assert "Linkerd control plane" in result.output
+    assert "plane was not" in result.output
+    assert "Linkerd does not appear to be installed in this cluster" in result.output
+    assert "k8s-forge will not install it automatically" in result.output
+    assert "Install and validate Linkerd manually" in result.output
+    assert "Linkerd Viz is optional and was not detected" in result.output
+    assert "Ready for local kind workflows" in result.output
