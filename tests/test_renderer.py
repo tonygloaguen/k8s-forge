@@ -262,3 +262,78 @@ def test_renderer_cleans_previous_hpa_file_when_disabled(tmp_path: Path) -> None
     _render_example("demo-app.yaml", tmp_path)
 
     assert not hpa_file.exists()
+
+
+def test_ingress_absent_when_disabled(tmp_path: Path) -> None:
+    config = AppConfig.model_validate(_base_config())
+
+    render_manifests(config, tmp_path)
+
+    assert not (tmp_path / "60-ingress.yaml").exists()
+
+
+def test_ingress_generated_when_enabled(tmp_path: Path) -> None:
+    config_data = _base_config()
+    config_data["ingress"] = {
+        "enabled": True,
+        "host": "generic.local",
+        "className": "nginx",
+        "path": "/",
+        "pathType": "Prefix",
+        "tls": {"enabled": False, "secretName": None},
+        "certManager": {"enabled": False, "clusterIssuer": None},
+        "annotations": {"nginx.ingress.kubernetes.io/proxy-body-size": "1m"},
+    }
+    config = AppConfig.model_validate(config_data)
+
+    generated = render_manifests(config, tmp_path)
+    ingress = _load_yaml(tmp_path / "60-ingress.yaml")
+
+    assert "60-ingress.yaml" in [path.name for path in generated]
+    assert ingress["apiVersion"] == "networking.k8s.io/v1"
+    assert ingress["kind"] == "Ingress"
+    assert ingress["metadata"]["name"] == "generic-web"
+    assert ingress["metadata"]["namespace"] == "generic"
+    assert ingress["spec"]["ingressClassName"] == "nginx"
+    assert ingress["spec"]["rules"][0]["host"] == "generic.local"
+    path_rule = ingress["spec"]["rules"][0]["http"]["paths"][0]
+    assert path_rule["path"] == "/"
+    assert path_rule["pathType"] == "Prefix"
+    assert path_rule["backend"]["service"]["name"] == "generic-web"
+    assert path_rule["backend"]["service"]["port"]["number"] == 9001
+    assert "tls" not in ingress["spec"]
+
+
+def test_ingress_tls_and_cert_manager_annotations(tmp_path: Path) -> None:
+    config_data = _base_config()
+    config_data["ingress"] = {
+        "enabled": True,
+        "host": "generic.local",
+        "className": "nginx",
+        "path": "/weather",
+        "pathType": "Prefix",
+        "tls": {"enabled": True, "secretName": "generic-tls"},
+        "certManager": {"enabled": True, "clusterIssuer": "selfsigned-dev"},
+        "annotations": {"nginx.ingress.kubernetes.io/rewrite-target": "/"},
+    }
+    config = AppConfig.model_validate(config_data)
+
+    render_manifests(config, tmp_path)
+    ingress = _load_yaml(tmp_path / "60-ingress.yaml")
+
+    assert ingress["metadata"]["annotations"] == {
+        "nginx.ingress.kubernetes.io/rewrite-target": "/",
+        "cert-manager.io/cluster-issuer": "selfsigned-dev",
+    }
+    assert ingress["spec"]["tls"] == [
+        {"hosts": ["generic.local"], "secretName": "generic-tls"}
+    ]
+
+
+def test_renderer_cleans_previous_ingress_file_when_disabled(tmp_path: Path) -> None:
+    ingress_file = tmp_path / "60-ingress.yaml"
+    ingress_file.write_text("old ingress", encoding="utf-8")
+
+    render_manifests(AppConfig.model_validate(_base_config()), tmp_path)
+
+    assert not ingress_file.exists()

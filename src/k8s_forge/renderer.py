@@ -32,6 +32,7 @@ GENERATED_FILENAMES = (
     "30-deployment.yaml",
     "40-service.yaml",
     "50-hpa.yaml",
+    "60-ingress.yaml",
 )
 
 
@@ -77,6 +78,15 @@ def _resources(config: AppConfig) -> dict[str, dict[str, str]]:
     return resources
 
 
+def _ingress_annotations(config: AppConfig) -> dict[str, str]:
+    annotations = dict(config.ingress.annotations)
+    if config.ingress.certManager.enabled:
+        cluster_issuer = config.ingress.certManager.clusterIssuer
+        if cluster_issuer:
+            annotations["cert-manager.io/cluster-issuer"] = cluster_issuer
+    return annotations
+
+
 def _env_from(config: AppConfig) -> list[dict[str, str]]:
     sources: list[dict[str, str]] = []
     if config.config:
@@ -99,6 +109,8 @@ def _context(config: AppConfig) -> dict[str, Any]:
         "env_from": _env_from(config),
         "probes": config.probes,
         "autoscaling": config.autoscaling,
+        "ingress": config.ingress,
+        "ingress_annotations": _ingress_annotations(config),
     }
 
 
@@ -125,6 +137,11 @@ def _template_specs(config: AppConfig) -> list[TemplateSpec]:
             "50-hpa.yaml.j2",
             "50-hpa.yaml",
             enabled=config.autoscaling.enabled,
+        ),
+        TemplateSpec(
+            "60-ingress.yaml.j2",
+            "60-ingress.yaml",
+            enabled=config.ingress.enabled,
         ),
     ]
 

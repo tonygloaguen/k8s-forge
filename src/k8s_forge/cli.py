@@ -135,6 +135,58 @@ def _print_hpa_runtime_hint(config: AppConfig) -> None:
     _print_hint("The HPA requires metrics-server to calculate CPU usage at runtime.")
 
 
+def _print_ingress_summary(config: AppConfig) -> None:
+    if not config.ingress.enabled:
+        return
+    _print_hint("Ingress is enabled.")
+    _print_hint(
+        "Kubernetes will route HTTP traffic for host "
+        f"{config.ingress.host} to the Service."
+    )
+    _print_hint("Ingress requires an ingress controller such as ingress-nginx.")
+    if config.ingress.tls.enabled:
+        _print_hint("TLS is enabled for this Ingress.")
+        _print_hint(
+            "cert-manager can issue or prepare the certificate only if a "
+            "matching ClusterIssuer exists."
+        )
+
+
+def _print_ingress_runtime_hint(config: AppConfig) -> None:
+    if not config.ingress.enabled:
+        return
+    _print_hint("Ingress is enabled, so an Ingress manifest will be generated.")
+    _print_hint(
+        "This exposes the Service through an HTTP host rule, but it still "
+        "requires ingress-nginx in the cluster."
+    )
+    _print_local_ingress_hints(config)
+
+
+def _print_helm_ingress_hint(config: AppConfig) -> None:
+    if not config.ingress.enabled:
+        return
+    _print_hint("The Helm chart includes an optional Ingress template.")
+    _print_hint("Helm will not install ingress-nginx or cert-manager.")
+    _print_hint("Validate those prerequisites separately.")
+    _print_local_ingress_hints(config)
+
+
+def _print_local_ingress_hints(config: AppConfig) -> None:
+    if not config.ingress.host:
+        return
+    _print_hint("For local testing, map the host to localhost:")
+    _print_hint(f"127.0.0.1 {config.ingress.host}")
+    _print_warning(
+        "On kind, ports 80 and 443 must be exposed by the cluster "
+        "configuration for direct local ingress access."
+    )
+    _print_hint(
+        "If they are not exposed, use port-forwarding or recreate the lab "
+        "cluster with extraPortMappings."
+    )
+
+
 def _print_check_summary(config: AppConfig) -> None:
     """Print a concise validation summary."""
     table = Table(title="Application configuration")
@@ -225,6 +277,18 @@ def _starter_config_data(
         "ingress": {
             "enabled": False,
             "host": None,
+            "className": _QuotedString("nginx"),
+            "path": _QuotedString("/"),
+            "pathType": _QuotedString("Prefix"),
+            "tls": {
+                "enabled": False,
+                "secretName": None,
+            },
+            "certManager": {
+                "enabled": False,
+                "clusterIssuer": None,
+            },
+            "annotations": {},
         },
     }
 
@@ -504,6 +568,7 @@ def check(
     console.print("[green]configuration is valid[/green]")
     _print_check_summary(loaded)
     _print_autoscaling_summary(loaded)
+    _print_ingress_summary(loaded)
     _print_autoscaling_warning(loaded)
 
 
@@ -528,6 +593,7 @@ def render(
         raise typer.Exit(code=1) from exc
 
     _print_hpa_runtime_hint(loaded)
+    _print_ingress_runtime_hint(loaded)
     _print_autoscaling_warning(loaded)
     console.print("[green]manifests generated[/green]")
     _print_render_summary(generated)
@@ -740,6 +806,8 @@ def doctor(
             report.current_context,
             report.nodes,
             report.metrics_server,
+            report.ingress_nginx,
+            report.cert_manager,
         ]
     )
     if report.metrics_server.status == "OK":
@@ -751,6 +819,33 @@ def doctor(
             "HPA manifests can still be created, but CPU-based scaling will "
             "not work until metrics-server is installed."
         )
+    _print_step("Checking ingress-nginx readiness...")
+    _print_hint(
+        "Ingress resources need an ingress controller before traffic can "
+        "reach the Service."
+    )
+    if report.ingress_nginx.status == "OK":
+        console.print("[green]ingress-nginx available.[/green]")
+    else:
+        _print_warning("ingress-nginx not found.")
+        _print_hint(
+            "k8s-forge will not install ingress-nginx automatically; install "
+            "it manually before testing Ingress traffic."
+        )
+
+    _print_step("Checking cert-manager readiness...")
+    _print_hint(
+        "cert-manager is required only when TLS certificate automation is enabled."
+    )
+    if report.cert_manager.status == "OK":
+        console.print("[green]cert-manager available.[/green]")
+    else:
+        _print_warning("cert-manager not found.")
+        _print_hint(
+            "k8s-forge will not install cert-manager automatically; install "
+            "it manually before using cert-manager annotations."
+        )
+
     if report.ready:
         console.print("[green]Ready for local kind workflows.[/green]")
     else:
@@ -925,6 +1020,7 @@ def helm_render(
     chart_dir = output / resolved_chart_name
     console.print(f"[green]Helm chart generated in {chart_dir}.[/green]")
     _print_helm_chart_summary(generated)
+    _print_helm_ingress_hint(loaded)
     _print_warning(
         "If raw Kubernetes resources already exist from k8s-forge apply, Helm "
         "may refuse to import them because of ownership metadata."

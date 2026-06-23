@@ -1,5 +1,7 @@
 """Pydantic models for application configuration."""
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
 
 
@@ -70,13 +72,66 @@ class AutoscalingConfig(BaseModel):
         return self
 
 
+class IngressTlsConfig(BaseModel):
+    """Optional Ingress TLS configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = False
+    secretName: str | None = None
+
+    @model_validator(mode="after")
+    def validate_tls_secret(self) -> "IngressTlsConfig":
+        """Require a secret name when TLS is enabled."""
+        if self.enabled and not self.secretName:
+            msg = "secretName is required when ingress.tls.enabled is true"
+            raise ValueError(msg)
+        return self
+
+
+class IngressCertManagerConfig(BaseModel):
+    """Optional cert-manager integration for Ingress TLS."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = False
+    clusterIssuer: str | None = None
+
+    @model_validator(mode="after")
+    def validate_cluster_issuer(self) -> "IngressCertManagerConfig":
+        """Require a ClusterIssuer when cert-manager integration is enabled."""
+        if self.enabled and not self.clusterIssuer:
+            msg = "clusterIssuer is required when ingress.certManager.enabled is true"
+            raise ValueError(msg)
+        return self
+
+
 class IngressConfig(BaseModel):
-    """Ingress configuration reserved for a future renderer."""
+    """Ingress-NGINX and optional cert-manager configuration."""
 
     model_config = ConfigDict(extra="forbid")
 
     enabled: StrictBool = False
     host: str | None = None
+    className: str = Field(default="nginx", min_length=1)
+    path: str = "/"
+    pathType: Literal["Prefix", "Exact", "ImplementationSpecific"] = "Prefix"
+    tls: IngressTlsConfig = Field(default_factory=IngressTlsConfig)
+    certManager: IngressCertManagerConfig = Field(
+        default_factory=IngressCertManagerConfig
+    )
+    annotations: dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_ingress(self) -> "IngressConfig":
+        """Validate required fields for enabled Ingress routing."""
+        if self.enabled and not self.host:
+            msg = "host is required when ingress.enabled is true"
+            raise ValueError(msg)
+        if not self.path.startswith("/"):
+            msg = "ingress.path must start with '/'"
+            raise ValueError(msg)
+        return self
 
 
 class AppConfig(BaseModel):
@@ -92,3 +147,11 @@ class AppConfig(BaseModel):
     probes: ProbesConfig = Field(default_factory=ProbesConfig)
     autoscaling: AutoscalingConfig = Field(default_factory=AutoscalingConfig)
     ingress: IngressConfig = Field(default_factory=IngressConfig)
+
+    @model_validator(mode="after")
+    def validate_ingress_service(self) -> "AppConfig":
+        """Ensure enabled Ingress has a Service backend to target."""
+        if self.ingress.enabled and not self.service.enabled:
+            msg = "service.enabled must be true when ingress.enabled is true"
+            raise ValueError(msg)
+        return self

@@ -51,6 +51,7 @@ def test_render_helm_chart_generates_expected_files(tmp_path: Path) -> None:
         Path("templates/deployment.yaml"),
         Path("templates/service.yaml"),
         Path("templates/hpa.yaml"),
+        Path("templates/ingress.yaml"),
     ]
 
 
@@ -141,3 +142,51 @@ def test_render_helm_chart_does_not_delete_user_files(tmp_path: Path) -> None:
     _render_example("demo-app.yaml", tmp_path)
 
     assert user_file.read_text(encoding="utf-8") == "keep me"
+
+
+def test_values_yaml_contains_complete_ingress_section(tmp_path: Path) -> None:
+    _render_example("demo-app.yaml", tmp_path)
+
+    values = _load_yaml(tmp_path / "demo-app" / "values.yaml")
+
+    assert values["ingress"] == {
+        "enabled": False,
+        "host": "demo.local",
+        "className": "nginx",
+        "path": "/",
+        "pathType": "Prefix",
+        "tls": {"enabled": False, "secretName": None},
+        "certManager": {"enabled": False, "clusterIssuer": None},
+        "annotations": {},
+    }
+
+
+def test_ingress_template_is_generated_and_conditional(tmp_path: Path) -> None:
+    _render_example("demo-app.yaml", tmp_path)
+
+    ingress_template = (tmp_path / "demo-app" / "templates" / "ingress.yaml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "{{- if .Values.ingress.enabled }}" in ingress_template
+    assert "kind: Ingress" in ingress_template
+    assert (
+        "ingressClassName: {{ .Values.ingress.className | quote }}" in ingress_template
+    )
+    assert "path: {{ .Values.ingress.path | quote }}" in ingress_template
+    assert "pathType: {{ .Values.ingress.pathType }}" in ingress_template
+    assert "number: {{ .Values.service.port }}" in ingress_template
+    assert "cert-manager.io/cluster-issuer" in ingress_template
+    assert "{{- if .Values.ingress.tls.enabled }}" in ingress_template
+
+
+def test_two_configs_generate_different_ingress_values(tmp_path: Path) -> None:
+    _render_example("demo-app.yaml", tmp_path)
+    _render_example("admin-api.yaml", tmp_path)
+
+    demo = _load_yaml(tmp_path / "demo-app" / "values.yaml")
+    admin = _load_yaml(tmp_path / "admin-api" / "values.yaml")
+
+    assert demo["ingress"]["host"] == "demo.local"
+    assert admin["ingress"]["host"] == "admin.local"
+    assert demo["ingress"] != admin["ingress"]

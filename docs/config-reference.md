@@ -68,6 +68,16 @@ autoscaling:
 ingress:
   enabled: false
   host: null
+  className: nginx
+  path: /
+  pathType: Prefix
+  tls:
+    enabled: false
+    secretName: null
+  certManager:
+    enabled: false
+    clusterIssuer: null
+  annotations: {}
 ```
 
 ## Field Reference
@@ -93,8 +103,16 @@ ingress:
 | `autoscaling.minReplicas` | integer | No | `2` | greater than or equal to `1` | HPA minimum replicas |
 | `autoscaling.maxReplicas` | integer | No | `6` | greater than or equal to `autoscaling.minReplicas` | HPA maximum replicas |
 | `autoscaling.targetCPUUtilizationPercentage` | integer | No | `70` | `1` to `100` | HPA CPU utilization target |
-| `ingress.enabled` | boolean | No | `false` | boolean only | Validated only; not rendered in the MVP |
-| `ingress.host` | string or null | No | `null` | optional string or null | Reserved for future Ingress support |
+| `ingress.enabled` | boolean | No | `false` | boolean only | Controls whether Ingress is rendered |
+| `ingress.host` | string or null | Required if enabled | `null` | required when `ingress.enabled` is `true` | Ingress host rule |
+| `ingress.className` | string | No | `nginx` | non-empty | `spec.ingressClassName` |
+| `ingress.path` | string | No | `/` | must start with `/` | Ingress HTTP path |
+| `ingress.pathType` | string | No | `Prefix` | `Prefix`, `Exact`, or `ImplementationSpecific` | Ingress path type |
+| `ingress.tls.enabled` | boolean | No | `false` | boolean only | Controls whether Ingress TLS block is rendered |
+| `ingress.tls.secretName` | string or null | Required if TLS enabled | `null` | required when `ingress.tls.enabled` is `true` | TLS secret name |
+| `ingress.certManager.enabled` | boolean | No | `false` | boolean only | Controls cert-manager ClusterIssuer annotation |
+| `ingress.certManager.clusterIssuer` | string or null | Required if cert-manager enabled | `null` | required when `ingress.certManager.enabled` is `true` | `cert-manager.io/cluster-issuer` annotation |
+| `ingress.annotations` | map of strings | No | `{}` | keys and values must be strings | Ingress metadata annotations |
 
 ## Section Details
 
@@ -187,10 +205,36 @@ autoscaling:
 
 ### `ingress`
 
-The `ingress` section is validated but not rendered in the MVP. It exists to
-reserve a stable configuration shape for a future Ingress feature.
+The `ingress` section controls optional Ingress generation for an existing
+ingress-nginx controller. When enabled, raw rendering writes `60-ingress.yaml`
+and Helm rendering includes `templates/ingress.yaml`.
 
-Setting `ingress.enabled: true` does not currently generate an Ingress manifest.
+Ingress routes HTTP traffic from `ingress.host` and `ingress.path` to the
+generated Service. It requires `service.enabled: true` because the Ingress
+backend targets the Service.
+
+`k8s-forge` does not install ingress-nginx, cert-manager, ClusterIssuers, DNS,
+or `/etc/hosts` entries. For local hosts such as `weather.local`, add a hosts
+entry manually. On kind, direct local access also requires ports 80/443 to be
+exposed by the cluster configuration.
+
+Example:
+
+```yaml
+ingress:
+  enabled: true
+  host: weather.local
+  className: nginx
+  path: /
+  pathType: Prefix
+  tls:
+    enabled: true
+    secretName: weather-tls
+  certManager:
+    enabled: true
+    clusterIssuer: selfsigned-dev
+  annotations: {}
+```
 
 ## Invalid Examples
 
@@ -268,6 +312,29 @@ autoscaling:
 
 `autoscaling.maxReplicas` must be greater than or equal to `autoscaling.minReplicas`.
 
+### Ingress enabled without host
+
+```yaml
+ingress:
+  enabled: true
+  host: null
+```
+
+`ingress.host` is required when `ingress.enabled` is `true`.
+
+### Ingress TLS enabled without secret name
+
+```yaml
+ingress:
+  enabled: true
+  host: weather.local
+  tls:
+    enabled: true
+    secretName: null
+```
+
+`ingress.tls.secretName` is required when Ingress TLS is enabled.
+
 ## Best Practices
 
 - Use an explicit image tag for real projects instead of `latest`.
@@ -275,6 +342,7 @@ autoscaling:
 - Never commit real secrets in `app.yaml` or generated manifests.
 - Run `k8s-forge check app.yaml` before rendering.
 - Run `dry-run` and `diff` before `apply`.
+- For Ingress, validate ingress-nginx, cert-manager, kind port mappings, and `/etc/hosts` manually before testing traffic.
 
 ## Associated Commands
 

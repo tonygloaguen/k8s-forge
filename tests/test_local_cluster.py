@@ -19,6 +19,22 @@ METRICS_SERVER_COMMAND = [
     "deploy",
     "metrics-server",
 ]
+INGRESS_NGINX_COMMAND = [
+    "kubectl",
+    "-n",
+    "ingress-nginx",
+    "get",
+    "deploy",
+    "ingress-nginx-controller",
+]
+CERT_MANAGER_COMMAND = [
+    "kubectl",
+    "-n",
+    "cert-manager",
+    "get",
+    "deploy",
+    "cert-manager",
+]
 
 
 def test_run_local_command_success(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -78,6 +94,8 @@ def test_check_environment_reports_multiple_missing_tools(
     assert report.current_context.status == "unavailable"
     assert report.nodes.status == "unavailable"
     assert report.metrics_server.status == "unavailable"
+    assert report.ingress_nginx.status == "unavailable"
+    assert report.cert_manager.status == "unavailable"
     assert report.ready is False
 
 
@@ -135,6 +153,22 @@ def test_check_environment_reports_metrics_server_present(
                 "deploy",
                 "metrics-server",
             ): "metrics-server",
+            (
+                "kubectl",
+                "-n",
+                "ingress-nginx",
+                "get",
+                "deploy",
+                "ingress-nginx-controller",
+            ): "ingress-nginx-controller",
+            (
+                "kubectl",
+                "-n",
+                "cert-manager",
+                "get",
+                "deploy",
+                "cert-manager",
+            ): "cert-manager",
         }
         return subprocess.CompletedProcess(command, 0, outputs[tuple(command)], "")
 
@@ -144,6 +178,8 @@ def test_check_environment_reports_metrics_server_present(
 
     assert report.metrics_server.status == "OK"
     assert report.metrics_server.details == "metrics-server"
+    assert report.ingress_nginx.status == "OK"
+    assert report.cert_manager.status == "OK"
 
 
 def test_check_environment_reports_metrics_server_absent(
@@ -160,3 +196,37 @@ def test_check_environment_reports_metrics_server_absent(
 
     assert report.metrics_server.status == "error"
     assert report.metrics_server.details == "not found"
+
+
+def test_check_environment_reports_ingress_nginx_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == INGRESS_NGINX_COMMAND:
+            return subprocess.CompletedProcess(command, 1, "", "not found")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.ingress_nginx.status == "error"
+    assert report.ingress_nginx.details == "not found"
+    assert report.ready is True
+
+
+def test_check_environment_reports_cert_manager_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == CERT_MANAGER_COMMAND:
+            return subprocess.CompletedProcess(command, 1, "", "not found")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.cert_manager.status == "error"
+    assert report.cert_manager.details == "not found"
+    assert report.ready is True

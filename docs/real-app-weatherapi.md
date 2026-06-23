@@ -244,3 +244,21 @@ helm template weatherapi charts/weatherapi -n weather
 If the raw resources still exist from `k8s-forge apply`, Helm may refuse to take
 ownership of them. For the lab, delete the raw generated resources first or use a
 fresh namespace.
+
+## Ingress Follow-Up
+
+For Module 3, enable Ingress in `k8s-forge-app.yaml` with `host: weather.local`. Install ingress-nginx and cert-manager manually, add `127.0.0.1 weather.local` to `/etc/hosts` for direct local testing, then validate with:
+
+```bash
+k8s-forge check k8s-forge-app.yaml
+k8s-forge render k8s-forge-app.yaml --output generated-k8s-forge/
+kubectl -n weather get ingress
+curl -H "Host: weather.local" http://127.0.0.1/weather
+```
+
+If kind does not expose ports 80/443, use:
+
+```bash
+kubectl -n ingress-nginx port-forward svc/ingress-nginx-controller 8082:80
+curl -H "Host: weather.local" http://127.0.0.1:8082/weather
+```

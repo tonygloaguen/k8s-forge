@@ -17,6 +17,9 @@ on a Debian VM with a local kind cluster.
 | `missing the kubectl.kubernetes.io/last-applied-configuration annotation` | The namespace was created manually instead of through `kubectl apply`, so it lacks the last-applied annotation. | This warning is non-blocking. `kubectl apply` will patch the annotation automatically. | Rerun `k8s-forge apply ...` and inspect the output. |
 | `<unknown>` in HPA `TARGETS` | metrics-server is absent, not ready, or cannot scrape metrics. | Check metrics-server and install it manually for kind if HPA CPU metrics are required. | `kubectl -n kube-system get deploy metrics-server` |
 | Only one Pod appears when Module 2 expects multiple Pods | `app.replicas` is still `1`, or HPA min replicas is not configured. | Set `app.replicas: 2` and, if HPA is enabled, `autoscaling.minReplicas: 2`. | `kubectl -n <namespace> get deploy,pods,hpa` |
+| `weather.local` does not resolve | Local DNS does not know the lab hostname. | Add `127.0.0.1 weather.local` to `/etc/hosts` manually. | `getent hosts weather.local` |
+| Ingress returns connection refused on kind | kind was created without ports 80/443 mapped, or ingress-nginx is not ready. | Use port-forwarding or recreate kind with extraPortMappings. | `kubectl -n ingress-nginx get deploy,pods,svc` |
+| TLS certificate is not ready | cert-manager or the referenced ClusterIssuer is missing or not ready. | Install cert-manager and create the ClusterIssuer manually. | `kubectl get clusterissuer && kubectl -n <namespace> describe certificate` |
 
 ## General Debugging Commands
 

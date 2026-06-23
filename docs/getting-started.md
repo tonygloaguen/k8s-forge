@@ -86,6 +86,10 @@ helm template demo-app charts/demo-app -n demo-app
 Read [module-2-helm.md](module-2-helm.md) for chart structure, validation, and
 migration from raw `k8s-forge` resources.
 
+## Module 3 Ingress
+
+For HTTP routing with ingress-nginx and optional cert-manager annotations, read [module-3-ingress.md](module-3-ingress.md). `k8s-forge` renders Ingress resources but does not install ingress-nginx, cert-manager, or edit `/etc/hosts`.
+
 ## Next Step: Operational Workflow
 
 After generating and validating `app.yaml`, read [operations.md](operations.md)
@@ -101,6 +105,7 @@ real Kubernetes cluster.
 - [Operational workflow](operations.md)
 - [Module 2 Kubernetes raw workflow](module-2-kubernetes.md)
 - [Module 2 Helm workflow](module-2-helm.md)
+- [Module 3 Ingress workflow](module-3-ingress.md)
 - [Design notes](design.md)
 
 ## Local Release Check

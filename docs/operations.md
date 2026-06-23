@@ -186,6 +186,17 @@ helm template demo-app charts/demo-app -n demo-app
 applied with `k8s-forge apply`, delete them or use a fresh namespace before
 installing the Helm release so Helm ownership metadata is clean.
 
+## Ingress Operations
+
+When `ingress.enabled` is true, raw rendering writes `60-ingress.yaml` and Helm rendering includes `templates/ingress.yaml`. Validate ingress-nginx and cert-manager manually:
+
+```bash
+kubectl -n ingress-nginx get deploy ingress-nginx-controller
+kubectl -n cert-manager get deploy cert-manager
+```
+
+For local hosts, add `127.0.0.1 <host>` manually to `/etc/hosts`. On kind, direct access to ports 80/443 requires cluster port mappings; otherwise use port-forwarding.
+
 ## Complete Operational Scenario
 
 ```bash
@@ -388,3 +399,4 @@ permissions.
 
 - [Module 2 Kubernetes raw workflow](module-2-kubernetes.md)
 - [Module 2 Helm workflow](module-2-helm.md)
+- [Module 3 Ingress workflow](module-3-ingress.md)

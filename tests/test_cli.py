@@ -19,6 +19,22 @@ METRICS_SERVER_COMMAND = [
     "deploy",
     "metrics-server",
 ]
+INGRESS_NGINX_COMMAND = [
+    "kubectl",
+    "-n",
+    "ingress-nginx",
+    "get",
+    "deploy",
+    "ingress-nginx-controller",
+]
+CERT_MANAGER_COMMAND = [
+    "kubectl",
+    "-n",
+    "cert-manager",
+    "get",
+    "deploy",
+    "cert-manager",
+]
 
 
 def test_cli_help_responds() -> None:
@@ -343,6 +359,107 @@ def test_cli_helm_render_uses_custom_chart_name(tmp_path: Path) -> None:
     assert (output_dir / "sample-chart" / "Chart.yaml").exists()
     assert "helm lint" in result.output
     assert "sample-chart" in result.output
+
+
+def _write_ingress_config(path: Path) -> None:
+    path.write_text(
+        """
+app:
+  name: weatherapi
+  namespace: weather
+  image: weatherapi:0.1.0
+  containerPort: 8000
+  replicas: 2
+config:
+  APP_ENV: "dev"
+secrets:
+  API_TOKEN: "change-me"
+service:
+  enabled: true
+  port: 80
+resources:
+  requests:
+    cpu: "50m"
+    memory: "64Mi"
+  limits:
+    cpu: "250m"
+    memory: "128Mi"
+probes:
+  liveness: "/healthz"
+  readiness: "/readyz"
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+ingress:
+  enabled: true
+  host: weather.local
+  className: nginx
+  path: /
+  pathType: Prefix
+  tls:
+    enabled: true
+    secretName: weather-tls
+  certManager:
+    enabled: true
+    clusterIssuer: selfsigned-dev
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "1m"
+""".strip(),
+        encoding="utf-8",
+    )
+
+
+def test_cli_check_mentions_ingress_when_enabled(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    _write_ingress_config(config_path)
+
+    result = runner.invoke(app, ["check", str(config_path)])
+
+    assert result.exit_code == 0
+    assert "Ingress is enabled" in result.output
+    assert "weather.local" in result.output
+    assert "ingress-nginx" in result.output
+    assert "TLS is enabled for this Ingress" in result.output
+    assert "ClusterIssuer exists" in result.output
+
+
+def test_cli_render_lists_ingress_and_prints_local_hints(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated"
+    _write_ingress_config(config_path)
+
+    result = runner.invoke(
+        app, ["render", str(config_path), "--output", str(output_dir)]
+    )
+
+    assert result.exit_code == 0
+    assert "60-ingress.yaml" in result.output
+    assert (
+        "Ingress is enabled, so an Ingress manifest will be generated" in result.output
+    )
+    assert "127.0.0.1 weather.local" in result.output
+    assert "ports 80 and 443" in result.output
+    assert (output_dir / "60-ingress.yaml").exists()
+
+
+def test_cli_helm_render_lists_ingress_template(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "charts"
+    _write_ingress_config(config_path)
+
+    result = runner.invoke(
+        app, ["helm", "render", str(config_path), "--output", str(output_dir)]
+    )
+
+    chart_dir = output_dir / "weatherapi"
+    assert result.exit_code == 0
+    assert "templates/ingress.yaml" in result.output
+    assert "optional Ingress template" in result.output
+    assert "Helm will not install ingress-nginx or cert-manager" in result.output
+    assert "127.0.0.1 weather.local" in result.output
+    assert (chart_dir / "templates" / "ingress.yaml").exists()
 
 
 def test_cli_render_validation_error_does_not_generate(tmp_path: Path) -> None:
@@ -889,6 +1006,22 @@ def test_cli_doctor_all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
                 "deploy",
                 "metrics-server",
             ): "metrics-server available",
+            (
+                "kubectl",
+                "-n",
+                "ingress-nginx",
+                "get",
+                "deploy",
+                "ingress-nginx-controller",
+            ): "ingress-nginx-controller available",
+            (
+                "kubectl",
+                "-n",
+                "cert-manager",
+                "get",
+                "deploy",
+                "cert-manager",
+            ): "cert-manager available",
         }
         return subprocess.CompletedProcess(command, 0, outputs[tuple(command)], "")
 
@@ -906,6 +1039,10 @@ def test_cli_doctor_all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "Ready for local kind workflows" in result.output
     assert "metrics-server available" in result.output
     assert "HPA can read CPU and memory metrics" in result.output
+    assert "Checking ingress-nginx readiness" in result.output
+    assert "ingress-nginx available" in result.output
+    assert "Checking cert-manager readiness" in result.output
+    assert "cert-manager available" in result.output
 
 
 def test_cli_doctor_docker_absent(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -998,6 +1135,38 @@ def test_cli_doctor_metrics_server_error(monkeypatch: pytest.MonkeyPatch) -> Non
     assert result.exit_code == 0
     assert "api unavailable" in result.output
     assert "CPU-based scaling will not work" in result.output
+
+
+def test_cli_doctor_ingress_nginx_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == INGRESS_NGINX_COMMAND:
+            return subprocess.CompletedProcess(command, 1, "", "not found")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "ingress-nginx not found" in result.output
+    assert "will not install ingress-nginx automatically" in result.output
+    assert "Ready for local kind workflows" in result.output
+
+
+def test_cli_doctor_cert_manager_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == CERT_MANAGER_COMMAND:
+            return subprocess.CompletedProcess(command, 1, "", "not found")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "cert-manager not found" in result.output
+    assert "will not install cert-manager automatically" in result.output
+    assert "Ready for local kind workflows" in result.output
 
 
 def test_cli_cluster_create_calls_kind_create(monkeypatch: pytest.MonkeyPatch) -> None:

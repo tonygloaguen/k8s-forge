@@ -71,3 +71,20 @@ securityContext:
 ingress:
   enabled: [[ values.ingress.enabled | lower ]]
   host: [[ values.ingress.host | yaml_scalar ]]
+  className: [[ values.ingress.className | yaml_scalar ]]
+  path: [[ values.ingress.path | yaml_scalar ]]
+  pathType: [[ values.ingress.pathType | yaml_scalar ]]
+  tls:
+    enabled: [[ values.ingress.tls.enabled | lower ]]
+    secretName: [[ values.ingress.tls.secretName | yaml_scalar ]]
+  certManager:
+    enabled: [[ values.ingress.certManager.enabled | lower ]]
+    clusterIssuer: [[ values.ingress.certManager.clusterIssuer | yaml_scalar ]]
+  annotations:
+[% if values.ingress.annotations %]
+[% for key, value in values.ingress.annotations.items() %]
+    [[ key | yaml_scalar ]]: [[ value | yaml_scalar ]]
+[% endfor %]
+[% else %]
+    {}
+[% endif %]

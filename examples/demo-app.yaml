@@ -37,3 +37,13 @@ autoscaling:
 ingress:
   enabled: false
   host: demo.local
+  className: nginx
+  path: /
+  pathType: Prefix
+  tls:
+    enabled: false
+    secretName: null
+  certManager:
+    enabled: false
+    clusterIssuer: null
+  annotations: {}

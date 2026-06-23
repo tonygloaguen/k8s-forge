@@ -43,6 +43,8 @@ class DoctorReport:
     current_context: ToolCheck
     nodes: ToolCheck
     metrics_server: ToolCheck
+    ingress_nginx: ToolCheck
+    cert_manager: ToolCheck
 
     @property
     def ready(self) -> bool:
@@ -128,6 +130,23 @@ def check_environment(timeout: int = 30) -> DoctorReport:
             ["kubectl", "-n", "kube-system", "get", "deploy", "metrics-server"],
             timeout,
         )
+        ingress_nginx = check_command(
+            "ingress-nginx",
+            [
+                "kubectl",
+                "-n",
+                "ingress-nginx",
+                "get",
+                "deploy",
+                "ingress-nginx-controller",
+            ],
+            timeout,
+        )
+        cert_manager = check_command(
+            "cert-manager",
+            ["kubectl", "-n", "cert-manager", "get", "deploy", "cert-manager"],
+            timeout,
+        )
     else:
         current_context = ToolCheck(
             "current context", "unavailable", "kubectl is not available"
@@ -136,8 +155,23 @@ def check_environment(timeout: int = 30) -> DoctorReport:
         metrics_server = ToolCheck(
             "metrics-server", "unavailable", "kubectl is not available"
         )
+        ingress_nginx = ToolCheck(
+            "ingress-nginx", "unavailable", "kubectl is not available"
+        )
+        cert_manager = ToolCheck(
+            "cert-manager", "unavailable", "kubectl is not available"
+        )
 
-    return DoctorReport(docker, kind, kubectl, current_context, nodes, metrics_server)
+    return DoctorReport(
+        docker,
+        kind,
+        kubectl,
+        current_context,
+        nodes,
+        metrics_server,
+        ingress_nginx,
+        cert_manager,
+    )
 
 
 def get_kind_clusters(timeout: int = 30) -> list[str]:

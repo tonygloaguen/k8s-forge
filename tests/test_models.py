@@ -185,3 +185,96 @@ def test_autoscaling_rejects_invalid_cpu_target() -> None:
 
     with pytest.raises(ValidationError):
         AppConfig.model_validate(config_data)
+
+
+def test_ingress_defaults_when_section_absent() -> None:
+    config_data = _valid_config()
+    del config_data["ingress"]
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.ingress.enabled is False
+    assert config.ingress.host is None
+    assert config.ingress.className == "nginx"
+    assert config.ingress.path == "/"
+    assert config.ingress.pathType == "Prefix"
+    assert config.ingress.tls.enabled is False
+    assert config.ingress.certManager.enabled is False
+    assert config.ingress.annotations == {}
+
+
+def test_ingress_disabled_with_null_host_is_valid() -> None:
+    config_data = _valid_config()
+    config_data["ingress"] = {"enabled": False, "host": None}
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.ingress.enabled is False
+    assert config.ingress.host is None
+
+
+def test_ingress_enabled_requires_host() -> None:
+    config_data = _valid_config()
+    config_data["ingress"] = {"enabled": True, "host": None}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_ingress_enabled_requires_service() -> None:
+    config_data = _valid_config()
+    service = config_data["service"]
+    assert isinstance(service, dict)
+    service["enabled"] = False
+    config_data["ingress"] = {"enabled": True, "host": "demo.local"}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_ingress_tls_requires_secret_name() -> None:
+    config_data = _valid_config()
+    config_data["ingress"] = {
+        "enabled": True,
+        "host": "demo.local",
+        "tls": {"enabled": True, "secretName": None},
+    }
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_ingress_cert_manager_requires_cluster_issuer() -> None:
+    config_data = _valid_config()
+    config_data["ingress"] = {
+        "enabled": True,
+        "host": "demo.local",
+        "certManager": {"enabled": True, "clusterIssuer": None},
+    }
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_ingress_rejects_path_without_slash() -> None:
+    config_data = _valid_config()
+    config_data["ingress"] = {
+        "enabled": True,
+        "host": "demo.local",
+        "path": "weather",
+    }
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_ingress_rejects_invalid_path_type() -> None:
+    config_data = _valid_config()
+    config_data["ingress"] = {
+        "enabled": True,
+        "host": "demo.local",
+        "pathType": "Invalid",
+    }
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)

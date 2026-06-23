@@ -35,6 +35,7 @@ GENERATED_HELM_FILES = (
     "templates/deployment.yaml",
     "templates/service.yaml",
     "templates/hpa.yaml",
+    "templates/ingress.yaml",
 )
 
 
@@ -87,6 +88,7 @@ def _template_specs() -> list[HelmTemplateSpec]:
         HelmTemplateSpec("templates/deployment.yaml.j2", "templates/deployment.yaml"),
         HelmTemplateSpec("templates/service.yaml.j2", "templates/service.yaml"),
         HelmTemplateSpec("templates/hpa.yaml.j2", "templates/hpa.yaml"),
+        HelmTemplateSpec("templates/ingress.yaml.j2", "templates/ingress.yaml"),
     ]
 
 

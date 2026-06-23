@@ -18,6 +18,7 @@ name.
 - validate `app.yaml` with Pydantic models;
 - render Kubernetes YAML manifests locally;
 - generate a local Helm chart from the same `app.yaml`;
+- generate optional Ingress-NGINX compatible Ingress resources;
 - run guarded `kubectl` workflows for `dry-run`, `diff`, `apply`, and `status`;
 - check local Docker/kind/kubectl prerequisites and manage a local kind cluster;
 - keep generated manifests inspectable before cluster operations.
@@ -37,11 +38,10 @@ Included:
 - `cluster create`, `cluster status`, `cluster delete` for kind
 - `image load` for loading local Docker images into kind
 - `helm render` for generating a local Helm chart
-- generation of Namespace, ConfigMap, Secret, Deployment, Service, and optional HorizontalPodAutoscaler
+- generation of Namespace, ConfigMap, Secret, Deployment, Service, optional HorizontalPodAutoscaler, and optional Ingress
 
 Out of scope:
 
-- Ingress
 - NetworkPolicy
 - Kustomize
 - LangGraph
@@ -137,6 +137,10 @@ helm lint charts/demo-app
 helm template demo-app charts/demo-app -n demo-app
 ```
 
+## Module 3 Ingress
+
+When `ingress.enabled` is true, `k8s-forge` renders raw and Helm Ingress resources for an existing ingress-nginx controller. It does not install ingress-nginx, cert-manager, ClusterIssuers, DNS, or `/etc/hosts` entries.
+
 ## Local kind Bootstrap
 
 `k8s-forge doctor` checks Docker, kind, kubectl, the current context, and
@@ -180,6 +184,7 @@ examples and tests.
 - [Operational workflow](docs/operations.md)
 - [Module 2 Kubernetes raw workflow](docs/module-2-kubernetes.md)
 - [Module 2 Helm workflow](docs/module-2-helm.md)
+- [Module 3 Ingress workflow](docs/module-3-ingress.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Real app case study: weatherapi-platform](docs/real-app-weatherapi.md)
 - [Design notes](docs/design.md)
