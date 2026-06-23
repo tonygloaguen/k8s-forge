@@ -97,3 +97,34 @@ supplyChain:
     enabled: false
     tool: cosign
     keyless: true
+
+ci:
+  enabled: false
+  provider: github-actions
+  python:
+    enabled: true
+    version: "3.12"
+    quality:
+      ruff: true
+      mypy: true
+      bandit: true
+      pipAudit: true
+      pytest: true
+      build: true
+  container:
+    enabled: true
+    image: ""
+    dockerfile: Dockerfile
+    context: .
+    scan:
+      enabled: true
+      tool: trivy
+      severity:
+        - HIGH
+        - CRITICAL
+    sbom:
+      enabled: true
+      tool: syft
+      format: cyclonedx-json
+  artifacts:
+    enabled: true

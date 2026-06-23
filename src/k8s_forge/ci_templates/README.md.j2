@@ -1,0 +1,49 @@
+# GitHub Actions CI Readiness
+
+Application: `{{ app.name }}`
+Container image: `{{ image }}`
+
+This directory contains generated GitHub Actions workflow files for a local DevSecOps lab.
+The workflows are intentionally readable and conservative. `k8s-forge` does not push code, publish container images, deploy Kubernetes resources, or create GitHub secrets.
+
+## Generated Workflows
+
+{% if ci.python.enabled -%}
+- `.github/workflows/ci.yml`: Python quality, tests, security audit, and package build.
+{% endif -%}
+{% if ci.container.enabled -%}
+- `.github/workflows/security.yml`: local Docker image build, Trivy image scan, Syft SBOM generation, and report artifact upload.
+{% endif %}
+
+If this directory was generated outside `.github/workflows/`, review the files first, then copy the workflow files into your repository `.github/workflows/` directory.
+
+## Python CI
+
+The Python workflow installs the project with development dependencies and runs the enabled checks from `app.yaml`.
+
+Python version: `{{ ci.python.version }}`.
+
+## Container Security CI
+
+The security workflow builds the image locally in the GitHub Actions runner:
+
+```bash
+docker build -t {{ image }} -f {{ ci.container.dockerfile }} {{ ci.container.context }}
+```
+
+{% if ci.container.scan.enabled -%}
+Trivy severity threshold: `{{ severity_csv }}`.
+{% endif -%}
+{% if ci.container.sbom.enabled -%}
+SBOM output: `{{ sbom_output }}`.
+{% endif %}
+
+{% if uses_latest -%}
+## Traceability Warning
+
+The selected image uses the `latest` tag. This is convenient for labs but weak for traceability. Prefer immutable version tags or digests when validating supply-chain controls.
+{% endif %}
+
+## Scope
+
+Cosign signing, registry push, OCI publication, ArgoCD, GitOps, Kubernetes deployment, Terraform, and Ansible are outside v0.9.0.

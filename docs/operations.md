@@ -461,3 +461,7 @@ k8s-forge supply-chain render app.yaml --output generated-supply-chain/
 ```
 
 Then inspect `README.md`, run `scan-image.sh` for Trivy, and run `generate-sbom.sh` for Syft. Cosign scripts are generated only when signing is enabled.
+
+## CI Readiness
+
+`k8s-forge ci render app.yaml --output generated-ci/` generates reviewable GitHub Actions workflow files. This is a local file generation step only: it does not push code, create secrets, publish images, or deploy Kubernetes resources. Review the generated files before copying them into `.github/workflows/`.

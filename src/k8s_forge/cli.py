@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from k8s_forge import __version__
+from k8s_forge.ci_renderer import render_ci_files, resolve_ci_image
 from k8s_forge.config_loader import load_app_config
 from k8s_forge.exceptions import (
     ConfigLoadError,
@@ -51,6 +52,7 @@ cluster_app = typer.Typer(help="Manage local kind clusters.")
 image_app = typer.Typer(help="Manage local images for kind clusters.")
 helm_app = typer.Typer(help="Generate local Helm charts.")
 supply_chain_app = typer.Typer(help="Generate supply chain readiness scripts.")
+ci_app = typer.Typer(help="Generate GitHub Actions CI readiness workflows.")
 
 
 class _QuotedString(str):
@@ -513,6 +515,86 @@ def _print_supply_chain_next_steps(paths: list[Path]) -> None:
     _print_hint("  k8s-forge doctor")
 
 
+def _is_direct_workflows_output(output: Path) -> bool:
+    return output.name == "workflows" and output.parent.name == ".github"
+
+
+def _print_ci_latest_warning(image: str) -> None:
+    if uses_latest_tag(image):
+        _print_warning("The selected CI image uses the latest tag.")
+        _print_hint("This is convenient for labs but weak for traceability.")
+        _print_hint("Prefer immutable version tags or digests in CI workflows.")
+
+
+def _print_ci_summary(config: AppConfig) -> None:
+    if not config.ci.enabled:
+        return
+    image = resolve_ci_image(config)
+    _print_hint("CI readiness is enabled.")
+    _print_hint("GitHub Actions can automate the same checks you run locally.")
+    _print_hint(
+        "k8s-forge generates workflow files but does not push code, publish "
+        "images, deploy Kubernetes resources, or create secrets."
+    )
+    if config.ci.python.enabled:
+        _print_hint(
+            "The Python workflow can run formatting, linting, typing, tests, "
+            "security audit, and package build checks."
+        )
+    if config.ci.container.enabled:
+        _print_hint(
+            "The security workflow can build the image locally, scan it with "
+            "Trivy, and generate an SBOM with Syft."
+        )
+        _print_hint(f"CI container image: {image}")
+        _print_ci_latest_warning(image)
+
+
+def _print_ci_render_hint(config_path: Path) -> None:
+    _print_hint("CI readiness is enabled.")
+    _print_hint("Kubernetes manifests were generated separately.")
+    _print_hint(f"Run: k8s-forge ci render {config_path} --output generated-ci/")
+
+
+def _print_ci_summary_table(paths: list[Path], output: Path) -> None:
+    table = Table(title="Generated CI files")
+    table.add_column("File")
+    for path in paths:
+        try:
+            rendered = str(path.relative_to(output))
+        except ValueError:
+            rendered = str(path)
+        table.add_row(rendered)
+    console.print(table)
+
+
+def _print_ci_next_steps(output: Path) -> None:
+    _print_hint("Next validation steps:")
+    _print_hint(f"  Review the files in {output}")
+    if not _is_direct_workflows_output(output):
+        _print_hint("  Copy generated .github/workflows/*.yml into your repository")
+    _print_hint("  git status")
+    _print_hint("  Commit the workflow files when you are ready")
+
+
+def _print_ci_diagnostics(report: DoctorReport) -> None:
+    _print_step("Checking CI readiness...")
+    _print_hint(
+        "Git is required to manage GitHub Actions workflow files in a repository."
+    )
+    _print_hint(
+        "k8s-forge does not create GitHub secrets and does not push workflows "
+        "automatically."
+    )
+    if report.git.status == "OK":
+        console.print("[green]Git is available.[/green]")
+    else:
+        _print_warning(
+            "Git is not available. CI workflow files can still be rendered, "
+            "but repository operations are not available yet."
+        )
+
+
 def _print_check_summary(config: AppConfig) -> None:
     """Print a concise validation summary."""
     table = Table(title="Application configuration")
@@ -667,6 +749,41 @@ def _starter_config_data(
                 "enabled": False,
                 "tool": _QuotedString("cosign"),
                 "keyless": True,
+            },
+        },
+        "ci": {
+            "enabled": False,
+            "provider": _QuotedString("github-actions"),
+            "python": {
+                "enabled": True,
+                "version": _QuotedString("3.12"),
+                "quality": {
+                    "ruff": True,
+                    "mypy": True,
+                    "bandit": True,
+                    "pipAudit": True,
+                    "pytest": True,
+                    "build": True,
+                },
+            },
+            "container": {
+                "enabled": True,
+                "image": _QuotedString(""),
+                "dockerfile": _QuotedString("Dockerfile"),
+                "context": _QuotedString("."),
+                "scan": {
+                    "enabled": True,
+                    "tool": _QuotedString("trivy"),
+                    "severity": [_QuotedString("HIGH"), _QuotedString("CRITICAL")],
+                },
+                "sbom": {
+                    "enabled": True,
+                    "tool": _QuotedString("syft"),
+                    "format": _QuotedString("cyclonedx-json"),
+                },
+            },
+            "artifacts": {
+                "enabled": True,
             },
         },
     }
@@ -959,6 +1076,7 @@ def check(
         _print_kyverno_prerequisite_warning()
         _print_policy_validation_commands(loaded)
     _print_supply_chain_summary(loaded)
+    _print_ci_summary(loaded)
     _print_autoscaling_warning(loaded)
 
 
@@ -989,6 +1107,8 @@ def render(
     _print_policy_runtime_hint(loaded)
     if loaded.supplyChain.enabled:
         _print_supply_chain_render_hint(config_path)
+    if loaded.ci.enabled:
+        _print_ci_render_hint(config_path)
     _print_autoscaling_warning(loaded)
     console.print("[green]manifests generated[/green]")
     _print_render_summary(generated)
@@ -1216,6 +1336,7 @@ def doctor(
             report.trivy,
             report.syft,
             report.cosign,
+            report.git,
         ]
     )
     if report.metrics_server.status == "OK":
@@ -1280,6 +1401,7 @@ def doctor(
     _print_cni_diagnostics(report)
     _print_kyverno_diagnostics(report)
     _print_supply_chain_diagnostics(report)
+    _print_ci_diagnostics(report)
 
     if report.ready:
         console.print("[green]Ready for local kind workflows.[/green]")
@@ -1517,7 +1639,59 @@ def supply_chain_render(
     _print_supply_chain_next_steps(generated)
 
 
+@ci_app.command("render")
+def ci_render(
+    config_path: Annotated[Path, typer.Argument(help="Path to app.yaml.")],
+    output: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Output directory for CI files."),
+    ] = Path("generated-ci"),
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Overwrite generated CI files if they exist."),
+    ] = False,
+) -> None:
+    """Render GitHub Actions CI readiness files from app.yaml."""
+    _print_step("Rendering GitHub Actions CI readiness files from app.yaml...")
+    _print_hint(
+        "This creates readable workflow files for Python checks and container "
+        "supply-chain validation."
+    )
+    _print_hint(
+        "This step does not push code, publish images, deploy Kubernetes "
+        "resources, or create secrets."
+    )
+    if _is_direct_workflows_output(output):
+        _print_warning(
+            "The output target is .github/workflows/. Existing workflow files "
+            "will not be overwritten unless --force is used."
+        )
+
+    try:
+        loaded = load_app_config(config_path)
+    except ConfigLoadError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    if not loaded.ci.enabled:
+        _print_hint("CI readiness is disabled in app.yaml.")
+        _print_hint("No CI workflow files were generated.")
+        return
+
+    try:
+        generated = render_ci_files(loaded, output, force=force)
+    except RenderError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    console.print(f"[green]CI files generated in {output}.[/green]")
+    _print_ci_summary(loaded)
+    _print_ci_summary_table(generated, output)
+    _print_ci_next_steps(output)
+
+
 app.add_typer(cluster_app, name="cluster")
 app.add_typer(image_app, name="image")
 app.add_typer(helm_app, name="helm")
 app.add_typer(supply_chain_app, name="supply-chain")
+app.add_typer(ci_app, name="ci")

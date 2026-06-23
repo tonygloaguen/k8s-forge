@@ -603,3 +603,118 @@ def test_supply_chain_signing_keyless_is_strict_bool() -> None:
 
     with pytest.raises(ValidationError):
         AppConfig.model_validate(config_data)
+
+
+def test_ci_defaults_when_section_absent() -> None:
+    config = AppConfig.model_validate(_valid_config())
+
+    assert config.ci.enabled is False
+    assert config.ci.provider == "github-actions"
+    assert config.ci.python.enabled is True
+    assert config.ci.python.version == "3.12"
+    assert config.ci.python.quality.ruff is True
+    assert config.ci.python.quality.pipAudit is True
+    assert config.ci.container.enabled is True
+    assert config.ci.container.image == ""
+    assert config.ci.container.dockerfile == "Dockerfile"
+    assert config.ci.container.context == "."
+    assert config.ci.container.scan.tool == "trivy"
+    assert config.ci.container.scan.severity == ["HIGH", "CRITICAL"]
+    assert config.ci.container.sbom.tool == "syft"
+    assert config.ci.container.sbom.format == "cyclonedx-json"
+    assert config.ci.artifacts.enabled is True
+
+
+def test_ci_accepts_github_actions_provider_and_python_version() -> None:
+    config_data = _valid_config()
+    config_data["ci"] = {
+        "enabled": True,
+        "provider": "github-actions",
+        "python": {"version": "3.11"},
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.ci.enabled is True
+    assert config.ci.provider == "github-actions"
+    assert config.ci.python.version == "3.11"
+
+
+def test_ci_rejects_invalid_provider() -> None:
+    config_data = _valid_config()
+    config_data["ci"] = {"enabled": True, "provider": "gitlab-ci"}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_ci_accepts_empty_container_image() -> None:
+    config_data = _valid_config()
+    config_data["ci"] = {"enabled": True, "container": {"image": ""}}
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.ci.container.image == ""
+
+
+def test_ci_accepts_valid_scan_severities() -> None:
+    config_data = _valid_config()
+    config_data["ci"] = {
+        "enabled": True,
+        "container": {"scan": {"severity": ["UNKNOWN", "LOW", "MEDIUM"]}},
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.ci.container.scan.severity == ["UNKNOWN", "LOW", "MEDIUM"]
+
+
+def test_ci_rejects_invalid_scan_severity() -> None:
+    config_data = _valid_config()
+    config_data["ci"] = {
+        "enabled": True,
+        "container": {"scan": {"severity": ["SEVERE"]}},
+    }
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_ci_accepts_valid_sbom_formats() -> None:
+    for format_name in ("cyclonedx-json", "spdx-json", "syft-json"):
+        config_data = _valid_config()
+        config_data["ci"] = {
+            "enabled": True,
+            "container": {"sbom": {"format": format_name}},
+        }
+
+        config = AppConfig.model_validate(config_data)
+
+        assert config.ci.container.sbom.format == format_name
+
+
+def test_ci_rejects_invalid_sbom_format() -> None:
+    config_data = _valid_config()
+    config_data["ci"] = {"enabled": True, "container": {"sbom": {"format": "xml"}}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_ci_quality_flags_are_strict_booleans() -> None:
+    config_data = _valid_config()
+    config_data["ci"] = {
+        "enabled": True,
+        "python": {"quality": {"ruff": "true"}},
+    }
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_ci_artifacts_enabled_is_strict_boolean() -> None:
+    config_data = _valid_config()
+    config_data["ci"] = {"enabled": True, "artifacts": {"enabled": "true"}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)

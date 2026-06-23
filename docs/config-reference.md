@@ -97,6 +97,37 @@ networkPolicy:
       - 8000
   egress:
     enabled: false
+
+ci:
+  enabled: false
+  provider: github-actions
+  python:
+    enabled: true
+    version: "3.12"
+    quality:
+      ruff: true
+      mypy: true
+      bandit: true
+      pipAudit: true
+      pytest: true
+      build: true
+  container:
+    enabled: true
+    image: ""
+    dockerfile: Dockerfile
+    context: .
+    scan:
+      enabled: true
+      tool: trivy
+      severity:
+        - HIGH
+        - CRITICAL
+    sbom:
+      enabled: true
+      tool: syft
+      format: cyclonedx-json
+  artifacts:
+    enabled: true
 ```
 
 ## Field Reference
@@ -142,6 +173,16 @@ networkPolicy:
 | `networkPolicy.ingress.fromNamespaces` | list of strings | No | `ingress-nginx` | namespace names must be non-empty | Namespace selectors allowed to reach app Pods |
 | `networkPolicy.ingress.ports` | list of integers | No | `app.containerPort` | `1` to `65535` | Pod ports allowed by the policy |
 | `networkPolicy.egress.enabled` | boolean | No | `false` | accepted but not rendered in v0.6.0 | Reserved for future egress policy support |
+| `ci.enabled` | boolean | No | `false` | boolean only | Controls GitHub Actions readiness workflow generation |
+| `ci.provider` | string | No | `github-actions` | only `github-actions` in v0.9.0 | Selects the CI provider |
+| `ci.python.version` | string | No | `3.12` | non-empty | Python version used by generated CI workflow |
+| `ci.python.quality.*` | booleans | No | `true` | boolean only | Enables Ruff, mypy, Bandit, pip-audit, pytest, and build steps |
+| `ci.container.image` | string | No | empty | fallback to `supplyChain.image`, then `app.image` | Docker image tag used by security workflow |
+| `ci.container.dockerfile` | string | No | `Dockerfile` | non-empty | Dockerfile path for CI image build |
+| `ci.container.context` | string | No | `.` | non-empty | Docker build context |
+| `ci.container.scan.severity` | list of strings | No | `HIGH`, `CRITICAL` | `UNKNOWN`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL` | Trivy severity threshold |
+| `ci.container.sbom.format` | string | No | `cyclonedx-json` | `cyclonedx-json`, `spdx-json`, `syft-json` | Syft SBOM output format |
+| `ci.artifacts.enabled` | boolean | No | `true` | boolean only | Controls generated artifact upload steps |
 
 ## Section Details
 
@@ -328,6 +369,37 @@ networkPolicy:
       - 8000
   egress:
     enabled: false
+
+ci:
+  enabled: false
+  provider: github-actions
+  python:
+    enabled: true
+    version: "3.12"
+    quality:
+      ruff: true
+      mypy: true
+      bandit: true
+      pipAudit: true
+      pytest: true
+      build: true
+  container:
+    enabled: true
+    image: ""
+    dockerfile: Dockerfile
+    context: .
+    scan:
+      enabled: true
+      tool: trivy
+      severity:
+        - HIGH
+        - CRITICAL
+    sbom:
+      enabled: true
+      tool: syft
+      format: cyclonedx-json
+  artifacts:
+    enabled: true
 ```
 
 ## Invalid Examples
@@ -548,3 +620,12 @@ supplyChain:
 | `supplyChain.signing.keyless` | boolean | no | `true` | `true` or `false` | Documents intended keyless workflow. |
 
 If `supplyChain.image` uses `latest`, `k8s-forge` warns because `latest` is weak for traceability. It does not block local labs.
+
+
+### `ci`
+
+The `ci` section controls GitHub Actions readiness generation. It does not affect Kubernetes manifests or Helm charts. Use `k8s-forge ci render app.yaml --output generated-ci/` to generate reviewable workflow files.
+
+`ci.yml` covers Python quality checks, tests, dependency audit, and package build. `security.yml` builds the configured image locally in GitHub Actions, scans it with Trivy, generates an SBOM with Syft, and optionally uploads artifacts.
+
+`k8s-forge` does not create GitHub secrets, push images, publish packages, run `kubectl apply`, or deploy Kubernetes resources in v0.9.0.

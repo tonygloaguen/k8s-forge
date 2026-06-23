@@ -58,6 +58,7 @@ class DoctorReport:
     trivy: ToolCheck
     syft: ToolCheck
     cosign: ToolCheck
+    git: ToolCheck
 
     @property
     def ready(self) -> bool:
@@ -195,6 +196,7 @@ def check_environment(timeout: int = 30) -> DoctorReport:
     trivy = check_command("Trivy", ["trivy", "--version"], timeout)
     syft = check_command("Syft", ["syft", "version"], timeout)
     cosign = check_command("Cosign", ["cosign", "version"], timeout)
+    git = check_command("Git", ["git", "--version"], timeout)
 
     if kubectl.status == "OK":
         current_context = check_command(
@@ -324,6 +326,7 @@ def check_environment(timeout: int = 30) -> DoctorReport:
         trivy,
         syft,
         cosign,
+        git,
     )
 
 

@@ -49,6 +49,7 @@ POLICY_REPORT_COMMAND = ["kubectl", "get", "policyreport", "--all-namespaces"]
 TRIVY_COMMAND = ["trivy", "--version"]
 SYFT_COMMAND = ["syft", "version"]
 COSIGN_COMMAND = ["cosign", "version"]
+GIT_COMMAND = ["git", "--version"]
 
 
 def test_cli_help_responds() -> None:
@@ -71,6 +72,7 @@ def test_cli_commands_exist() -> None:
         "apply",
         "status",
         "helm",
+        "ci",
     ):
         assert command in result.output
 
@@ -1055,6 +1057,7 @@ def test_cli_doctor_all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
             ("trivy", "--version"): "trivy",
             ("syft", "version"): "syft",
             ("cosign", "version"): "cosign",
+            ("git", "--version"): "git version 2.43.0",
         }
         return subprocess.CompletedProcess(command, 0, outputs[tuple(command)], "")
 
@@ -2073,3 +2076,212 @@ def test_cli_doctor_reports_supply_chain_tools_present(
 
     assert result.exit_code == 0
     assert "Supply chain tools detected" in result.output
+
+
+def _write_ci_config(path: Path, image: str = "weatherapi:0.1.0") -> None:
+    path.write_text(
+        f"""
+app:
+  name: weatherapi
+  namespace: weather
+  image: weatherapi:0.1.0
+  containerPort: 8000
+  replicas: 2
+service:
+  enabled: true
+  port: 80
+ci:
+  enabled: true
+  provider: github-actions
+  python:
+    enabled: true
+    version: "3.12"
+    quality:
+      ruff: true
+      mypy: true
+      bandit: true
+      pipAudit: true
+      pytest: true
+      build: true
+  container:
+    enabled: true
+    image: {image}
+    dockerfile: Dockerfile
+    context: .
+    scan:
+      enabled: true
+      tool: trivy
+      severity:
+        - HIGH
+        - CRITICAL
+    sbom:
+      enabled: true
+      tool: syft
+      format: cyclonedx-json
+  artifacts:
+    enabled: true
+""".strip(),
+        encoding="utf-8",
+    )
+
+
+def test_cli_check_mentions_ci_when_enabled(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    _write_ci_config(config_path)
+
+    result = runner.invoke(app, ["check", str(config_path)])
+
+    assert result.exit_code == 0
+    assert "CI readiness is enabled" in result.output
+    assert "GitHub Actions can automate" in result.output
+    assert "does not push code" in result.output
+
+
+def test_cli_render_suggests_ci_render_command(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated"
+    _write_ci_config(config_path)
+
+    result = runner.invoke(
+        app, ["render", str(config_path), "--output", str(output_dir)]
+    )
+
+    assert result.exit_code == 0
+    assert "Kubernetes manifests were generated separately" in result.output
+    assert "k8s-forge ci render" in result.output
+    assert not (output_dir / ".github" / "workflows" / "ci.yml").exists()
+
+
+def test_cli_ci_render_generates_workflows(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-ci"
+    _write_ci_config(config_path)
+
+    result = runner.invoke(
+        app, ["ci", "render", str(config_path), "--output", str(output_dir)]
+    )
+
+    assert result.exit_code == 0
+    assert "CI files generated" in result.output
+    assert "Generated CI files" in result.output
+    assert (output_dir / "README.md").exists()
+    assert (output_dir / ".github" / "workflows" / "ci.yml").exists()
+    assert (output_dir / ".github" / "workflows" / "security.yml").exists()
+
+
+def test_cli_ci_render_refuses_overwrite_without_force(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-ci"
+    _write_ci_config(config_path)
+    first = runner.invoke(
+        app, ["ci", "render", str(config_path), "--output", str(output_dir)]
+    )
+    assert first.exit_code == 0
+
+    result = runner.invoke(
+        app, ["ci", "render", str(config_path), "--output", str(output_dir)]
+    )
+
+    assert result.exit_code == 1
+    assert "use --force" in result.output
+
+
+def test_cli_ci_render_overwrites_with_force(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-ci"
+    _write_ci_config(config_path)
+    first = runner.invoke(
+        app, ["ci", "render", str(config_path), "--output", str(output_dir)]
+    )
+    assert first.exit_code == 0
+
+    result = runner.invoke(
+        app,
+        ["ci", "render", str(config_path), "--output", str(output_dir), "--force"],
+    )
+
+    assert result.exit_code == 0
+    assert "CI files generated" in result.output
+
+
+def test_cli_ci_render_warns_for_direct_workflow_output(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / ".github" / "workflows"
+    _write_ci_config(config_path)
+
+    result = runner.invoke(
+        app, ["ci", "render", str(config_path), "--output", str(output_dir)]
+    )
+
+    assert result.exit_code == 0
+    assert "The output target is .github/workflows/" in result.output
+    assert (output_dir / "ci.yml").exists()
+    assert (output_dir / "security.yml").exists()
+    assert (output_dir / "README.k8s-forge-ci.md").exists()
+
+
+def test_cli_ci_render_warns_for_latest_image(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-ci"
+    _write_ci_config(config_path, image="weatherapi:latest")
+
+    result = runner.invoke(
+        app, ["ci", "render", str(config_path), "--output", str(output_dir)]
+    )
+
+    assert result.exit_code == 0
+    assert "uses the latest tag" in result.output
+    assert "weak for traceability" in result.output
+
+
+def test_cli_ci_render_disabled_is_clean(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    config_path.write_text(
+        """
+app:
+  name: demo-app
+  namespace: demo
+  image: demo-app:1.0.0
+  containerPort: 8000
+  replicas: 1
+ci:
+  enabled: false
+""".strip(),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["ci", "render", str(config_path)])
+
+    assert result.exit_code == 0
+    assert "CI readiness is disabled" in result.output
+    assert "No CI workflow files were generated" in result.output
+
+
+def test_cli_doctor_reports_git_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == GIT_COMMAND:
+            raise FileNotFoundError
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "Checking CI readiness" in result.output
+    assert "Git is not available" in result.output
+
+
+def test_cli_doctor_reports_git_present(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == GIT_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "git version 2.43.0", "")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "Checking CI readiness" in result.output
+    assert "Git is available" in result.output

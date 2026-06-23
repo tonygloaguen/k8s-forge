@@ -116,6 +116,7 @@ real Kubernetes cluster.
 - [Module 3 Ingress workflow](module-3-ingress.md)
 - [Module 3 Linkerd service mesh workflow](module-3-linkerd.md)
 - [Module 4 NetworkPolicy workflow](module-4-networkpolicy.md)
+- [Module 6 CI readiness workflow](module-6-ci.md)
 - [Design notes](design.md)
 
 ## Local Release Check
@@ -138,3 +139,7 @@ After NetworkPolicy readiness, see [Module 4 Kyverno](module-4-kyverno.md) to ge
 ## Next step: Supply Chain readiness
 
 After Kyverno readiness, see [Module 5 Supply Chain](module-5-supply-chain.md) to generate Trivy, Syft, and optional Cosign helper scripts.
+
+## Next step: CI readiness
+
+After local Supply Chain readiness, see [Module 6 CI](module-6-ci.md) to generate GitHub Actions workflows for Python quality checks, image scanning, SBOM generation, and artifact upload.

@@ -23,6 +23,7 @@ name.
 - generate optional ingress-only NetworkPolicy manifests;
 - generate optional Kyverno baseline Policy manifests in Audit mode;
 - generate local Supply Chain readiness scripts for Trivy, Syft, and optional Cosign;
+- generate GitHub Actions CI readiness workflows for Python and image security checks;
 - run guarded `kubectl` workflows for `dry-run`, `diff`, `apply`, and `status`;
 - check local Docker/kind/kubectl prerequisites and manage a local kind cluster;
 - keep generated manifests inspectable before cluster operations.
@@ -74,7 +75,9 @@ k8s-forge init demo-app
 k8s-forge check app.yaml
 k8s-forge render app.yaml --output generated/
 k8s-forge helm render app.yaml --output charts/
+k8s-forge ci render app.yaml --output generated-ci/
 k8s-forge supply-chain render app.yaml --output generated-supply-chain/
+k8s-forge ci render app.yaml --output generated-ci/
 k8s-forge image load demo-app:latest --cluster devsecops
 k8s-forge dry-run app.yaml --output generated/
 k8s-forge diff app.yaml --output generated/
@@ -163,6 +166,10 @@ When `policy.enabled` is true and `provider` is `kyverno`, `k8s-forge` renders a
 
 When `supplyChain.enabled` is true, `k8s-forge` can generate local helper scripts for Trivy image scans, Syft SBOM generation, and optional Cosign signing commands. It does not install these tools and does not generate secrets or signing keys.
 
+## Module 6 CI Readiness
+
+When `ci.enabled` is true, `k8s-forge` can generate GitHub Actions workflow files for Python quality checks, package build, local image scanning with Trivy, SBOM generation with Syft, and artifact upload. It does not push images, create secrets, deploy Kubernetes resources, or configure GitOps.
+
 ## Local kind Bootstrap
 
 `k8s-forge doctor` checks Docker, kind, kubectl, the current context, and
@@ -211,6 +218,7 @@ examples and tests.
 - [Module 4 NetworkPolicy workflow](docs/module-4-networkpolicy.md)
 - [Module 4 Kyverno workflow](docs/module-4-kyverno.md)
 - [Module 5 Supply Chain workflow](docs/module-5-supply-chain.md)
+- [Module 6 CI readiness workflow](docs/module-6-ci.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Real app case study: weatherapi-platform](docs/real-app-weatherapi.md)
 - [Design notes](docs/design.md)

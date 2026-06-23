@@ -23,6 +23,7 @@ will render standard YAML manifests. The full configuration reference lives in
 - `config_loader.py`: YAML loading and validation entry points.
 - `renderer.py`: raw Kubernetes manifest rendering.
 - `supply_chain_renderer.py`: local Trivy, Syft, and Cosign readiness script rendering.
+- `ci_renderer.py`: GitHub Actions CI readiness workflow rendering.
 - `helm_renderer.py`: local Helm chart rendering from the same validated config.
 - `kubectl.py`: safe wrapper around `kubectl`.
 - `local_cluster.py`: safe local command helpers for Docker, kind, and kubectl diagnostics.
@@ -44,4 +45,4 @@ The current raw Kubernetes render target is:
 - optional namespace-scoped Kyverno Policy
 
 The Helm renderer generates a local chart for the same application model. It
-does not run Helm and does not install releases. Ingress rendering targets existing ingress-nginx and optional cert-manager prerequisites. Mesh readiness targets existing Linkerd prerequisites and only annotates Deployment pod templates when explicitly enabled. NetworkPolicy rendering targets CNI-compatible clusters and does not install or replace the CNI. Kyverno rendering generates namespace-scoped Audit policies and does not install Kyverno. Supply Chain rendering generates local helper scripts and does not install Trivy, Syft, or Cosign. Global default-deny, egress NetworkPolicy, ClusterPolicy, Kustomize, and direct Kubernetes API usage remain outside the current scope.
+does not run Helm and does not install releases. Ingress rendering targets existing ingress-nginx and optional cert-manager prerequisites. Mesh readiness targets existing Linkerd prerequisites and only annotates Deployment pod templates when explicitly enabled. NetworkPolicy rendering targets CNI-compatible clusters and does not install or replace the CNI. Kyverno rendering generates namespace-scoped Audit policies and does not install Kyverno. Supply Chain rendering generates local helper scripts and does not install Trivy, Syft, or Cosign. CI rendering generates GitHub Actions workflow files and does not push images, create secrets, or deploy Kubernetes resources. Global default-deny, egress NetworkPolicy, ClusterPolicy, Kustomize, and direct Kubernetes API usage remain outside the current scope.

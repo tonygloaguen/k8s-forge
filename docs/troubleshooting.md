@@ -50,3 +50,7 @@ kubectl -n <namespace> logs <pod-name>
 | `Syft is not installed.` | Syft is missing from PATH. | Install Syft manually before generating SBOMs. | `syft version` |
 | `Cosign is not installed.` | Cosign is missing from PATH. | Install Cosign manually before signing or verifying images. | `cosign version` |
 | Cosign fails on a local image | The image is not registry-backed. | Push the image to a registry or keep signing disabled for local labs. | `cosign verify IMAGE` |
+
+## CI readiness notes
+
+If Git is missing, `k8s-forge doctor` reports it as a non-blocking CI readiness issue. Install Git before committing generated workflows. If generated workflows already exist, rerun `k8s-forge ci render` with `--force` only after reviewing the existing files.

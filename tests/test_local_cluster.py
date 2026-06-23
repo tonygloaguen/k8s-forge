@@ -49,6 +49,7 @@ POLICY_REPORT_COMMAND = ["kubectl", "get", "policyreport", "--all-namespaces"]
 TRIVY_COMMAND = ["trivy", "--version"]
 SYFT_COMMAND = ["syft", "version"]
 COSIGN_COMMAND = ["cosign", "version"]
+GIT_COMMAND = ["git", "--version"]
 
 
 def test_run_local_command_success(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -212,6 +213,7 @@ def test_check_environment_reports_metrics_server_present(
             ("trivy", "--version"): "trivy",
             ("syft", "version"): "syft",
             ("cosign", "version"): "cosign",
+            ("git", "--version"): "git version 2.43.0",
         }
         return subprocess.CompletedProcess(command, 0, outputs[tuple(command)], "")
 
@@ -555,4 +557,34 @@ def test_check_environment_reports_supply_chain_tools_missing(
     assert report.trivy.status == "missing"
     assert report.syft.status == "missing"
     assert report.cosign.status == "missing"
+    assert report.ready is True
+
+
+def test_check_environment_reports_git_present(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == GIT_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "git version 2.43.0", "")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.git.status == "OK"
+    assert "git version" in report.git.details
+
+
+def test_check_environment_reports_git_absent_as_non_blocking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == GIT_COMMAND:
+            raise FileNotFoundError
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.git.status == "missing"
     assert report.ready is True

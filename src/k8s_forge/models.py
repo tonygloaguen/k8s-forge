@@ -278,6 +278,84 @@ class SupplyChainConfig(BaseModel):
     signing: SupplyChainSigningConfig = Field(default_factory=SupplyChainSigningConfig)
 
 
+class CiPythonQualityConfig(BaseModel):
+    """Python quality gates for generated CI workflows."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ruff: StrictBool = True
+    mypy: StrictBool = True
+    bandit: StrictBool = True
+    pipAudit: StrictBool = True
+    pytest: StrictBool = True
+    build: StrictBool = True
+
+
+class CiPythonConfig(BaseModel):
+    """Python CI configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+    version: str = Field(default="3.12", min_length=1)
+    quality: CiPythonQualityConfig = Field(default_factory=CiPythonQualityConfig)
+
+
+class CiContainerScanConfig(BaseModel):
+    """Container image scan configuration for CI."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+    tool: Literal["trivy"] = "trivy"
+    severity: list[SupplyChainSeverity] = Field(
+        default_factory=_default_supply_chain_severity
+    )
+
+
+class CiContainerSbomConfig(BaseModel):
+    """Container SBOM generation configuration for CI."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+    tool: Literal["syft"] = "syft"
+    format: Literal["cyclonedx-json", "spdx-json", "syft-json"] = "cyclonedx-json"
+
+
+class CiContainerConfig(BaseModel):
+    """Container supply-chain checks for CI."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+    image: str = ""
+    dockerfile: str = Field(default="Dockerfile", min_length=1)
+    context: str = Field(default=".", min_length=1)
+    scan: CiContainerScanConfig = Field(default_factory=CiContainerScanConfig)
+    sbom: CiContainerSbomConfig = Field(default_factory=CiContainerSbomConfig)
+
+
+class CiArtifactsConfig(BaseModel):
+    """Generated CI artifact upload switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class CiConfig(BaseModel):
+    """GitHub Actions readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = False
+    provider: Literal["github-actions"] = "github-actions"
+    python: CiPythonConfig = Field(default_factory=CiPythonConfig)
+    container: CiContainerConfig = Field(default_factory=CiContainerConfig)
+    artifacts: CiArtifactsConfig = Field(default_factory=CiArtifactsConfig)
+
+
 class AppConfig(BaseModel):
     """Top-level user configuration."""
 
@@ -295,6 +373,7 @@ class AppConfig(BaseModel):
     networkPolicy: NetworkPolicyConfig = Field(default_factory=NetworkPolicyConfig)
     policy: PolicyConfig = Field(default_factory=PolicyConfig)
     supplyChain: SupplyChainConfig = Field(default_factory=SupplyChainConfig)
+    ci: CiConfig = Field(default_factory=CiConfig)
 
     @model_validator(mode="after")
     def validate_ingress_service(self) -> "AppConfig":

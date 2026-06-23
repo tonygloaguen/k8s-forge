@@ -1,0 +1,66 @@
+name: k8s-forge CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  python-quality:
+    name: Python quality and tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "{{ ci.python.version }}"
+
+      - name: Install project
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+{% if ci.python.quality.ruff %}
+      - name: Check formatting with Ruff
+        run: python -m ruff format --check .
+
+      - name: Lint with Ruff
+        run: python -m ruff check .
+
+{% endif %}
+{% if ci.python.quality.mypy %}
+      - name: Type-check with mypy
+        run: python -m mypy src
+
+{% endif %}
+{% if ci.python.quality.pytest %}
+      - name: Run tests
+        run: python -m pytest -q
+
+{% endif %}
+{% if ci.python.quality.bandit %}
+      - name: Run Bandit security scan
+        run: python -m bandit -r src
+
+{% endif %}
+{% if ci.python.quality.pipAudit %}
+      - name: Audit Python dependencies
+        run: python -m pip_audit --skip-editable
+
+{% endif %}
+{% if ci.python.quality.build %}
+      - name: Build package
+        run: python -m build
+
+{% if ci.artifacts.enabled %}
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-dist
+          path: dist/
+          if-no-files-found: error
+
+{% endif %}
+{% endif %}

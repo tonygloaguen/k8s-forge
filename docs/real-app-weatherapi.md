@@ -385,3 +385,7 @@ k8s-forge doctor
 ```
 
 The generated scripts do not contain secrets and do not install Trivy, Syft, or Cosign.
+
+## Module 6 CI readiness follow-up
+
+For `weatherapi-platform`, create a CI-specific config from the Supply Chain config, enable `ci`, then run `k8s-forge ci render k8s-forge-app-ci.yaml --output generated-ci/`. Review `generated-ci/.github/workflows/ci.yml` and `security.yml` before copying them into the application repository.
