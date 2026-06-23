@@ -35,6 +35,12 @@ from k8s_forge.local_cluster import (
 )
 from k8s_forge.models import AppConfig
 from k8s_forge.renderer import render_manifests
+from k8s_forge.supply_chain_renderer import (
+    is_registry_backed_image,
+    render_supply_chain_files,
+    resolve_supply_chain_image,
+    uses_latest_tag,
+)
 
 app = typer.Typer(
     help="Generic Kubernetes manifest generator for stateless web applications.",
@@ -44,6 +50,7 @@ console = Console()
 cluster_app = typer.Typer(help="Manage local kind clusters.")
 image_app = typer.Typer(help="Manage local images for kind clusters.")
 helm_app = typer.Typer(help="Generate local Helm charts.")
+supply_chain_app = typer.Typer(help="Generate supply chain readiness scripts.")
 
 
 class _QuotedString(str):
@@ -300,6 +307,30 @@ def _cni_summary(details: str) -> str:
     return "unavailable"
 
 
+def _print_supply_chain_diagnostics(report: DoctorReport) -> None:
+    _print_step("Checking supply chain tooling...")
+    _print_hint("Trivy can scan images for known vulnerabilities.")
+    _print_hint("Syft can generate SBOM files.")
+    _print_hint("Cosign can sign and verify images.")
+    if (
+        report.trivy.status == "OK"
+        and report.syft.status == "OK"
+        and report.cosign.status == "OK"
+    ):
+        console.print("[green]Supply chain tools detected.[/green]")
+    if report.trivy.status != "OK":
+        _print_warning(
+            "Trivy is not installed. Image vulnerability scans are not available yet."
+        )
+    if report.syft.status != "OK":
+        _print_warning("Syft is not installed. SBOM generation is not available yet.")
+    if report.cosign.status != "OK":
+        _print_warning(
+            "Cosign is not installed. Image signing and verification are not "
+            "available yet."
+        )
+
+
 def _print_kyverno_diagnostics(report: DoctorReport) -> None:
     _print_step("Checking Kyverno policy readiness...")
     if (
@@ -399,6 +430,87 @@ def _print_policy_runtime_hint(config: AppConfig) -> None:
     _print_policy_summary(config)
     _print_kyverno_prerequisite_warning()
     _print_policy_validation_commands(config)
+
+
+def _print_supply_chain_latest_warning(image: str) -> None:
+    if uses_latest_tag(image):
+        _print_warning("The selected image uses the latest tag.")
+        _print_hint("This is convenient for labs but weak for traceability.")
+        _print_hint(
+            "Prefer immutable version tags or digests for supply-chain validation."
+        )
+
+
+def _print_supply_chain_signing_warning(config: AppConfig, image: str) -> None:
+    if not config.supplyChain.signing.enabled:
+        return
+    _print_hint(
+        "Cosign can sign and verify images, but signing requires a "
+        "registry-compatible image reference and a keyless or key-based workflow."
+    )
+    if not is_registry_backed_image(image):
+        _print_warning(
+            "Cosign signing usually requires a registry-backed image reference."
+        )
+        _print_hint(
+            "Local-only images may not be suitable for signing and verification."
+        )
+
+
+def _print_supply_chain_summary(config: AppConfig) -> None:
+    if not config.supplyChain.enabled:
+        return
+    image = resolve_supply_chain_image(config)
+    _print_hint("Supply chain readiness is enabled.")
+    _print_hint(
+        "This prepares image scanning, SBOM generation, and optional signing commands."
+    )
+    _print_hint("k8s-forge does not install Trivy, Syft, or Cosign automatically.")
+    _print_hint(f"Supply chain image: {image}")
+    if config.supplyChain.scan.enabled:
+        _print_hint("Trivy can scan the container image for known vulnerabilities.")
+        _print_hint(
+            "Failing or passing the scan depends on your chosen policy and "
+            "severity threshold."
+        )
+    if config.supplyChain.sbom.enabled:
+        _print_hint(
+            "Syft can generate a Software Bill of Materials so dependencies "
+            "are traceable."
+        )
+    _print_supply_chain_signing_warning(config, image)
+    _print_supply_chain_latest_warning(image)
+
+
+def _print_supply_chain_render_hint(config_path: Path) -> None:
+    _print_hint("Supply chain readiness is enabled.")
+    _print_hint("Kubernetes manifests were generated separately.")
+    _print_hint(
+        "Run: k8s-forge supply-chain render "
+        f"{config_path} --output generated-supply-chain/"
+    )
+
+
+def _print_supply_chain_summary_table(paths: list[Path]) -> None:
+    table = Table(title="Generated supply chain files")
+    table.add_column("File")
+    for path in paths:
+        table.add_row(path.name)
+    console.print(table)
+
+
+def _print_supply_chain_next_steps(paths: list[Path]) -> None:
+    generated_names = {path.name for path in paths}
+    _print_hint("Next validation commands:")
+    if "scan-image.sh" in generated_names:
+        _print_hint("  ./scan-image.sh")
+    if "generate-sbom.sh" in generated_names:
+        _print_hint("  ./generate-sbom.sh")
+    if "sign-image.sh" in generated_names:
+        _print_hint("  ./sign-image.sh")
+    if "verify-image.sh" in generated_names:
+        _print_hint("  ./verify-image.sh")
+    _print_hint("  k8s-forge doctor")
 
 
 def _print_check_summary(config: AppConfig) -> None:
@@ -536,6 +648,25 @@ def _starter_config_data(
                 "requireRunAsNonRoot": True,
                 "requireResources": True,
                 "disallowLatestTag": True,
+            },
+        },
+        "supplyChain": {
+            "enabled": False,
+            "image": _QuotedString(""),
+            "scan": {
+                "enabled": True,
+                "tool": _QuotedString("trivy"),
+                "severity": [_QuotedString("HIGH"), _QuotedString("CRITICAL")],
+            },
+            "sbom": {
+                "enabled": True,
+                "tool": _QuotedString("syft"),
+                "format": _QuotedString("cyclonedx-json"),
+            },
+            "signing": {
+                "enabled": False,
+                "tool": _QuotedString("cosign"),
+                "keyless": True,
             },
         },
     }
@@ -827,6 +958,7 @@ def check(
     if loaded.policy.enabled:
         _print_kyverno_prerequisite_warning()
         _print_policy_validation_commands(loaded)
+    _print_supply_chain_summary(loaded)
     _print_autoscaling_warning(loaded)
 
 
@@ -855,6 +987,8 @@ def render(
     _print_mesh_runtime_hint(loaded)
     _print_network_policy_runtime_hint(loaded)
     _print_policy_runtime_hint(loaded)
+    if loaded.supplyChain.enabled:
+        _print_supply_chain_render_hint(config_path)
     _print_autoscaling_warning(loaded)
     console.print("[green]manifests generated[/green]")
     _print_render_summary(generated)
@@ -1079,6 +1213,9 @@ def doctor(
             report.kyverno_deployments,
             report.kyverno_crds,
             report.policy_reports,
+            report.trivy,
+            report.syft,
+            report.cosign,
         ]
     )
     if report.metrics_server.status == "OK":
@@ -1142,6 +1279,7 @@ def doctor(
 
     _print_cni_diagnostics(report)
     _print_kyverno_diagnostics(report)
+    _print_supply_chain_diagnostics(report)
 
     if report.ready:
         console.print("[green]Ready for local kind workflows.[/green]")
@@ -1341,6 +1479,45 @@ def helm_render(
     )
 
 
+@supply_chain_app.command("render")
+def supply_chain_render(
+    config_path: Annotated[Path, typer.Argument(help="Path to app.yaml.")],
+    output: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Output directory for supply chain files."),
+    ] = Path("generated-supply-chain"),
+) -> None:
+    """Render supply chain readiness scripts from app.yaml."""
+    _print_step("Rendering supply chain readiness files from app.yaml...")
+    _print_hint(
+        "This creates local helper scripts for image scanning, SBOM generation, "
+        "and optional signing."
+    )
+    _print_hint("This step does not install Trivy, Syft, or Cosign.")
+    try:
+        loaded = load_app_config(config_path)
+    except ConfigLoadError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    if not loaded.supplyChain.enabled:
+        _print_hint("Supply chain readiness is disabled in app.yaml.")
+        _print_hint("No supply chain files were generated.")
+        return
+
+    try:
+        generated = render_supply_chain_files(loaded, output)
+    except RenderError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    console.print(f"[green]Supply chain files generated in {output}.[/green]")
+    _print_supply_chain_summary(loaded)
+    _print_supply_chain_summary_table(generated)
+    _print_supply_chain_next_steps(generated)
+
+
 app.add_typer(cluster_app, name="cluster")
 app.add_typer(image_app, name="image")
 app.add_typer(helm_app, name="helm")
+app.add_typer(supply_chain_app, name="supply-chain")

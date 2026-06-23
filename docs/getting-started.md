@@ -134,3 +134,7 @@ console command.
 ## Next step: Kyverno readiness
 
 After NetworkPolicy readiness, see [Module 4 Kyverno](module-4-kyverno.md) to generate namespace-scoped Audit policies and understand PolicyReports.
+
+## Next step: Supply Chain readiness
+
+After Kyverno readiness, see [Module 5 Supply Chain](module-5-supply-chain.md) to generate Trivy, Syft, and optional Cosign helper scripts.

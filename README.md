@@ -22,6 +22,7 @@ name.
 - prepare Deployments for optional Linkerd service mesh injection;
 - generate optional ingress-only NetworkPolicy manifests;
 - generate optional Kyverno baseline Policy manifests in Audit mode;
+- generate local Supply Chain readiness scripts for Trivy, Syft, and optional Cosign;
 - run guarded `kubectl` workflows for `dry-run`, `diff`, `apply`, and `status`;
 - check local Docker/kind/kubectl prerequisites and manage a local kind cluster;
 - keep generated manifests inspectable before cluster operations.
@@ -73,6 +74,7 @@ k8s-forge init demo-app
 k8s-forge check app.yaml
 k8s-forge render app.yaml --output generated/
 k8s-forge helm render app.yaml --output charts/
+k8s-forge supply-chain render app.yaml --output generated-supply-chain/
 k8s-forge image load demo-app:latest --cluster devsecops
 k8s-forge dry-run app.yaml --output generated/
 k8s-forge diff app.yaml --output generated/
@@ -157,6 +159,10 @@ When `networkPolicy.enabled` is true, `k8s-forge` renders an ingress-only Networ
 
 When `policy.enabled` is true and `provider` is `kyverno`, `k8s-forge` renders a namespace-scoped Kyverno `Policy` using the baseline profile. The default mode is `Audit` so violations can be observed without blocking lab deployments. `k8s-forge` does not install Kyverno.
 
+## Module 5 Supply Chain
+
+When `supplyChain.enabled` is true, `k8s-forge` can generate local helper scripts for Trivy image scans, Syft SBOM generation, and optional Cosign signing commands. It does not install these tools and does not generate secrets or signing keys.
+
 ## Local kind Bootstrap
 
 `k8s-forge doctor` checks Docker, kind, kubectl, the current context, and
@@ -204,6 +210,7 @@ examples and tests.
 - [Module 3 Linkerd service mesh workflow](docs/module-3-linkerd.md)
 - [Module 4 NetworkPolicy workflow](docs/module-4-networkpolicy.md)
 - [Module 4 Kyverno workflow](docs/module-4-kyverno.md)
+- [Module 5 Supply Chain workflow](docs/module-5-supply-chain.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Real app case study: weatherapi-platform](docs/real-app-weatherapi.md)
 - [Design notes](docs/design.md)

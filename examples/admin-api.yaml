@@ -81,3 +81,21 @@ policy:
     requireRunAsNonRoot: true
     requireResources: true
     disallowLatestTag: true
+
+supplyChain:
+  enabled: false
+  image: ""
+  scan:
+    enabled: true
+    tool: trivy
+    severity:
+      - HIGH
+      - CRITICAL
+  sbom:
+    enabled: true
+    tool: syft
+    format: cyclonedx-json
+  signing:
+    enabled: false
+    tool: cosign
+    keyless: true

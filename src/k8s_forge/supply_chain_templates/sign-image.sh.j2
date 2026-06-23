@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cosign sign --yes {{ image | tojson }}

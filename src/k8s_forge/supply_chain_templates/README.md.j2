@@ -1,0 +1,58 @@
+# Supply Chain Readiness
+
+Application: `{{ app.name }}`
+Image: `{{ image }}`
+
+This directory contains generated helper scripts for image supply-chain validation.
+The scripts are intentionally local and inspectable. `k8s-forge` does not install tools, push images, sign images automatically, or generate secrets.
+
+## Vulnerability Scan
+
+{% if supplyChain.scan.enabled %}`scan-image.sh` uses Trivy to scan the image for known vulnerabilities.
+
+```bash
+./scan-image.sh
+```
+
+Severity threshold: `{{ severity_csv }}`.
+{% else %}Image scanning is disabled in `app.yaml`.
+{% endif %}
+
+## SBOM
+
+{% if supplyChain.sbom.enabled %}`generate-sbom.sh` uses Syft to generate a Software Bill of Materials.
+
+```bash
+./generate-sbom.sh
+```
+
+SBOM output: `{{ sbom_output }}`.
+{% else %}SBOM generation is disabled in `app.yaml`.
+{% endif %}
+
+## Signing
+
+{% if supplyChain.signing.enabled %}`sign-image.sh` and `verify-image.sh` use Cosign.
+
+```bash
+./sign-image.sh
+./verify-image.sh
+```
+
+Cosign signing usually requires a registry-backed image reference. Local-only images may not be suitable for signing and verification.
+{% else %}Cosign signing is disabled. This is the default for local labs because signing usually requires a registry-backed image reference and a keyless or key-based workflow.
+{% endif %}
+
+## Traceability Notes
+
+{% if uses_latest %}The selected image uses the `latest` tag. This is convenient for labs but weak for traceability. Prefer immutable version tags or digests for supply-chain validation.
+{% endif %}{% if not registry_backed %}The selected image does not look registry-backed. Local images can be scanned and inspected, but signing and verification workflows usually need a registry reference.
+{% endif %}
+
+## Required Tools
+
+- Trivy for vulnerability scanning.
+- Syft for SBOM generation.
+- Cosign for signing and verification when enabled.
+
+Run `k8s-forge doctor` to see which tools are available locally.

@@ -47,6 +47,7 @@ k8s_forge = [
   "templates/*.j2",
   "helm_templates/*.j2",
   "helm_templates/templates/*.j2",
+  "supply_chain_templates/*.j2",
 ]
 
 [tool.ruff]

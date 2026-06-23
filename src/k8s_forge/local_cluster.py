@@ -55,6 +55,9 @@ class DoctorReport:
     kyverno_deployments: ToolCheck
     kyverno_crds: ToolCheck
     policy_reports: ToolCheck
+    trivy: ToolCheck
+    syft: ToolCheck
+    cosign: ToolCheck
 
     @property
     def ready(self) -> bool:
@@ -189,6 +192,9 @@ def check_environment(timeout: int = 30) -> DoctorReport:
     linkerd_cli = check_command(
         "Linkerd CLI", ["linkerd", "version", "--client"], timeout
     )
+    trivy = check_command("Trivy", ["trivy", "--version"], timeout)
+    syft = check_command("Syft", ["syft", "version"], timeout)
+    cosign = check_command("Cosign", ["cosign", "version"], timeout)
 
     if kubectl.status == "OK":
         current_context = check_command(
@@ -315,6 +321,9 @@ def check_environment(timeout: int = 30) -> DoctorReport:
         kyverno_deployments,
         kyverno_crds,
         policy_reports,
+        trivy,
+        syft,
+        cosign,
     )
 
 

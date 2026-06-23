@@ -11,6 +11,12 @@ from pydantic import (
     model_validator,
 )
 
+SupplyChainSeverity = Literal["UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+
+
+def _default_supply_chain_severity() -> list[SupplyChainSeverity]:
+    return ["HIGH", "CRITICAL"]
+
 
 class AppSpec(BaseModel):
     """Application runtime configuration."""
@@ -228,6 +234,50 @@ class PolicyConfig(BaseModel):
     rules: PolicyRulesConfig = Field(default_factory=PolicyRulesConfig)
 
 
+class SupplyChainScanConfig(BaseModel):
+    """Container image vulnerability scan configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+    tool: Literal["trivy"] = "trivy"
+    severity: list[SupplyChainSeverity] = Field(
+        default_factory=_default_supply_chain_severity
+    )
+
+
+class SupplyChainSbomConfig(BaseModel):
+    """Software Bill of Materials generation configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+    tool: Literal["syft"] = "syft"
+    format: Literal["cyclonedx-json", "spdx-json", "syft-json"] = "cyclonedx-json"
+
+
+class SupplyChainSigningConfig(BaseModel):
+    """Container image signing readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = False
+    tool: Literal["cosign"] = "cosign"
+    keyless: StrictBool = True
+
+
+class SupplyChainConfig(BaseModel):
+    """Supply chain readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = False
+    image: str = ""
+    scan: SupplyChainScanConfig = Field(default_factory=SupplyChainScanConfig)
+    sbom: SupplyChainSbomConfig = Field(default_factory=SupplyChainSbomConfig)
+    signing: SupplyChainSigningConfig = Field(default_factory=SupplyChainSigningConfig)
+
+
 class AppConfig(BaseModel):
     """Top-level user configuration."""
 
@@ -244,6 +294,7 @@ class AppConfig(BaseModel):
     mesh: MeshConfig = Field(default_factory=MeshConfig)
     networkPolicy: NetworkPolicyConfig = Field(default_factory=NetworkPolicyConfig)
     policy: PolicyConfig = Field(default_factory=PolicyConfig)
+    supplyChain: SupplyChainConfig = Field(default_factory=SupplyChainConfig)
 
     @model_validator(mode="after")
     def validate_ingress_service(self) -> "AppConfig":

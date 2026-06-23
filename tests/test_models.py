@@ -510,3 +510,96 @@ def test_policy_rules_can_be_disabled() -> None:
     assert config.policy.rules.requireRecommendedLabels is False
     assert config.policy.rules.requireRunAsNonRoot is False
     assert config.policy.rules.disallowLatestTag is False
+
+
+def test_supply_chain_defaults_when_section_absent() -> None:
+    config = AppConfig.model_validate(_valid_config())
+
+    assert config.supplyChain.enabled is False
+    assert config.supplyChain.image == ""
+    assert config.supplyChain.scan.enabled is True
+    assert config.supplyChain.scan.tool == "trivy"
+    assert config.supplyChain.scan.severity == ["HIGH", "CRITICAL"]
+    assert config.supplyChain.sbom.tool == "syft"
+    assert config.supplyChain.sbom.format == "cyclonedx-json"
+    assert config.supplyChain.signing.enabled is False
+    assert config.supplyChain.signing.tool == "cosign"
+    assert config.supplyChain.signing.keyless is True
+
+
+def test_supply_chain_accepts_empty_image_for_app_image_fallback() -> None:
+    config_data = _valid_config()
+    config_data["supplyChain"] = {"enabled": True, "image": ""}
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.supplyChain.enabled is True
+    assert config.supplyChain.image == ""
+
+
+def test_supply_chain_rejects_invalid_scan_tool() -> None:
+    config_data = _valid_config()
+    config_data["supplyChain"] = {"enabled": True, "scan": {"tool": "grype"}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_supply_chain_accepts_valid_severities() -> None:
+    config_data = _valid_config()
+    config_data["supplyChain"] = {
+        "enabled": True,
+        "scan": {"severity": ["UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL"]},
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.supplyChain.scan.severity == [
+        "UNKNOWN",
+        "LOW",
+        "MEDIUM",
+        "HIGH",
+        "CRITICAL",
+    ]
+
+
+def test_supply_chain_rejects_invalid_severity() -> None:
+    config_data = _valid_config()
+    config_data["supplyChain"] = {"enabled": True, "scan": {"severity": ["SEVERE"]}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_supply_chain_accepts_valid_sbom_formats() -> None:
+    for format_name in ("cyclonedx-json", "spdx-json", "syft-json"):
+        config_data = _valid_config()
+        config_data["supplyChain"] = {"enabled": True, "sbom": {"format": format_name}}
+
+        config = AppConfig.model_validate(config_data)
+
+        assert config.supplyChain.sbom.format == format_name
+
+
+def test_supply_chain_rejects_invalid_sbom_format() -> None:
+    config_data = _valid_config()
+    config_data["supplyChain"] = {"enabled": True, "sbom": {"format": "xml"}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_supply_chain_rejects_invalid_signing_tool() -> None:
+    config_data = _valid_config()
+    config_data["supplyChain"] = {"enabled": True, "signing": {"tool": "notation"}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_supply_chain_signing_keyless_is_strict_bool() -> None:
+    config_data = _valid_config()
+    config_data["supplyChain"] = {"enabled": True, "signing": {"keyless": "true"}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)

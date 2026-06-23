@@ -507,3 +507,44 @@ policy:
 | `policy.rules.disallowLatestTag` | boolean | no | `true` | `true` or `false` | Audits image tags using `latest`. |
 
 `Audit` is the recommended lab default because it reports violations without blocking the deployment. Use `Enforce` only after validating the policy impact.
+
+
+## `supplyChain`
+
+`supplyChain` controls optional local helper scripts for image scanning, SBOM generation, and optional signing readiness. It does not generate Kubernetes manifests and it does not install Trivy, Syft, or Cosign.
+
+```yaml
+supplyChain:
+  enabled: false
+  image: ""
+  scan:
+    enabled: true
+    tool: trivy
+    severity:
+      - HIGH
+      - CRITICAL
+  sbom:
+    enabled: true
+    tool: syft
+    format: cyclonedx-json
+  signing:
+    enabled: false
+    tool: cosign
+    keyless: true
+```
+
+| Field | Type | Required | Default via `init` | Constraints | Usage |
+| --- | --- | --- | --- | --- | --- |
+| `supplyChain.enabled` | boolean | no | `false` | `true` or `false` | Enables Supply Chain readiness file generation. |
+| `supplyChain.image` | string | no | `""` | empty or image reference | Uses `app.image` when empty. |
+| `supplyChain.scan.enabled` | boolean | no | `true` | `true` or `false` | Generates `scan-image.sh`. |
+| `supplyChain.scan.tool` | string | no | `trivy` | only `trivy` in v0.8.0 | Selects the vulnerability scanner. |
+| `supplyChain.scan.severity` | list[string] | no | `HIGH`, `CRITICAL` | `UNKNOWN`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL` | Controls Trivy severity filtering. |
+| `supplyChain.sbom.enabled` | boolean | no | `true` | `true` or `false` | Generates `generate-sbom.sh`. |
+| `supplyChain.sbom.tool` | string | no | `syft` | only `syft` in v0.8.0 | Selects the SBOM tool. |
+| `supplyChain.sbom.format` | string | no | `cyclonedx-json` | `cyclonedx-json`, `spdx-json`, `syft-json` | Controls SBOM output format. |
+| `supplyChain.signing.enabled` | boolean | no | `false` | `true` or `false` | Generates Cosign scripts when enabled. |
+| `supplyChain.signing.tool` | string | no | `cosign` | only `cosign` in v0.8.0 | Selects the signing tool. |
+| `supplyChain.signing.keyless` | boolean | no | `true` | `true` or `false` | Documents intended keyless workflow. |
+
+If `supplyChain.image` uses `latest`, `k8s-forge` warns because `latest` is weak for traceability. It does not block local labs.

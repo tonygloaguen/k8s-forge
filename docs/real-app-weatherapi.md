@@ -364,3 +364,24 @@ k8s-forge doctor
 ```
 
 Without Kyverno installed, the policy can be reviewed but the cluster will not create PolicyReports.
+
+## Supply Chain readiness follow-up
+
+After Kyverno readiness, copy the config and enable Supply Chain readiness for the weatherapi image:
+
+```bash
+cp k8s-forge-app-kyverno.yaml k8s-forge-app-supplychain.yaml
+```
+
+Render the Kubernetes manifests separately from the Supply Chain helper scripts:
+
+```bash
+k8s-forge check k8s-forge-app-supplychain.yaml
+k8s-forge render k8s-forge-app-supplychain.yaml --output generated-k8s-forge-supplychain/
+k8s-forge supply-chain render k8s-forge-app-supplychain.yaml --output generated-supply-chain/
+ls -lah generated-supply-chain/
+cat generated-supply-chain/README.md
+k8s-forge doctor
+```
+
+The generated scripts do not contain secrets and do not install Trivy, Syft, or Cosign.

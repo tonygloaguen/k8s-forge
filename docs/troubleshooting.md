@@ -45,3 +45,8 @@ kubectl -n <namespace> logs <pod-name>
 
 | `Kyverno does not appear to be installed in this cluster.` | Kyverno namespace, deployments, or CRDs are missing. | Install and validate Kyverno manually before expecting PolicyReports. | `kubectl -n kyverno get pods` |
 | No PolicyReports are visible | Kyverno is absent, not ready, or no reports have been created yet. | Check Kyverno pods and CRDs, then re-apply or wait for background scans. | `kubectl get policyreport -A` |
+
+| `Trivy is not installed.` | Trivy is missing from PATH. | Install Trivy manually before running generated scan scripts. | `trivy --version` |
+| `Syft is not installed.` | Syft is missing from PATH. | Install Syft manually before generating SBOMs. | `syft version` |
+| `Cosign is not installed.` | Cosign is missing from PATH. | Install Cosign manually before signing or verifying images. | `cosign version` |
+| Cosign fails on a local image | The image is not registry-backed. | Push the image to a registry or keep signing disabled for local labs. | `cosign verify IMAGE` |

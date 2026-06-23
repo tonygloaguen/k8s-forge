@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mkdir -p reports
+
+trivy image --severity {{ severity_csv }} {{ image | tojson }}
+
+trivy image \
+  --severity {{ severity_csv }} \
+  --format json \
+  --output reports/trivy-image.json \
+  {{ image | tojson }}

@@ -46,6 +46,9 @@ KYVERNO_NAMESPACE_COMMAND = ["kubectl", "get", "ns", "kyverno"]
 KYVERNO_DEPLOY_COMMAND = ["kubectl", "-n", "kyverno", "get", "deploy"]
 KYVERNO_CRD_COMMAND = ["kubectl", "get", "crd"]
 POLICY_REPORT_COMMAND = ["kubectl", "get", "policyreport", "--all-namespaces"]
+TRIVY_COMMAND = ["trivy", "--version"]
+SYFT_COMMAND = ["syft", "version"]
+COSIGN_COMMAND = ["cosign", "version"]
 
 
 def test_cli_help_responds() -> None:
@@ -1049,6 +1052,9 @@ def test_cli_doctor_all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
             ): "kyverno-admission-controller",
             ("kubectl", "get", "crd"): "policies.kyverno.io",
             ("kubectl", "get", "policyreport", "--all-namespaces"): "weather report",
+            ("trivy", "--version"): "trivy",
+            ("syft", "version"): "syft",
+            ("cosign", "version"): "cosign",
         }
         return subprocess.CompletedProcess(command, 0, outputs[tuple(command)], "")
 
@@ -1077,6 +1083,8 @@ def test_cli_doctor_all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "NetworkPolicy-capable CNI appears to be present" in result.output
     assert "Checking Kyverno policy readiness" in result.output
     assert "Kyverno appears to be installed" in result.output
+    assert "Checking supply chain tooling" in result.output
+    assert "Supply chain tools detected" in result.output
 
 
 def test_cli_doctor_docker_absent(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1888,3 +1896,180 @@ def test_cli_doctor_reports_kyverno_present(
     assert result.exit_code == 0
     assert "Kyverno appears to be installed" in result.output
     assert "PolicyReports are available" in result.output
+
+
+def _write_supply_chain_config(
+    path: Path,
+    image: str = "weatherapi:0.1.0",
+    signing: bool = False,
+) -> None:
+    path.write_text(
+        f"""
+app:
+  name: weatherapi
+  namespace: weather
+  image: weatherapi:0.1.0
+  containerPort: 8000
+  replicas: 2
+service:
+  enabled: true
+  port: 80
+supplyChain:
+  enabled: true
+  image: {image}
+  scan:
+    enabled: true
+    tool: trivy
+    severity:
+      - HIGH
+      - CRITICAL
+  sbom:
+    enabled: true
+    tool: syft
+    format: cyclonedx-json
+  signing:
+    enabled: {str(signing).lower()}
+    tool: cosign
+    keyless: true
+""".strip(),
+        encoding="utf-8",
+    )
+
+
+def test_cli_check_mentions_supply_chain_when_enabled(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    _write_supply_chain_config(config_path)
+
+    result = runner.invoke(app, ["check", str(config_path)])
+
+    assert result.exit_code == 0
+    assert "Supply chain readiness is enabled" in result.output
+    assert "Trivy can scan" in result.output
+    assert "Syft can generate" in result.output
+    assert "does not install Trivy, Syft, or Cosign" in result.output
+
+
+def test_cli_render_suggests_supply_chain_command(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated"
+    _write_supply_chain_config(config_path)
+
+    result = runner.invoke(
+        app, ["render", str(config_path), "--output", str(output_dir)]
+    )
+
+    assert result.exit_code == 0
+    assert "Supply chain readiness is enabled" in result.output
+    assert "Kubernetes manifests were generated separately" in result.output
+    assert "k8s-forge supply-chain render" in result.output
+    assert not (output_dir / "scan-image.sh").exists()
+
+
+def test_cli_supply_chain_render_generates_files(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-supply-chain"
+    _write_supply_chain_config(config_path)
+
+    result = runner.invoke(
+        app, ["supply-chain", "render", str(config_path), "--output", str(output_dir)]
+    )
+
+    assert result.exit_code == 0
+    assert "Supply chain files generated" in result.output
+    assert "scan-image.sh" in result.output
+    assert "generate-sbom.sh" in result.output
+    assert (output_dir / "README.md").exists()
+    assert (output_dir / "scan-image.sh").exists()
+    assert (output_dir / "generate-sbom.sh").exists()
+    assert not (output_dir / "sign-image.sh").exists()
+
+
+def test_cli_supply_chain_render_generates_signing_files_when_enabled(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-supply-chain"
+    _write_supply_chain_config(config_path, signing=True)
+
+    result = runner.invoke(
+        app, ["supply-chain", "render", str(config_path), "--output", str(output_dir)]
+    )
+
+    assert result.exit_code == 0
+    assert (
+        "Cosign signing usually requires a registry-backed image reference"
+        in result.output
+    )
+    assert (output_dir / "sign-image.sh").exists()
+    assert (output_dir / "verify-image.sh").exists()
+
+
+def test_cli_supply_chain_render_warns_for_latest(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-supply-chain"
+    _write_supply_chain_config(config_path, image="weatherapi:latest")
+
+    result = runner.invoke(
+        app, ["supply-chain", "render", str(config_path), "--output", str(output_dir)]
+    )
+
+    assert result.exit_code == 0
+    assert "uses the latest tag" in result.output
+    assert "weak for traceability" in result.output
+
+
+def test_cli_supply_chain_render_disabled_is_clean(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    config_path.write_text(
+        """
+app:
+  name: demo-app
+  namespace: demo
+  image: demo-app:1.0.0
+  containerPort: 8000
+  replicas: 1
+supplyChain:
+  enabled: false
+""".strip(),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["supply-chain", "render", str(config_path)])
+
+    assert result.exit_code == 0
+    assert "Supply chain readiness is disabled" in result.output
+    assert "No supply chain files were generated" in result.output
+
+
+def test_cli_doctor_reports_supply_chain_tools_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command in (TRIVY_COMMAND, SYFT_COMMAND, COSIGN_COMMAND):
+            raise FileNotFoundError
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "Checking supply chain tooling" in result.output
+    assert "Trivy is not installed" in result.output
+    assert "Syft is not installed" in result.output
+    assert "Cosign is not installed" in result.output
+    assert "Ready for local kind workflows" in result.output
+
+
+def test_cli_doctor_reports_supply_chain_tools_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "Supply chain tools detected" in result.output

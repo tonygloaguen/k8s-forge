@@ -46,6 +46,9 @@ KYVERNO_NAMESPACE_COMMAND = ["kubectl", "get", "ns", "kyverno"]
 KYVERNO_DEPLOY_COMMAND = ["kubectl", "-n", "kyverno", "get", "deploy"]
 KYVERNO_CRD_COMMAND = ["kubectl", "get", "crd"]
 POLICY_REPORT_COMMAND = ["kubectl", "get", "policyreport", "--all-namespaces"]
+TRIVY_COMMAND = ["trivy", "--version"]
+SYFT_COMMAND = ["syft", "version"]
+COSIGN_COMMAND = ["cosign", "version"]
 
 
 def test_run_local_command_success(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -206,6 +209,9 @@ def test_check_environment_reports_metrics_server_present(
             ): "kyverno-admission-controller",
             ("kubectl", "get", "crd"): "policies.kyverno.io",
             ("kubectl", "get", "policyreport", "--all-namespaces"): "weather report",
+            ("trivy", "--version"): "trivy",
+            ("syft", "version"): "syft",
+            ("cosign", "version"): "cosign",
         }
         return subprocess.CompletedProcess(command, 0, outputs[tuple(command)], "")
 
@@ -228,6 +234,9 @@ def test_check_environment_reports_metrics_server_present(
     assert report.kyverno_deployments.status == "OK"
     assert report.kyverno_crds.status == "OK"
     assert report.policy_reports.status == "OK"
+    assert report.trivy.status == "OK"
+    assert report.syft.status == "OK"
+    assert report.cosign.status == "OK"
 
 
 def test_check_environment_reports_metrics_server_absent(
@@ -507,4 +516,43 @@ def test_check_environment_reports_policyreport_resource_type_absent_as_missing(
     assert (
         "PolicyReport resource type is not available" in report.policy_reports.details
     )
+    assert report.ready is True
+
+
+def test_check_environment_reports_supply_chain_tools_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == TRIVY_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "Version: 0.50.0", "")
+        if command == SYFT_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "syft 1.0.0", "")
+        if command == COSIGN_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "cosign 2.0.0", "")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.trivy.status == "OK"
+    assert report.syft.status == "OK"
+    assert report.cosign.status == "OK"
+
+
+def test_check_environment_reports_supply_chain_tools_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command in (TRIVY_COMMAND, SYFT_COMMAND, COSIGN_COMMAND):
+            raise FileNotFoundError
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.trivy.status == "missing"
+    assert report.syft.status == "missing"
+    assert report.cosign.status == "missing"
     assert report.ready is True

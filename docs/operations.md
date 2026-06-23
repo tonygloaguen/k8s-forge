@@ -451,3 +451,13 @@ kubectl get policyreport -A
 ```
 
 Kyverno must be installed manually before the cluster can audit or enforce these policies.
+
+## Supply Chain operations
+
+When `supplyChain.enabled` is true, Kubernetes manifests and Supply Chain scripts are generated separately. Use:
+
+```bash
+k8s-forge supply-chain render app.yaml --output generated-supply-chain/
+```
+
+Then inspect `README.md`, run `scan-image.sh` for Trivy, and run `generate-sbom.sh` for Syft. Cosign scripts are generated only when signing is enabled.
