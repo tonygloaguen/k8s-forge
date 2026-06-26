@@ -58,3 +58,7 @@ If Git is missing, `k8s-forge doctor` reports it as a non-blocking CI readiness 
 ## GitOps readiness notes
 
 If ArgoCD is missing, `k8s-forge doctor` reports it as non-blocking. Generated Application manifests can be reviewed locally, but a cluster accepts them only after ArgoCD CRDs are installed manually.
+
+## Observability readiness notes
+
+If Kubernetes reports that `servicemonitors.monitoring.coreos.com` is unknown, the Prometheus Operator CRDs are missing. This is expected until a monitoring stack such as kube-prometheus-stack is installed manually. If dashboards show no data, confirm that the application exposes `/metrics` and that Prometheus is scraping the Service.

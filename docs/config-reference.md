@@ -148,6 +148,26 @@ gitops:
     automated: false
     prune: false
     selfHeal: false
+
+observability:
+  enabled: false
+  provider: prometheus
+  metrics:
+    enabled: true
+    path: /metrics
+    portName: http
+    interval: 30s
+  serviceMonitor:
+    enabled: true
+    namespace: ""
+    labels: {}
+  grafana:
+    enabled: true
+    dashboard:
+      enabled: true
+      title: ""
+  alerts:
+    enabled: false
 ```
 
 ## Field Reference
@@ -215,6 +235,19 @@ gitops:
 | `gitops.syncPolicy.automated` | boolean | No | `false` | boolean only | Controls generated ArgoCD automated sync policy |
 | `gitops.syncPolicy.prune` | boolean | No | `false` | boolean only | Allows ArgoCD to delete resources removed from Git when automated sync is enabled |
 | `gitops.syncPolicy.selfHeal` | boolean | No | `false` | boolean only | Allows ArgoCD to revert manual cluster drift when automated sync is enabled |
+| `observability.enabled` | boolean | No | `false` | boolean only | Controls observability readiness file generation |
+| `observability.provider` | string | No | `prometheus` | only `prometheus` in v0.11.0 | Selects observability provider |
+| `observability.metrics.enabled` | boolean | No | `true` | boolean only | Documents whether metrics scraping is expected |
+| `observability.metrics.path` | string | No | `/metrics` | must start with `/` | Prometheus scrape path |
+| `observability.metrics.portName` | string | No | `http` | non-empty | Named Service port targeted by ServiceMonitor |
+| `observability.metrics.interval` | string | No | `30s` | simple interval such as `30s`, `1m`, `5m` | Prometheus scrape interval |
+| `observability.serviceMonitor.enabled` | boolean | No | `true` | boolean only | Controls ServiceMonitor readiness file generation |
+| `observability.serviceMonitor.namespace` | string | No | empty | falls back to `app.namespace` | Namespace of generated ServiceMonitor |
+| `observability.serviceMonitor.labels` | map of strings | No | `{}` | keys and values must be strings | Extra ServiceMonitor labels |
+| `observability.grafana.enabled` | boolean | No | `true` | boolean only | Controls Grafana readiness output |
+| `observability.grafana.dashboard.enabled` | boolean | No | `true` | boolean only | Controls dashboard JSON generation |
+| `observability.grafana.dashboard.title` | string | No | empty | falls back to `app.name` | Grafana dashboard title |
+| `observability.alerts.enabled` | boolean | No | `false` | accepted but not rendered in v0.11.0 | Reserved for future PrometheusRule support |
 
 ## Section Details
 
@@ -452,6 +485,26 @@ gitops:
     automated: false
     prune: false
     selfHeal: false
+
+observability:
+  enabled: false
+  provider: prometheus
+  metrics:
+    enabled: true
+    path: /metrics
+    portName: http
+    interval: 30s
+  serviceMonitor:
+    enabled: true
+    namespace: ""
+    labels: {}
+  grafana:
+    enabled: true
+    dashboard:
+      enabled: true
+      title: ""
+  alerts:
+    enabled: false
 ```
 
 ## Invalid Examples
@@ -688,3 +741,10 @@ The `ci` section controls GitHub Actions readiness generation. It does not affec
 The `gitops` section controls ArgoCD readiness generation. It does not affect raw Kubernetes rendering, Helm chart rendering, CI workflows, or cluster state. Use `k8s-forge gitops render app.yaml --output generated-gitops/` to generate reviewable ArgoCD files.
 
 `k8s-forge` generates an ArgoCD `Application` only in v0.10.0. It does not generate `AppProject`, credentials, Flux resources, `kubectl apply`, or `argocd app sync` commands. Manual sync is the default.
+
+
+### `observability`
+
+The `observability` section controls local observability readiness generation. It does not affect raw Kubernetes rendering, Helm chart rendering, GitOps files, or cluster state. Use `k8s-forge observability render app.yaml --output generated-observability/` to generate reviewable Prometheus and Grafana examples.
+
+`k8s-forge` generates a Prometheus Operator `ServiceMonitor` and a local Grafana dashboard JSON model in v0.11.0. It does not install Prometheus, Grafana, Loki, kube-prometheus-stack, create secrets, call Grafana APIs, run `kubectl apply`, or run `helm install`. Missing `monitoring.coreos.com` CRDs are normal until a monitoring stack is installed manually.

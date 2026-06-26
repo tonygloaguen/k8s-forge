@@ -1,0 +1,54 @@
+# Observability Readiness
+
+Application: `{{ app.name }}`
+Namespace: `{{ app.namespace }}`
+Metrics endpoint: `{{ observability.metrics.path }}`
+ServiceMonitor namespace: `{{ service_monitor_namespace }}`
+Grafana dashboard title: `{{ dashboard_title }}`
+
+This directory contains local observability readiness files generated from `app.yaml`.
+`k8s-forge` does not install Prometheus, Grafana, Loki, kube-prometheus-stack, Promtail, or OpenTelemetry Collector. It does not create secrets, does not call Grafana APIs, does not run `kubectl apply`, and does not run `helm install`.
+
+## What Observability Means Here
+
+Observability helps operators understand what the application and cluster are doing.
+
+- Metrics are numeric time series scraped by systems such as Prometheus.
+- Logs are event records emitted by applications and infrastructure.
+- Traces follow a request across services.
+
+v0.11.0 focuses on metrics readiness with Prometheus Operator `ServiceMonitor` and a local Grafana dashboard JSON example. Loki logs and tracing are future work.
+
+## Generated Files
+
+- `prometheus/servicemonitor.yaml`: Prometheus Operator `ServiceMonitor` example.
+{% if observability.grafana.enabled and observability.grafana.dashboard.enabled -%}
+- `grafana/dashboard.json`: local Grafana dashboard JSON model to import manually.
+{% endif %}
+
+## Prerequisites
+
+The `ServiceMonitor` requires Prometheus Operator CRDs from `monitoring.coreos.com`. If those CRDs are missing, Kubernetes will reject the object. That is normal for readiness-only generation.
+
+The application must expose a real metrics endpoint at `{{ observability.metrics.path }}` before Prometheus can scrape useful metrics.
+
+## Review Commands
+
+```bash
+cat prometheus/servicemonitor.yaml
+{% if observability.grafana.enabled and observability.grafana.dashboard.enabled -%}
+cat grafana/dashboard.json
+{% endif -%}
+k8s-forge doctor
+```
+
+## Scope v0.11.0
+
+- Prometheus Operator `ServiceMonitor` readiness only;
+- local Grafana dashboard JSON only;
+- no Prometheus or Grafana installation;
+- no Loki, Promtail, or OpenTelemetry Collector;
+- no Grafana datasource or API call;
+- no credentials or secrets;
+- no automatic apply or Helm install;
+- alerts are accepted in configuration but not rendered yet.

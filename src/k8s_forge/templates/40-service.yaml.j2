@@ -13,5 +13,6 @@ spec:
     {{ key | tojson }}: {{ value | tojson }}
 {% endfor %}
   ports:
-    - port: {{ service.port }}
+    - name: http
+      port: {{ service.port }}
       targetPort: {{ app.containerPort }}

@@ -40,6 +40,11 @@ from k8s_forge.local_cluster import (
     wait_for_nodes_ready,
 )
 from k8s_forge.models import AppConfig
+from k8s_forge.observability_renderer import (
+    render_observability_files,
+    resolve_dashboard_title,
+    resolve_service_monitor_namespace,
+)
 from k8s_forge.renderer import render_manifests
 from k8s_forge.supply_chain_renderer import (
     is_registry_backed_image,
@@ -59,6 +64,7 @@ helm_app = typer.Typer(help="Generate local Helm charts.")
 supply_chain_app = typer.Typer(help="Generate supply chain readiness scripts.")
 ci_app = typer.Typer(help="Generate GitHub Actions CI readiness workflows.")
 gitops_app = typer.Typer(help="Generate ArgoCD GitOps readiness manifests.")
+observability_app = typer.Typer(help="Generate observability readiness files.")
 
 
 class _QuotedString(str):
@@ -692,6 +698,111 @@ def _print_argocd_diagnostics(report: DoctorReport) -> None:
         )
 
 
+def _print_observability_warnings(config: AppConfig) -> None:
+    if not config.observability.enabled:
+        return
+    if config.observability.serviceMonitor.enabled:
+        _print_warning(
+            "ServiceMonitor readiness is enabled. The cluster needs Prometheus "
+            "Operator CRDs before this resource can be accepted."
+        )
+    if (
+        config.observability.grafana.enabled
+        and config.observability.grafana.dashboard.enabled
+    ):
+        _print_warning(
+            "The Grafana dashboard is a local model. Real panels need Prometheus "
+            "data and application metrics."
+        )
+    if config.observability.alerts.enabled:
+        _print_warning(
+            "observability.alerts.enabled is true, but PrometheusRule rendering "
+            "is outside v0.11.0."
+        )
+
+
+def _print_observability_summary(config: AppConfig) -> None:
+    if not config.observability.enabled:
+        return
+    _print_hint("Observability readiness is enabled.")
+    _print_hint(
+        "Prometheus can scrape application metrics when the application exposes "
+        "a metrics endpoint and the Prometheus Operator is installed."
+    )
+    _print_hint(
+        "k8s-forge generates observability manifests and dashboard examples but "
+        "does not install Prometheus, Grafana, Loki, or monitoring CRDs automatically."
+    )
+    _print_hint(f"Metrics endpoint: {config.observability.metrics.path}")
+    _print_hint(
+        f"ServiceMonitor namespace: {resolve_service_monitor_namespace(config)}"
+    )
+    dashboard_state = (
+        "enabled"
+        if config.observability.grafana.enabled
+        and config.observability.grafana.dashboard.enabled
+        else "disabled"
+    )
+    _print_hint(f"Grafana dashboard: {dashboard_state}")
+    _print_observability_warnings(config)
+
+
+def _print_observability_render_hint(config_path: Path) -> None:
+    _print_hint("Observability readiness is enabled.")
+    _print_hint("Kubernetes manifests were generated separately.")
+    _print_hint(
+        "Run: k8s-forge observability render "
+        f"{config_path} --output generated-observability/"
+    )
+
+
+def _print_observability_summary_table(paths: list[Path], output: Path) -> None:
+    table = Table(title="Generated observability files")
+    table.add_column("File")
+    for path in paths:
+        try:
+            rendered = str(path.relative_to(output))
+        except ValueError:
+            rendered = str(path)
+        table.add_row(rendered)
+    console.print(table)
+
+
+def _print_observability_next_steps(output: Path) -> None:
+    _print_hint("Next review commands:")
+    _print_hint(f"  cat {output / 'README.md'}")
+    _print_hint(f"  cat {output / 'prometheus' / 'servicemonitor.yaml'}")
+    _print_hint(f"  cat {output / 'grafana' / 'dashboard.json'}")
+    _print_hint("  k8s-forge doctor")
+
+
+def _print_observability_diagnostics(report: DoctorReport) -> None:
+    _print_step("Checking observability readiness...")
+    _print_hint(
+        "Prometheus Operator CRDs are required before ServiceMonitor resources "
+        "can be accepted by the cluster."
+    )
+    _print_hint(
+        "k8s-forge does not install Prometheus, Grafana, Loki, or "
+        "kube-prometheus-stack automatically."
+    )
+    _print_hint(
+        "Generated observability files can be reviewed locally and applied only "
+        "after the monitoring stack is installed manually."
+    )
+    if report.servicemonitor_crd.status == "OK":
+        console.print("[green]ServiceMonitor CRD appears to be available.[/green]")
+    else:
+        _print_warning(
+            "Prometheus Operator CRDs do not appear to be installed in this cluster."
+        )
+        _print_hint(
+            "Generated ServiceMonitor manifests can be reviewed locally, but they "
+            "will be accepted by the cluster only after monitoring.coreos.com CRDs "
+            "are installed."
+        )
+
+
 def _print_check_summary(config: AppConfig) -> None:
     """Print a concise validation summary."""
     table = Table(title="Application configuration")
@@ -906,6 +1017,29 @@ def _starter_config_data(
                 "prune": False,
                 "selfHeal": False,
             },
+        },
+        "observability": {
+            "enabled": False,
+            "provider": _QuotedString("prometheus"),
+            "metrics": {
+                "enabled": True,
+                "path": _QuotedString("/metrics"),
+                "portName": _QuotedString("http"),
+                "interval": _QuotedString("30s"),
+            },
+            "serviceMonitor": {
+                "enabled": True,
+                "namespace": _QuotedString(""),
+                "labels": {},
+            },
+            "grafana": {
+                "enabled": True,
+                "dashboard": {
+                    "enabled": True,
+                    "title": _QuotedString(""),
+                },
+            },
+            "alerts": {"enabled": False},
         },
     }
 
@@ -1199,6 +1333,7 @@ def check(
     _print_supply_chain_summary(loaded)
     _print_ci_summary(loaded)
     _print_gitops_summary(loaded)
+    _print_observability_summary(loaded)
     _print_autoscaling_warning(loaded)
 
 
@@ -1233,6 +1368,8 @@ def render(
         _print_ci_render_hint(config_path)
     if loaded.gitops.enabled:
         _print_gitops_render_hint(config_path)
+    if loaded.observability.enabled:
+        _print_observability_render_hint(config_path)
     _print_autoscaling_warning(loaded)
     console.print("[green]manifests generated[/green]")
     _print_render_summary(generated)
@@ -1465,6 +1602,11 @@ def doctor(
             report.argocd_namespace,
             report.argocd_deployments,
             report.argocd_applications_crd,
+            report.servicemonitor_crd,
+            report.prometheusrule_crd,
+            report.monitoring_namespace,
+            report.monitoring_deployments,
+            report.monitoring_services,
         ]
     )
     if report.metrics_server.status == "OK":
@@ -1531,6 +1673,7 @@ def doctor(
     _print_supply_chain_diagnostics(report)
     _print_ci_diagnostics(report)
     _print_argocd_diagnostics(report)
+    _print_observability_diagnostics(report)
 
     if report.ready:
         console.print("[green]Ready for local kind workflows.[/green]")
@@ -1858,9 +2001,57 @@ def gitops_render(
     _print_gitops_next_steps(output)
 
 
+@observability_app.command("render")
+def observability_render(
+    config_path: Annotated[Path, typer.Argument(help="Path to app.yaml.")],
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output", "-o", help="Output directory for observability files."
+        ),
+    ] = Path("generated-observability"),
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force", help="Overwrite generated observability files if they exist."
+        ),
+    ] = False,
+) -> None:
+    """Render observability readiness files from app.yaml."""
+    _print_step("Rendering observability readiness files from app.yaml...")
+    _print_hint("This creates local Prometheus and Grafana examples.")
+    _print_hint(
+        "This step does not contact the cluster and does not install monitoring "
+        "components."
+    )
+    try:
+        loaded = load_app_config(config_path)
+    except ConfigLoadError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    if not loaded.observability.enabled:
+        _print_hint("Observability readiness is disabled in app.yaml.")
+        _print_hint("No observability files were generated.")
+        return
+
+    try:
+        generated = render_observability_files(loaded, output, force=force)
+    except RenderError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    console.print(f"[green]Observability files generated in {output}.[/green]")
+    _print_observability_summary(loaded)
+    _print_hint(f"Grafana dashboard title: {resolve_dashboard_title(loaded)}")
+    _print_observability_summary_table(generated, output)
+    _print_observability_next_steps(output)
+
+
 app.add_typer(cluster_app, name="cluster")
 app.add_typer(image_app, name="image")
 app.add_typer(helm_app, name="helm")
 app.add_typer(supply_chain_app, name="supply-chain")
 app.add_typer(ci_app, name="ci")
 app.add_typer(gitops_app, name="gitops")
+app.add_typer(observability_app, name="observability")

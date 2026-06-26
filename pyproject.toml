@@ -52,6 +52,9 @@ k8s_forge = [
   "ci_templates/workflows/*.j2",
   "gitops_templates/*.j2",
   "gitops_templates/argocd/*.j2",
+  "observability_templates/*.j2",
+  "observability_templates/prometheus/*.j2",
+  "observability_templates/grafana/*.j2",
 ]
 
 [tool.ruff]

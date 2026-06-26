@@ -47,3 +47,7 @@ The current raw Kubernetes render target is:
 
 The Helm renderer generates a local chart for the same application model. It
 does not run Helm and does not install releases. Ingress rendering targets existing ingress-nginx and optional cert-manager prerequisites. Mesh readiness targets existing Linkerd prerequisites and only annotates Deployment pod templates when explicitly enabled. NetworkPolicy rendering targets CNI-compatible clusters and does not install or replace the CNI. Kyverno rendering generates namespace-scoped Audit policies and does not install Kyverno. Supply Chain rendering generates local helper scripts and does not install Trivy, Syft, or Cosign. CI rendering generates GitHub Actions workflow files and does not push images, create secrets, or deploy Kubernetes resources. GitOps rendering generates ArgoCD Application manifests and does not install ArgoCD, push Git, apply manifests, or sync applications. Global default-deny, egress NetworkPolicy, ClusterPolicy, Kustomize, and direct Kubernetes API usage remain outside the current scope.
+
+## Observability Readiness
+
+`observability_renderer.py` should remain separate from raw Kubernetes, Helm, CI, Supply Chain, and GitOps renderers. It produces local Prometheus and Grafana examples only and does not install or configure a monitoring stack.

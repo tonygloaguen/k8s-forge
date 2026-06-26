@@ -393,3 +393,7 @@ For `weatherapi-platform`, create a CI-specific config from the Supply Chain con
 ## Module 7 GitOps readiness follow-up
 
 For `weatherapi-platform`, copy the CI config to `k8s-forge-app-gitops.yaml`, enable `gitops`, point `source.repoURL` to the application repository, and render with `k8s-forge gitops render k8s-forge-app-gitops.yaml --output generated-gitops/`.
+
+## Module 8 Observability readiness follow-up
+
+For `weatherapi-platform`, copy the GitOps config to `k8s-forge-app-observability.yaml`, enable `observability`, render with `k8s-forge observability render k8s-forge-app-observability.yaml --output generated-observability/`, then review the generated ServiceMonitor and Grafana dashboard JSON. The app must expose `/metrics` and Prometheus Operator CRDs must exist before scraping works.

@@ -835,3 +835,137 @@ def test_gitops_sync_policy_flags_are_strict_booleans() -> None:
 
     with pytest.raises(ValidationError):
         AppConfig.model_validate(config_data)
+
+
+def test_observability_defaults_when_section_absent() -> None:
+    config_data = _valid_config()
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.observability.enabled is False
+    assert config.observability.provider == "prometheus"
+    assert config.observability.metrics.enabled is True
+    assert config.observability.metrics.path == "/metrics"
+    assert config.observability.metrics.portName == "http"
+    assert config.observability.metrics.interval == "30s"
+    assert config.observability.serviceMonitor.enabled is True
+    assert config.observability.serviceMonitor.namespace == ""
+    assert config.observability.serviceMonitor.labels == {}
+    assert config.observability.grafana.enabled is True
+    assert config.observability.grafana.dashboard.enabled is True
+    assert config.observability.grafana.dashboard.title == ""
+    assert config.observability.alerts.enabled is False
+
+
+def test_observability_accepts_prometheus_provider() -> None:
+    config_data = _valid_config()
+    config_data["observability"] = {
+        "enabled": True,
+        "provider": "prometheus",
+        "metrics": {
+            "enabled": True,
+            "path": "/metrics",
+            "portName": "http",
+            "interval": "30s",
+        },
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.observability.enabled is True
+    assert config.observability.provider == "prometheus"
+
+
+def test_observability_rejects_invalid_provider() -> None:
+    config_data = _valid_config()
+    config_data["observability"] = {"enabled": True, "provider": "loki"}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_observability_metrics_path_is_configurable() -> None:
+    config_data = _valid_config()
+    config_data["observability"] = {
+        "enabled": True,
+        "metrics": {"path": "/custom", "portName": "metrics", "interval": "1m"},
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.observability.metrics.path == "/custom"
+    assert config.observability.metrics.portName == "metrics"
+    assert config.observability.metrics.interval == "1m"
+
+
+def test_observability_rejects_metrics_path_without_slash() -> None:
+    config_data = _valid_config()
+    config_data["observability"] = {"enabled": True, "metrics": {"path": "metrics"}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_observability_rejects_invalid_interval() -> None:
+    config_data = _valid_config()
+    config_data["observability"] = {"enabled": True, "metrics": {"interval": "soon"}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_observability_preserves_service_monitor_namespace_and_labels() -> None:
+    config_data = _valid_config()
+    config_data["observability"] = {
+        "enabled": True,
+        "serviceMonitor": {
+            "enabled": True,
+            "namespace": "monitoring",
+            "labels": {"release": "kube-prometheus-stack"},
+        },
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.observability.serviceMonitor.namespace == "monitoring"
+    assert config.observability.serviceMonitor.labels == {
+        "release": "kube-prometheus-stack"
+    }
+
+
+def test_observability_preserves_grafana_dashboard_title() -> None:
+    config_data = _valid_config()
+    config_data["observability"] = {
+        "enabled": True,
+        "grafana": {
+            "enabled": True,
+            "dashboard": {"enabled": True, "title": "Demo Observability"},
+        },
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.observability.grafana.dashboard.title == "Demo Observability"
+
+
+def test_observability_alerts_enabled_is_accepted() -> None:
+    config_data = _valid_config()
+    config_data["observability"] = {"enabled": True, "alerts": {"enabled": True}}
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.observability.alerts.enabled is True
+
+
+def test_observability_booleans_are_strict() -> None:
+    config_data = _valid_config()
+    config_data["observability"] = {
+        "enabled": True,
+        "metrics": {"enabled": "yes"},
+        "serviceMonitor": {"enabled": True},
+        "grafana": {"enabled": True, "dashboard": {"enabled": True}},
+        "alerts": {"enabled": False},
+    }
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)

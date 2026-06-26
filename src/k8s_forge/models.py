@@ -426,6 +426,96 @@ class GitOpsConfig(BaseModel):
         return self
 
 
+class ObservabilityMetricsConfig(BaseModel):
+    """Prometheus metrics scraping readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+    path: str = "/metrics"
+    portName: str = Field(default="http", min_length=1)
+    interval: str = Field(default="30s", min_length=1)
+
+    @field_validator("path")
+    @classmethod
+    def validate_metrics_path(cls, value: str) -> str:
+        """Require HTTP metrics paths to be absolute."""
+        if not value.startswith("/"):
+            msg = "observability.metrics.path must start with '/'"
+            raise ValueError(msg)
+        return value
+
+    @field_validator("interval")
+    @classmethod
+    def validate_interval(cls, value: str) -> str:
+        """Accept simple Prometheus-style intervals such as 30s, 1m, or 5m."""
+        if (
+            len(value) < 2
+            or not value[:-1].isdigit()
+            or value[-1] not in {"s", "m", "h"}
+        ):
+            msg = "observability.metrics.interval must look like 30s, 1m, or 5m"
+            raise ValueError(msg)
+        return value
+
+
+class ObservabilityServiceMonitorConfig(BaseModel):
+    """Prometheus Operator ServiceMonitor readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+    namespace: str = ""
+    labels: dict[str, str] = Field(default_factory=dict)
+
+
+class ObservabilityGrafanaDashboardConfig(BaseModel):
+    """Grafana dashboard readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+    title: str = ""
+
+
+class ObservabilityGrafanaConfig(BaseModel):
+    """Grafana readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+    dashboard: ObservabilityGrafanaDashboardConfig = Field(
+        default_factory=ObservabilityGrafanaDashboardConfig
+    )
+
+
+class ObservabilityAlertsConfig(BaseModel):
+    """Future PrometheusRule switch. Not rendered in v0.11.0."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = False
+
+
+class ObservabilityConfig(BaseModel):
+    """Observability readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = False
+    provider: Literal["prometheus"] = "prometheus"
+    metrics: ObservabilityMetricsConfig = Field(
+        default_factory=ObservabilityMetricsConfig
+    )
+    serviceMonitor: ObservabilityServiceMonitorConfig = Field(
+        default_factory=ObservabilityServiceMonitorConfig
+    )
+    grafana: ObservabilityGrafanaConfig = Field(
+        default_factory=ObservabilityGrafanaConfig
+    )
+    alerts: ObservabilityAlertsConfig = Field(default_factory=ObservabilityAlertsConfig)
+
+
 class AppConfig(BaseModel):
     """Top-level user configuration."""
 
@@ -445,6 +535,7 @@ class AppConfig(BaseModel):
     supplyChain: SupplyChainConfig = Field(default_factory=SupplyChainConfig)
     ci: CiConfig = Field(default_factory=CiConfig)
     gitops: GitOpsConfig = Field(default_factory=GitOpsConfig)
+    observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
 
     @model_validator(mode="after")
     def validate_ingress_service(self) -> "AppConfig":

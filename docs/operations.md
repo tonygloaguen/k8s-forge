@@ -469,3 +469,7 @@ Then inspect `README.md`, run `scan-image.sh` for Trivy, and run `generate-sbom.
 ## GitOps Readiness
 
 `k8s-forge gitops render app.yaml --output generated-gitops/` generates reviewable ArgoCD Application manifests. This is local file generation only: it does not install ArgoCD, push Git commits, create credentials, apply manifests, or synchronize applications.
+
+## Observability Readiness
+
+`k8s-forge observability render app.yaml --output generated-observability/` generates local ServiceMonitor and Grafana dashboard examples. The files are readiness artifacts only: Prometheus Operator CRDs and a monitoring stack must be installed manually before the ServiceMonitor can become active.

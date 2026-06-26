@@ -63,6 +63,11 @@ class DoctorReport:
     argocd_namespace: ToolCheck
     argocd_deployments: ToolCheck
     argocd_applications_crd: ToolCheck
+    servicemonitor_crd: ToolCheck
+    prometheusrule_crd: ToolCheck
+    monitoring_namespace: ToolCheck
+    monitoring_deployments: ToolCheck
+    monitoring_services: ToolCheck
 
     @property
     def ready(self) -> bool:
@@ -289,6 +294,41 @@ def check_environment(timeout: int = 30) -> DoctorReport:
             ["kubectl", "get", "crd", "applications.argoproj.io"],
             timeout,
         )
+        servicemonitor_crd = _linkerd_optional_check(
+            "ServiceMonitor CRD",
+            ["kubectl", "get", "crd", "servicemonitors.monitoring.coreos.com"],
+            timeout,
+        )
+        prometheusrule_crd = _linkerd_optional_check(
+            "PrometheusRule CRD",
+            ["kubectl", "get", "crd", "prometheusrules.monitoring.coreos.com"],
+            timeout,
+        )
+        monitoring_namespace = _linkerd_optional_check(
+            "monitoring namespace", ["kubectl", "get", "ns", "monitoring"], timeout
+        )
+        if monitoring_namespace.status == "OK":
+            monitoring_deployments = _linkerd_optional_check(
+                "monitoring deployments",
+                ["kubectl", "-n", "monitoring", "get", "deploy"],
+                timeout,
+            )
+            monitoring_services = _linkerd_optional_check(
+                "monitoring services",
+                ["kubectl", "-n", "monitoring", "get", "svc"],
+                timeout,
+            )
+        else:
+            monitoring_deployments = ToolCheck(
+                "monitoring deployments",
+                "missing",
+                "monitoring namespace is missing; deployments were not checked",
+            )
+            monitoring_services = ToolCheck(
+                "monitoring services",
+                "missing",
+                "monitoring namespace is missing; services were not checked",
+            )
     else:
         current_context = ToolCheck(
             "current context", "unavailable", "kubectl is not available"
@@ -337,6 +377,21 @@ def check_environment(timeout: int = 30) -> DoctorReport:
         argocd_applications_crd = ToolCheck(
             "ArgoCD Application CRD", "unavailable", "kubectl is not available"
         )
+        servicemonitor_crd = ToolCheck(
+            "ServiceMonitor CRD", "unavailable", "kubectl is not available"
+        )
+        prometheusrule_crd = ToolCheck(
+            "PrometheusRule CRD", "unavailable", "kubectl is not available"
+        )
+        monitoring_namespace = ToolCheck(
+            "monitoring namespace", "unavailable", "kubectl is not available"
+        )
+        monitoring_deployments = ToolCheck(
+            "monitoring deployments", "unavailable", "kubectl is not available"
+        )
+        monitoring_services = ToolCheck(
+            "monitoring services", "unavailable", "kubectl is not available"
+        )
 
     return DoctorReport(
         docker,
@@ -365,6 +420,11 @@ def check_environment(timeout: int = 30) -> DoctorReport:
         argocd_namespace,
         argocd_deployments,
         argocd_applications_crd,
+        servicemonitor_crd,
+        prometheusrule_crd,
+        monitoring_namespace,
+        monitoring_deployments,
+        monitoring_services,
     )
 
 

@@ -1,0 +1,20 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ app.name | tojson }}
+  namespace: {{ service_monitor_namespace | tojson }}
+  labels:
+    app: {{ app.name | tojson }}
+    app.kubernetes.io/name: {{ app.name | tojson }}
+    app.kubernetes.io/managed-by: "k8s-forge"
+{% for key, value in observability.serviceMonitor.labels.items() %}
+    {{ key | tojson }}: {{ value | tojson }}
+{% endfor %}
+spec:
+  selector:
+    matchLabels:
+      app: {{ app.name | tojson }}
+  endpoints:
+    - port: {{ observability.metrics.portName | tojson }}
+      path: {{ observability.metrics.path | tojson }}
+      interval: {{ observability.metrics.interval | tojson }}

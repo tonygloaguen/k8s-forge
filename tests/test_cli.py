@@ -54,6 +54,21 @@ ARGOCD_CLI_COMMAND = ["argocd", "version", "--client"]
 ARGOCD_NAMESPACE_COMMAND = ["kubectl", "get", "ns", "argocd"]
 ARGOCD_DEPLOY_COMMAND = ["kubectl", "-n", "argocd", "get", "deploy"]
 ARGOCD_APPLICATION_CRD_COMMAND = ["kubectl", "get", "crd", "applications.argoproj.io"]
+SERVICEMONITOR_CRD_COMMAND = [
+    "kubectl",
+    "get",
+    "crd",
+    "servicemonitors.monitoring.coreos.com",
+]
+PROMETHEUSRULE_CRD_COMMAND = [
+    "kubectl",
+    "get",
+    "crd",
+    "prometheusrules.monitoring.coreos.com",
+]
+MONITORING_NAMESPACE_COMMAND = ["kubectl", "get", "ns", "monitoring"]
+MONITORING_DEPLOY_COMMAND = ["kubectl", "-n", "monitoring", "get", "deploy"]
+MONITORING_SERVICE_COMMAND = ["kubectl", "-n", "monitoring", "get", "svc"]
 
 
 def test_cli_help_responds() -> None:
@@ -78,6 +93,7 @@ def test_cli_commands_exist() -> None:
         "helm",
         "ci",
         "gitops",
+        "observability",
     ):
         assert command in result.output
 
@@ -1072,6 +1088,21 @@ def test_cli_doctor_all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
                 "crd",
                 "applications.argoproj.io",
             ): "applications.argoproj.io",
+            (
+                "kubectl",
+                "get",
+                "crd",
+                "servicemonitors.monitoring.coreos.com",
+            ): "servicemonitors.monitoring.coreos.com",
+            (
+                "kubectl",
+                "get",
+                "crd",
+                "prometheusrules.monitoring.coreos.com",
+            ): "prometheusrules.monitoring.coreos.com",
+            ("kubectl", "get", "ns", "monitoring"): "monitoring",
+            ("kubectl", "-n", "monitoring", "get", "deploy"): "prometheus grafana",
+            ("kubectl", "-n", "monitoring", "get", "svc"): "prometheus grafana",
         }
         return subprocess.CompletedProcess(command, 0, outputs[tuple(command)], "")
 
@@ -2516,3 +2547,228 @@ def test_cli_doctor_reports_argocd_present(monkeypatch: pytest.MonkeyPatch) -> N
     assert result.exit_code == 0
     assert "Checking ArgoCD GitOps readiness" in result.output
     assert "ArgoCD appears to be installed" in result.output
+
+
+def _write_observability_config(
+    path: Path,
+    alerts: bool = False,
+    dashboard: bool = True,
+) -> None:
+    path.write_text(
+        f"""
+app:
+  name: weatherapi
+  namespace: weather
+  image: weatherapi:0.1.0
+  containerPort: 8000
+  replicas: 2
+service:
+  enabled: true
+  port: 80
+observability:
+  enabled: true
+  provider: prometheus
+  metrics:
+    enabled: true
+    path: /metrics
+    portName: http
+    interval: 30s
+  serviceMonitor:
+    enabled: true
+    namespace: ""
+    labels: {{}}
+  grafana:
+    enabled: true
+    dashboard:
+      enabled: {str(dashboard).lower()}
+      title: ""
+  alerts:
+    enabled: {str(alerts).lower()}
+""".strip(),
+        encoding="utf-8",
+    )
+
+
+def test_cli_check_mentions_observability_when_enabled(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    _write_observability_config(config_path)
+
+    result = runner.invoke(app, ["check", str(config_path)])
+
+    assert result.exit_code == 0
+    assert "Observability readiness is enabled" in result.output
+    assert "Prometheus can scrape application metrics" in result.output
+    assert "Metrics endpoint: /metrics" in result.output
+    assert "ServiceMonitor namespace: weather" in result.output
+    assert "Grafana dashboard: enabled" in result.output
+
+
+def test_cli_render_suggests_observability_render_command(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated"
+    _write_observability_config(config_path)
+
+    result = runner.invoke(
+        app, ["render", str(config_path), "--output", str(output_dir)]
+    )
+
+    assert result.exit_code == 0
+    assert "Kubernetes manifests were generated separately" in result.output
+    assert "k8s-forge observability render" in result.output
+    assert not (output_dir / "prometheus" / "servicemonitor.yaml").exists()
+
+
+def test_cli_observability_render_generates_files(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-observability"
+    _write_observability_config(config_path)
+
+    result = runner.invoke(
+        app,
+        ["observability", "render", str(config_path), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 0
+    assert "Observability files generated" in result.output
+    assert "Generated observability files" in result.output
+    assert (output_dir / "README.md").exists()
+    assert (output_dir / "prometheus" / "servicemonitor.yaml").exists()
+    assert (output_dir / "grafana" / "dashboard.json").exists()
+
+
+def test_cli_observability_render_warns_for_uncertain_metrics(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-observability"
+    _write_observability_config(config_path)
+
+    result = runner.invoke(
+        app,
+        ["observability", "render", str(config_path), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 0
+    assert "ServiceMonitor readiness is enabled" in result.output
+    assert "Grafana dashboard is a local model" in result.output
+
+
+def test_cli_observability_render_warns_when_alerts_enabled(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-observability"
+    _write_observability_config(config_path, alerts=True)
+
+    result = runner.invoke(
+        app,
+        ["observability", "render", str(config_path), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 0
+    assert "PrometheusRule rendering" in result.output
+    assert "v0.11.0" in result.output
+
+
+def test_cli_observability_render_disabled_is_clean(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    config_path.write_text(
+        """
+app:
+  name: demo-app
+  namespace: demo
+  image: demo-app:1.0.0
+  containerPort: 8000
+  replicas: 1
+observability:
+  enabled: false
+""".strip(),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["observability", "render", str(config_path)])
+
+    assert result.exit_code == 0
+    assert "Observability readiness is disabled" in result.output
+    assert "No observability files were generated" in result.output
+
+
+def test_cli_observability_render_refuses_overwrite_without_force(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-observability"
+    _write_observability_config(config_path)
+    first = runner.invoke(
+        app,
+        ["observability", "render", str(config_path), "--output", str(output_dir)],
+    )
+    assert first.exit_code == 0
+
+    result = runner.invoke(
+        app,
+        ["observability", "render", str(config_path), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 1
+    assert "use --force" in result.output
+
+
+def test_cli_observability_render_overwrites_with_force(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-observability"
+    _write_observability_config(config_path)
+    first = runner.invoke(
+        app,
+        ["observability", "render", str(config_path), "--output", str(output_dir)],
+    )
+    assert first.exit_code == 0
+
+    result = runner.invoke(
+        app,
+        [
+            "observability",
+            "render",
+            str(config_path),
+            "--output",
+            str(output_dir),
+            "--force",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Observability files generated" in result.output
+
+
+def test_cli_doctor_reports_observability_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if tuple(command) in {
+            tuple(SERVICEMONITOR_CRD_COMMAND),
+            tuple(PROMETHEUSRULE_CRD_COMMAND),
+            tuple(MONITORING_NAMESPACE_COMMAND),
+        }:
+            return subprocess.CompletedProcess(command, 1, "", "not found")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "Checking observability readiness" in result.output
+    assert "Prometheus Operator CRDs do not appear to be installed" in result.output
+
+
+def test_cli_doctor_reports_observability_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "Checking observability readiness" in result.output
+    assert "ServiceMonitor CRD appears to be available" in result.output

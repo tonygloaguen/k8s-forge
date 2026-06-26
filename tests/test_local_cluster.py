@@ -54,6 +54,21 @@ ARGOCD_CLI_COMMAND = ["argocd", "version", "--client"]
 ARGOCD_NAMESPACE_COMMAND = ["kubectl", "get", "ns", "argocd"]
 ARGOCD_DEPLOY_COMMAND = ["kubectl", "-n", "argocd", "get", "deploy"]
 ARGOCD_APPLICATION_CRD_COMMAND = ["kubectl", "get", "crd", "applications.argoproj.io"]
+SERVICEMONITOR_CRD_COMMAND = [
+    "kubectl",
+    "get",
+    "crd",
+    "servicemonitors.monitoring.coreos.com",
+]
+PROMETHEUSRULE_CRD_COMMAND = [
+    "kubectl",
+    "get",
+    "crd",
+    "prometheusrules.monitoring.coreos.com",
+]
+MONITORING_NAMESPACE_COMMAND = ["kubectl", "get", "ns", "monitoring"]
+MONITORING_DEPLOY_COMMAND = ["kubectl", "-n", "monitoring", "get", "deploy"]
+MONITORING_SERVICE_COMMAND = ["kubectl", "-n", "monitoring", "get", "svc"]
 
 
 def test_run_local_command_success(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -227,6 +242,21 @@ def test_check_environment_reports_metrics_server_present(
                 "crd",
                 "applications.argoproj.io",
             ): "applications.argoproj.io",
+            (
+                "kubectl",
+                "get",
+                "crd",
+                "servicemonitors.monitoring.coreos.com",
+            ): "servicemonitors.monitoring.coreos.com",
+            (
+                "kubectl",
+                "get",
+                "crd",
+                "prometheusrules.monitoring.coreos.com",
+            ): "prometheusrules.monitoring.coreos.com",
+            ("kubectl", "get", "ns", "monitoring"): "monitoring",
+            ("kubectl", "-n", "monitoring", "get", "deploy"): "prometheus grafana",
+            ("kubectl", "-n", "monitoring", "get", "svc"): "prometheus grafana",
         }
         return subprocess.CompletedProcess(command, 0, outputs[tuple(command)], "")
 
@@ -648,4 +678,54 @@ def test_check_environment_reports_argocd_absent_as_non_blocking(
     assert report.argocd_namespace.status == "missing"
     assert report.argocd_deployments.status == "missing"
     assert report.argocd_applications_crd.status == "missing"
+    assert report.ready is True
+
+
+def test_check_environment_reports_observability_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        outputs = {
+            tuple(SERVICEMONITOR_CRD_COMMAND): "servicemonitors.monitoring.coreos.com",
+            tuple(PROMETHEUSRULE_CRD_COMMAND): "prometheusrules.monitoring.coreos.com",
+            tuple(MONITORING_NAMESPACE_COMMAND): "monitoring",
+            tuple(MONITORING_DEPLOY_COMMAND): "prometheus grafana",
+            tuple(MONITORING_SERVICE_COMMAND): "prometheus grafana",
+        }
+        return subprocess.CompletedProcess(
+            command, 0, outputs.get(tuple(command), "ok"), ""
+        )
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.servicemonitor_crd.status == "OK"
+    assert report.prometheusrule_crd.status == "OK"
+    assert report.monitoring_namespace.status == "OK"
+    assert report.monitoring_deployments.status == "OK"
+    assert report.monitoring_services.status == "OK"
+
+
+def test_check_environment_reports_observability_absent_as_non_blocking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if tuple(command) in {
+            tuple(SERVICEMONITOR_CRD_COMMAND),
+            tuple(PROMETHEUSRULE_CRD_COMMAND),
+            tuple(MONITORING_NAMESPACE_COMMAND),
+        }:
+            return subprocess.CompletedProcess(command, 1, "", "not found")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.servicemonitor_crd.status == "missing"
+    assert report.prometheusrule_crd.status == "missing"
+    assert report.monitoring_namespace.status == "missing"
+    assert report.monitoring_deployments.status == "missing"
+    assert report.monitoring_services.status == "missing"
     assert report.ready is True

@@ -148,3 +148,7 @@ After local Supply Chain readiness, see [Module 6 CI](module-6-ci.md) to generat
 ## Next step: GitOps readiness
 
 After CI readiness, see [Module 7 ArgoCD GitOps](module-7-gitops-argocd.md) to generate local ArgoCD Application manifests for Helm-based delivery review.
+
+## Next step: observability readiness
+
+After GitOps readiness, see [Module 8 Observability](module-8-observability.md) to generate local Prometheus ServiceMonitor and Grafana dashboard examples.

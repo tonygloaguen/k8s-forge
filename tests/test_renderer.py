@@ -89,6 +89,13 @@ def test_service_target_port_matches_container_port(tmp_path: Path) -> None:
     assert service["spec"]["ports"][0]["targetPort"] == 8080
 
 
+def test_service_port_is_named_http_for_service_monitor(tmp_path: Path) -> None:
+    _render_example("demo-app.yaml", tmp_path)
+    service = _load_yaml(tmp_path / "40-service.yaml")
+
+    assert service["spec"]["ports"][0]["name"] == "http"
+
+
 def test_service_selector_matches_pod_template_labels(tmp_path: Path) -> None:
     _render_example("demo-app.yaml", tmp_path)
     service = _load_yaml(tmp_path / "40-service.yaml")

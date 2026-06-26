@@ -1,0 +1,76 @@
+{
+  "uid": "{{ app.name }}-readiness",
+  "title": {{ dashboard_title | tojson }},
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "tags": ["k8s-forge", "observability-readiness"],
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Running pods",
+      "description": "Counts running pods selected by the app label.",
+      "targets": [
+        {
+          "expr": "sum(kube_pod_status_phase{namespace=\"{{ app.namespace }}\", phase=\"Running\"})",
+          "legendFormat": "running pods"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 6, "x": 0, "y": 0}
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "CPU usage",
+      "description": "Container CPU usage for the application namespace.",
+      "targets": [
+        {
+          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"{{ app.namespace }}\"}[5m]))",
+          "legendFormat": "cpu seconds"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 9, "x": 6, "y": 0}
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Memory usage",
+      "description": "Container memory working set for the application namespace.",
+      "targets": [
+        {
+          "expr": "sum(container_memory_working_set_bytes{namespace=\"{{ app.namespace }}\"})",
+          "legendFormat": "memory bytes"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 9, "x": 15, "y": 0}
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Service availability model",
+      "description": "Template panel. Replace the query with real application availability metrics when {{ observability.metrics.path }} is implemented.",
+      "targets": [
+        {
+          "expr": "up{namespace=\"{{ app.namespace }}\"}",
+          "legendFormat": "up"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Application metrics endpoint",
+      "description": "Prometheus can scrape {{ observability.metrics.path }} only if the application exposes it and ServiceMonitor CRDs are installed.",
+      "targets": [
+        {
+          "expr": "up{job=~\".*{{ app.name }}.*\"}",
+          "legendFormat": "{{ app.name }} scrape target"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+    }
+  ]
+}

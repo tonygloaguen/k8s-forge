@@ -148,3 +148,24 @@ gitops:
     automated: false
     prune: false
     selfHeal: false
+
+
+observability:
+  enabled: false
+  provider: prometheus
+  metrics:
+    enabled: true
+    path: /metrics
+    portName: http
+    interval: 30s
+  serviceMonitor:
+    enabled: true
+    namespace: ""
+    labels: {}
+  grafana:
+    enabled: true
+    dashboard:
+      enabled: true
+      title: ""
+  alerts:
+    enabled: false
