@@ -1,0 +1,41 @@
+# LogQL Query Examples
+
+These examples target application `{{ app.name }}` in namespace `{{ app.namespace }}`.
+
+Labels in Loki depend on the collector configuration. If a query returns no data, inspect available labels in Grafana Explore and adapt the selectors.
+
+## Namespace Logs
+
+```logql
+{namespace="{{ app.namespace }}"}
+```
+
+## Error Logs
+
+```logql
+{namespace="{{ app.namespace }}"} |= "ERROR"
+```
+
+## Application Logs By App Label
+
+```logql
+{namespace="{{ app.namespace }}", app="{{ app.name }}"}
+```
+
+Some collectors normalize Kubernetes labels differently. This alternative may match setups that expose recommended app labels:
+
+```logql
+{namespace="{{ app.namespace }}", app_kubernetes_io_name="{{ app.name }}"}
+```
+
+## Log Volume Over Five Minutes
+
+```logql
+count_over_time({namespace="{{ app.namespace }}"}[5m])
+```
+
+## Log Rate Over Five Minutes
+
+```logql
+rate({namespace="{{ app.namespace }}"}[5m])
+```

@@ -748,3 +748,45 @@ The `gitops` section controls ArgoCD readiness generation. It does not affect ra
 The `observability` section controls local observability readiness generation. It does not affect raw Kubernetes rendering, Helm chart rendering, GitOps files, or cluster state. Use `k8s-forge observability render app.yaml --output generated-observability/` to generate reviewable Prometheus and Grafana examples.
 
 `k8s-forge` generates a Prometheus Operator `ServiceMonitor` and a local Grafana dashboard JSON model in v0.11.0. It does not install Prometheus, Grafana, Loki, kube-prometheus-stack, create secrets, call Grafana APIs, run `kubectl apply`, or run `helm install`. Missing `monitoring.coreos.com` CRDs are normal until a monitoring stack is installed manually.
+
+
+## `logging`
+
+The `logging` section controls local logging readiness generation. It does not affect raw Kubernetes rendering, Helm chart rendering, observability metrics files, GitOps files, or cluster state. Use `k8s-forge logging render app.yaml --output generated-logging/` to generate reviewable Loki, LogQL, collector, and Grafana logs examples.
+
+```yaml
+logging:
+  enabled: false
+  provider: loki
+  applicationLogs:
+    enabled: true
+    source: stdout
+  loki:
+    namespace: monitoring
+    datasourceName: Loki
+  collector:
+    enabled: true
+    type: promtail
+  grafana:
+    enabled: true
+    dashboard:
+      enabled: true
+      title: ""
+  queries:
+    enabled: true
+```
+
+| Field | Type | Required | Default | Validation | Purpose |
+| --- | --- | --- | --- | --- | --- |
+| `logging.enabled` | boolean | No | `false` | boolean only | Controls logging readiness file generation |
+| `logging.provider` | string | No | `loki` | only `loki` in v0.12.0 | Selects the logging backend model |
+| `logging.applicationLogs.enabled` | boolean | No | `true` | boolean only | Documents whether app logs are expected |
+| `logging.applicationLogs.source` | string | No | `stdout` | only `stdout` | Documents Kubernetes stdout/stderr log collection |
+| `logging.loki.namespace` | string | No | `monitoring` | non-empty | Namespace where Loki is expected manually |
+| `logging.loki.datasourceName` | string | No | `Loki` | non-empty | Grafana datasource display name used in docs |
+| `logging.collector.enabled` | boolean | No | `true` | boolean only | Controls collector notes generation |
+| `logging.collector.type` | string | No | `promtail` | only `promtail` in v0.12.0 | Selects the collector model |
+| `logging.grafana.enabled` | boolean | No | `true` | boolean only | Controls Grafana logging output |
+| `logging.grafana.dashboard.enabled` | boolean | No | `true` | boolean only | Controls logs dashboard JSON generation |
+| `logging.grafana.dashboard.title` | string | No | empty | falls back to `app.name` | Grafana logs dashboard title |
+| `logging.queries.enabled` | boolean | No | `true` | boolean only | Controls LogQL examples generation |

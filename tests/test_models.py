@@ -969,3 +969,101 @@ def test_observability_booleans_are_strict() -> None:
 
     with pytest.raises(ValidationError):
         AppConfig.model_validate(config_data)
+
+
+def test_logging_defaults_when_section_absent() -> None:
+    config = AppConfig.model_validate(_valid_config())
+
+    assert config.logging.enabled is False
+    assert config.logging.provider == "loki"
+    assert config.logging.application_logs.enabled is True
+    assert config.logging.application_logs.source == "stdout"
+    assert config.logging.loki.namespace == "monitoring"
+    assert config.logging.loki.datasource_name == "Loki"
+    assert config.logging.collector.enabled is True
+    assert config.logging.collector.type == "promtail"
+    assert config.logging.grafana.enabled is True
+    assert config.logging.grafana.dashboard.enabled is True
+    assert config.logging.grafana.dashboard.title == ""
+    assert config.logging.queries.enabled is True
+
+
+def test_logging_accepts_loki_provider() -> None:
+    config_data = _valid_config()
+    config_data["logging"] = {"enabled": True, "provider": "loki"}
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.logging.enabled is True
+    assert config.logging.provider == "loki"
+
+
+def test_logging_rejects_invalid_provider() -> None:
+    config_data = _valid_config()
+    config_data["logging"] = {"enabled": True, "provider": "elasticsearch"}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_logging_accepts_stdout_source() -> None:
+    config_data = _valid_config()
+    config_data["logging"] = {
+        "enabled": True,
+        "applicationLogs": {"enabled": True, "source": "stdout"},
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.logging.application_logs.source == "stdout"
+
+
+def test_logging_rejects_invalid_source() -> None:
+    config_data = _valid_config()
+    config_data["logging"] = {"enabled": True, "applicationLogs": {"source": "file"}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_logging_accepts_promtail_collector() -> None:
+    config_data = _valid_config()
+    config_data["logging"] = {"enabled": True, "collector": {"type": "promtail"}}
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.logging.collector.type == "promtail"
+
+
+def test_logging_rejects_invalid_collector_type() -> None:
+    config_data = _valid_config()
+    config_data["logging"] = {"enabled": True, "collector": {"type": "alloy"}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_logging_preserves_dashboard_title() -> None:
+    config_data = _valid_config()
+    config_data["logging"] = {
+        "enabled": True,
+        "grafana": {"dashboard": {"title": "Demo Logs"}},
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.logging.grafana.dashboard.title == "Demo Logs"
+
+
+def test_logging_booleans_are_strict() -> None:
+    config_data = _valid_config()
+    config_data["logging"] = {
+        "enabled": "yes",
+        "applicationLogs": {"enabled": "yes"},
+        "collector": {"enabled": "yes"},
+        "grafana": {"enabled": "yes", "dashboard": {"enabled": "yes"}},
+        "queries": {"enabled": "yes"},
+    }
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)

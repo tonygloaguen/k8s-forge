@@ -516,6 +516,77 @@ class ObservabilityConfig(BaseModel):
     alerts: ObservabilityAlertsConfig = Field(default_factory=ObservabilityAlertsConfig)
 
 
+class LoggingApplicationLogsConfig(BaseModel):
+    """Application log source readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+    source: Literal["stdout"] = "stdout"
+
+
+class LoggingLokiConfig(BaseModel):
+    """Loki readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    namespace: str = Field(default="monitoring", min_length=1)
+    datasource_name: str = Field(default="Loki", alias="datasourceName", min_length=1)
+
+
+class LoggingCollectorConfig(BaseModel):
+    """Log collector readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+    type: Literal["promtail"] = "promtail"
+
+
+class LoggingGrafanaDashboardConfig(BaseModel):
+    """Grafana log dashboard readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+    title: str = ""
+
+
+class LoggingGrafanaConfig(BaseModel):
+    """Grafana logging readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+    dashboard: LoggingGrafanaDashboardConfig = Field(
+        default_factory=LoggingGrafanaDashboardConfig
+    )
+
+
+class LoggingQueriesConfig(BaseModel):
+    """LogQL query examples readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class LoggingConfig(BaseModel):
+    """Logging readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    enabled: StrictBool = False
+    provider: Literal["loki"] = "loki"
+    application_logs: LoggingApplicationLogsConfig = Field(
+        default_factory=LoggingApplicationLogsConfig, alias="applicationLogs"
+    )
+    loki: LoggingLokiConfig = Field(default_factory=LoggingLokiConfig)
+    collector: LoggingCollectorConfig = Field(default_factory=LoggingCollectorConfig)
+    grafana: LoggingGrafanaConfig = Field(default_factory=LoggingGrafanaConfig)
+    queries: LoggingQueriesConfig = Field(default_factory=LoggingQueriesConfig)
+
+
 class AppConfig(BaseModel):
     """Top-level user configuration."""
 
@@ -536,6 +607,7 @@ class AppConfig(BaseModel):
     ci: CiConfig = Field(default_factory=CiConfig)
     gitops: GitOpsConfig = Field(default_factory=GitOpsConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
+    logging: LoggingConfig = Field(default_factory=LoggingConfig)
 
     @model_validator(mode="after")
     def validate_ingress_service(self) -> "AppConfig":

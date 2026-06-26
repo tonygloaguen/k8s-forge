@@ -69,6 +69,7 @@ PROMETHEUSRULE_CRD_COMMAND = [
 MONITORING_NAMESPACE_COMMAND = ["kubectl", "get", "ns", "monitoring"]
 MONITORING_DEPLOY_COMMAND = ["kubectl", "-n", "monitoring", "get", "deploy"]
 MONITORING_SERVICE_COMMAND = ["kubectl", "-n", "monitoring", "get", "svc"]
+CLUSTER_PODS_COMMAND = ["kubectl", "get", "pods", "--all-namespaces"]
 
 
 def test_run_local_command_success(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -257,6 +258,12 @@ def test_check_environment_reports_metrics_server_present(
             ("kubectl", "get", "ns", "monitoring"): "monitoring",
             ("kubectl", "-n", "monitoring", "get", "deploy"): "prometheus grafana",
             ("kubectl", "-n", "monitoring", "get", "svc"): "prometheus grafana",
+            (
+                "kubectl",
+                "get",
+                "pods",
+                "--all-namespaces",
+            ): "monitoring loki-0 grafana promtail-agent",
         }
         return subprocess.CompletedProcess(command, 0, outputs[tuple(command)], "")
 
@@ -282,6 +289,10 @@ def test_check_environment_reports_metrics_server_present(
     assert report.trivy.status == "OK"
     assert report.syft.status == "OK"
     assert report.cosign.status == "OK"
+    assert report.loki.status == "OK"
+    assert report.grafana.status == "OK"
+    assert report.promtail.status == "OK"
+    assert report.alloy.status == "missing"
 
 
 def test_check_environment_reports_metrics_server_absent(
@@ -728,4 +739,63 @@ def test_check_environment_reports_observability_absent_as_non_blocking(
     assert report.monitoring_namespace.status == "missing"
     assert report.monitoring_deployments.status == "missing"
     assert report.monitoring_services.status == "missing"
+    assert report.ready is True
+
+
+def test_check_environment_reports_logging_stack_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == CLUSTER_PODS_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "weather pod", "")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.loki.status == "missing"
+    assert report.grafana.status == "missing"
+    assert report.promtail.status == "missing"
+    assert report.alloy.status == "missing"
+    assert report.ready is True
+
+
+def test_check_environment_reports_logging_stack_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == CLUSTER_PODS_COMMAND:
+            return subprocess.CompletedProcess(
+                command, 0, "monitoring loki-0 grafana promtail-agent alloy", ""
+            )
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.loki.status == "OK"
+    assert report.grafana.status == "OK"
+    assert report.promtail.status == "OK"
+    assert report.alloy.status == "OK"
+    assert report.ready is True
+
+
+def test_check_environment_keeps_logging_pod_errors_non_blocking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == CLUSTER_PODS_COMMAND:
+            return subprocess.CompletedProcess(command, 1, "", "api unavailable")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.loki.status == "unavailable"
+    assert report.grafana.status == "unavailable"
+    assert report.promtail.status == "unavailable"
+    assert report.alloy.status == "unavailable"
     assert report.ready is True

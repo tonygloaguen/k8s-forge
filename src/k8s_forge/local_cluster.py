@@ -68,6 +68,10 @@ class DoctorReport:
     monitoring_namespace: ToolCheck
     monitoring_deployments: ToolCheck
     monitoring_services: ToolCheck
+    loki: ToolCheck
+    grafana: ToolCheck
+    promtail: ToolCheck
+    alloy: ToolCheck
 
     @property
     def ready(self) -> bool:
@@ -192,6 +196,21 @@ def _policy_reports_check(timeout: int = 30) -> ToolCheck:
                 "Kyverno CRDs are not installed.",
             )
     return check
+
+
+def _logging_component_check(
+    name: str, source: ToolCheck, markers: tuple[str, ...]
+) -> ToolCheck:
+    if source.status != "OK":
+        return ToolCheck(
+            name,
+            "unavailable",
+            f"Cluster pod listing is unavailable; {name} was not checked",
+        )
+    normalized = source.details.lower()
+    if any(marker in normalized for marker in markers):
+        return ToolCheck(name, "OK", f"Detected {name} in cluster pod listing")
+    return ToolCheck(name, "missing", f"No {name} pods detected")
 
 
 def check_environment(timeout: int = 30) -> DoctorReport:
@@ -329,6 +348,13 @@ def check_environment(timeout: int = 30) -> DoctorReport:
                 "missing",
                 "monitoring namespace is missing; services were not checked",
             )
+        logging_pods = check_command(
+            "cluster pods", ["kubectl", "get", "pods", "--all-namespaces"], timeout
+        )
+        loki = _logging_component_check("Loki", logging_pods, ("loki",))
+        grafana = _logging_component_check("Grafana", logging_pods, ("grafana",))
+        promtail = _logging_component_check("Promtail", logging_pods, ("promtail",))
+        alloy = _logging_component_check("Alloy", logging_pods, ("alloy",))
     else:
         current_context = ToolCheck(
             "current context", "unavailable", "kubectl is not available"
@@ -392,6 +418,10 @@ def check_environment(timeout: int = 30) -> DoctorReport:
         monitoring_services = ToolCheck(
             "monitoring services", "unavailable", "kubectl is not available"
         )
+        loki = ToolCheck("Loki", "unavailable", "kubectl is not available")
+        grafana = ToolCheck("Grafana", "unavailable", "kubectl is not available")
+        promtail = ToolCheck("Promtail", "unavailable", "kubectl is not available")
+        alloy = ToolCheck("Alloy", "unavailable", "kubectl is not available")
 
     return DoctorReport(
         docker,
@@ -425,6 +455,10 @@ def check_environment(timeout: int = 30) -> DoctorReport:
         monitoring_namespace,
         monitoring_deployments,
         monitoring_services,
+        loki,
+        grafana,
+        promtail,
+        alloy,
     )
 
 

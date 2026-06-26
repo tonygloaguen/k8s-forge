@@ -169,3 +169,23 @@ observability:
       title: ""
   alerts:
     enabled: false
+
+logging:
+  enabled: false
+  provider: loki
+  applicationLogs:
+    enabled: true
+    source: stdout
+  loki:
+    namespace: monitoring
+    datasourceName: Loki
+  collector:
+    enabled: true
+    type: promtail
+  grafana:
+    enabled: true
+    dashboard:
+      enabled: true
+      title: ""
+  queries:
+    enabled: true

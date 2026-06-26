@@ -55,6 +55,10 @@ k8s_forge = [
   "observability_templates/*.j2",
   "observability_templates/prometheus/*.j2",
   "observability_templates/grafana/*.j2",
+  "logging_templates/*.j2",
+  "logging_templates/loki/*.j2",
+  "logging_templates/grafana/*.j2",
+  "logging_templates/collector/*.j2",
 ]
 
 [tool.ruff]

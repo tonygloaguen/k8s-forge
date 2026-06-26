@@ -1,0 +1,52 @@
+# Logging Readiness
+
+Application: `{{ app.name }}`
+Namespace: `{{ app.namespace }}`
+Provider: `{{ logging.provider }}`
+Log source: `{{ logging.application_logs.source }}`
+Collector model: `{{ logging.collector.type }}`
+Loki namespace: `{{ logging.loki.namespace }}`
+Grafana datasource name: `{{ logging.loki.datasource_name }}`
+
+This directory contains local logging readiness examples generated from `app.yaml`.
+
+## What Was Generated
+
+- `loki/logql-queries.md`: example LogQL queries for the application namespace and labels.
+- `grafana/logs-dashboard.json`: a local Grafana dashboard JSON model for log exploration.
+- `collector/collector-notes.md`: notes about stdout/stderr log collection and collector setup.
+
+## Logs, Metrics, And Traces
+
+Metrics answer numeric questions such as CPU usage, memory usage, and request rates. Logs are timestamped events written by applications and infrastructure. Traces follow a request across services. v0.12.0 focuses only on logging readiness.
+
+## Kubernetes Application Logs
+
+Kubernetes applications should write useful logs to stdout and stderr. A compatible collector can read container logs from the node and attach Kubernetes labels such as namespace, pod, container, and app labels.
+
+## Loki And LogQL
+
+Loki stores logs and lets you query them with LogQL. The generated queries are examples. Real labels depend on the collector and its relabeling configuration.
+
+## Collector Model
+
+Promtail is used as the pedagogical collector model in v0.12.0. Alloy is a future direction in the Grafana ecosystem, but this version does not generate Alloy configuration.
+
+## Grafana Dashboard
+
+The dashboard JSON is a local model to import manually after Grafana and a Loki datasource exist. `k8s-forge` does not create a Grafana datasource, call the Grafana API, or import the dashboard automatically.
+
+## What k8s-forge Does Not Do
+
+`k8s-forge` does not install Loki, Grafana, Promtail, Alloy, or any logging agent. It does not create credentials, tokens, secrets, or datasources. It does not run cluster apply commands or package manager install commands.
+
+## Review Commands
+
+```bash
+cat README.md
+cat loki/logql-queries.md
+cat grafana/logs-dashboard.json
+cat collector/collector-notes.md
+```
+
+Use these files after a logging stack has been installed manually and validated separately.

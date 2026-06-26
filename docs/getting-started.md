@@ -152,3 +152,7 @@ After CI readiness, see [Module 7 ArgoCD GitOps](module-7-gitops-argocd.md) to g
 ## Next step: observability readiness
 
 After GitOps readiness, see [Module 8 Observability](module-8-observability.md) to generate local Prometheus ServiceMonitor and Grafana dashboard examples.
+
+## Next step: logging readiness
+
+After metrics readiness, see [Module 9 Logging](module-9-logging.md) to generate local Loki LogQL examples, Promtail collector notes, and a Grafana logs dashboard JSON model.

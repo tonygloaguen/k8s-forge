@@ -39,6 +39,10 @@ from k8s_forge.local_cluster import (
     load_docker_image,
     wait_for_nodes_ready,
 )
+from k8s_forge.logging_renderer import (
+    render_logging_files,
+    resolve_logging_dashboard_title,
+)
 from k8s_forge.models import AppConfig
 from k8s_forge.observability_renderer import (
     render_observability_files,
@@ -65,6 +69,7 @@ supply_chain_app = typer.Typer(help="Generate supply chain readiness scripts.")
 ci_app = typer.Typer(help="Generate GitHub Actions CI readiness workflows.")
 gitops_app = typer.Typer(help="Generate ArgoCD GitOps readiness manifests.")
 observability_app = typer.Typer(help="Generate observability readiness files.")
+logging_app = typer.Typer(help="Generate logging readiness files.")
 
 
 class _QuotedString(str):
@@ -803,6 +808,117 @@ def _print_observability_diagnostics(report: DoctorReport) -> None:
         )
 
 
+def _print_logging_warnings(config: AppConfig) -> None:
+    if not config.logging.enabled:
+        return
+    if config.logging.collector.enabled:
+        _print_warning(
+            "Promtail is only the collector model here; it must be installed and "
+            "configured manually for real log collection."
+        )
+    if config.logging.grafana.enabled and config.logging.grafana.dashboard.enabled:
+        _print_warning(
+            "The Grafana logs dashboard is a local model. A Loki datasource must "
+            "be configured manually in Grafana."
+        )
+    _print_hint(
+        "The generated LogQL labels are examples; adapt them to the labels exposed "
+        "by your collector."
+    )
+    _print_hint(
+        "The application must write useful logs to stdout or stderr for Kubernetes "
+        "log collection to be useful."
+    )
+
+
+def _print_logging_summary(config: AppConfig) -> None:
+    if not config.logging.enabled:
+        return
+    _print_hint("Logging readiness is enabled.")
+    _print_hint(
+        "Loki can store and query Kubernetes logs when a compatible collector is "
+        "installed."
+    )
+    _print_hint(
+        "k8s-forge generates logging examples and dashboard files but does not "
+        "install Loki, Grafana, Promtail, Alloy, or logging agents automatically."
+    )
+    _print_hint(f"Logging provider: {config.logging.provider}")
+    _print_hint(f"Application log source: {config.logging.application_logs.source}")
+    _print_hint(f"Collector model: {config.logging.collector.type}")
+    dashboard_state = (
+        "enabled"
+        if config.logging.grafana.enabled and config.logging.grafana.dashboard.enabled
+        else "disabled"
+    )
+    _print_hint(f"Grafana logs dashboard: {dashboard_state}")
+    _print_logging_warnings(config)
+
+
+def _print_logging_render_hint(config_path: Path) -> None:
+    _print_hint("Logging readiness is enabled.")
+    _print_hint("Kubernetes manifests were generated separately.")
+    _print_hint(
+        f"Run: k8s-forge logging render {config_path} --output generated-logging/"
+    )
+
+
+def _print_logging_summary_table(paths: list[Path], output: Path) -> None:
+    table = Table(title="Generated logging files")
+    table.add_column("File")
+    for path in paths:
+        try:
+            rendered = str(path.relative_to(output))
+        except ValueError:
+            rendered = str(path)
+        table.add_row(rendered)
+    console.print(table)
+
+
+def _print_logging_next_steps(output: Path) -> None:
+    _print_hint("Next review commands:")
+    _print_hint(f"  cat {output / 'README.md'}")
+    _print_hint(f"  cat {output / 'loki' / 'logql-queries.md'}")
+    _print_hint(f"  cat {output / 'grafana' / 'logs-dashboard.json'}")
+    _print_hint(f"  cat {output / 'collector' / 'collector-notes.md'}")
+    _print_hint("  k8s-forge doctor")
+
+
+def _print_logging_diagnostics(report: DoctorReport) -> None:
+    _print_step("Checking logging readiness...")
+    _print_hint(
+        "Loki stores logs only after a compatible collector is installed and "
+        "configured."
+    )
+    _print_hint(
+        "k8s-forge does not install Loki, Grafana, Promtail, Alloy, or logging "
+        "agents automatically."
+    )
+    _print_hint(
+        "Generated logging files can be reviewed locally and used after the "
+        "logging stack is installed manually."
+    )
+    if report.loki.status == "OK" and (
+        report.promtail.status == "OK" or report.alloy.status == "OK"
+    ):
+        console.print(
+            "[green]Loki and a compatible log collector appear to be available.[/green]"
+        )
+    else:
+        _print_warning(
+            "Loki or a compatible log collector does not appear to be installed "
+            "in this cluster."
+        )
+        _print_hint(
+            "Generated logging examples can be reviewed locally, but logs will "
+            "be queryable only after a logging stack is installed manually."
+        )
+    if report.grafana.status == "OK":
+        console.print("[green]Grafana appears to be available.[/green]")
+    else:
+        _print_hint("Grafana was not detected for logging dashboard import.")
+
+
 def _print_check_summary(config: AppConfig) -> None:
     """Print a concise validation summary."""
     table = Table(title="Application configuration")
@@ -1040,6 +1156,30 @@ def _starter_config_data(
                 },
             },
             "alerts": {"enabled": False},
+        },
+        "logging": {
+            "enabled": False,
+            "provider": _QuotedString("loki"),
+            "applicationLogs": {
+                "enabled": True,
+                "source": _QuotedString("stdout"),
+            },
+            "loki": {
+                "namespace": _QuotedString("monitoring"),
+                "datasourceName": _QuotedString("Loki"),
+            },
+            "collector": {
+                "enabled": True,
+                "type": _QuotedString("promtail"),
+            },
+            "grafana": {
+                "enabled": True,
+                "dashboard": {
+                    "enabled": True,
+                    "title": _QuotedString(""),
+                },
+            },
+            "queries": {"enabled": True},
         },
     }
 
@@ -1334,6 +1474,7 @@ def check(
     _print_ci_summary(loaded)
     _print_gitops_summary(loaded)
     _print_observability_summary(loaded)
+    _print_logging_summary(loaded)
     _print_autoscaling_warning(loaded)
 
 
@@ -1370,6 +1511,8 @@ def render(
         _print_gitops_render_hint(config_path)
     if loaded.observability.enabled:
         _print_observability_render_hint(config_path)
+    if loaded.logging.enabled:
+        _print_logging_render_hint(config_path)
     _print_autoscaling_warning(loaded)
     console.print("[green]manifests generated[/green]")
     _print_render_summary(generated)
@@ -1607,6 +1750,10 @@ def doctor(
             report.monitoring_namespace,
             report.monitoring_deployments,
             report.monitoring_services,
+            report.loki,
+            report.grafana,
+            report.promtail,
+            report.alloy,
         ]
     )
     if report.metrics_server.status == "OK":
@@ -1674,6 +1821,7 @@ def doctor(
     _print_ci_diagnostics(report)
     _print_argocd_diagnostics(report)
     _print_observability_diagnostics(report)
+    _print_logging_diagnostics(report)
 
     if report.ready:
         console.print("[green]Ready for local kind workflows.[/green]")
@@ -2048,6 +2196,53 @@ def observability_render(
     _print_observability_next_steps(output)
 
 
+@logging_app.command("render")
+def logging_render(
+    config_path: Annotated[Path, typer.Argument(help="Path to app.yaml.")],
+    output: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Output directory for logging files."),
+    ] = Path("generated-logging"),
+    force: Annotated[
+        bool,
+        typer.Option(
+            "--force", help="Overwrite generated logging files if they exist."
+        ),
+    ] = False,
+) -> None:
+    """Render logging readiness files from app.yaml."""
+    _print_step("Rendering logging readiness files from app.yaml...")
+    _print_hint("This creates local Loki, LogQL, and Grafana examples.")
+    _print_hint(
+        "This step does not contact the cluster and does not install logging "
+        "components."
+    )
+    try:
+        loaded = load_app_config(config_path)
+    except ConfigLoadError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    if not loaded.logging.enabled:
+        _print_hint("Logging readiness is disabled in app.yaml.")
+        _print_hint("No logging files were generated.")
+        return
+
+    try:
+        generated = render_logging_files(loaded, output, force=force)
+    except RenderError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    console.print(f"[green]Logging files generated in {output}.[/green]")
+    _print_logging_summary(loaded)
+    _print_hint(
+        f"Grafana logs dashboard title: {resolve_logging_dashboard_title(loaded)}"
+    )
+    _print_logging_summary_table(generated, output)
+    _print_logging_next_steps(output)
+
+
 app.add_typer(cluster_app, name="cluster")
 app.add_typer(image_app, name="image")
 app.add_typer(helm_app, name="helm")
@@ -2055,3 +2250,4 @@ app.add_typer(supply_chain_app, name="supply-chain")
 app.add_typer(ci_app, name="ci")
 app.add_typer(gitops_app, name="gitops")
 app.add_typer(observability_app, name="observability")
+app.add_typer(logging_app, name="logging")

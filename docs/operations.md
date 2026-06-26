@@ -473,3 +473,7 @@ Then inspect `README.md`, run `scan-image.sh` for Trivy, and run `generate-sbom.
 ## Observability Readiness
 
 `k8s-forge observability render app.yaml --output generated-observability/` generates local ServiceMonitor and Grafana dashboard examples. The files are readiness artifacts only: Prometheus Operator CRDs and a monitoring stack must be installed manually before the ServiceMonitor can become active.
+
+## Logging Readiness
+
+`k8s-forge logging render app.yaml --output generated-logging/` generates local LogQL examples, Promtail-oriented collector notes, and a Grafana logs dashboard JSON model. These files do not install Loki, Grafana, Promtail, or Alloy, do not create datasources or secrets, and do not apply manifests.

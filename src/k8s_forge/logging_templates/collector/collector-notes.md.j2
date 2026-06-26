@@ -1,0 +1,30 @@
+# Collector Notes
+
+Promtail is the pedagogical collector model for v0.12.0.
+
+## What A Collector Does
+
+A log collector runs in the cluster, reads pod container logs written to stdout and stderr, attaches Kubernetes metadata, and sends the log streams to Loki.
+
+## Manual Prerequisites
+
+Promtail or Alloy must be installed and configured manually if you want real log collection. `k8s-forge` does not generate installation manifests, package manager commands, credentials, or secrets.
+
+## Labels
+
+The generated Kubernetes resources use labels such as:
+
+```text
+app={{ app.name }}
+app.kubernetes.io/name={{ app.name }}
+```
+
+A collector may expose these labels as `app`, `app_kubernetes_io_name`, or another relabeled form. Adjust LogQL selectors after checking the labels available in Grafana Explore.
+
+## Application Logging
+
+The application should write meaningful logs to stdout and stderr. Structured JSON logs are useful, but v0.12.0 does not require or generate an application logging format.
+
+## Future Direction
+
+Alloy can be used in future versions as a broader telemetry collector. v0.12.0 keeps the output limited to readiness notes and local examples.

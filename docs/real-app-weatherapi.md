@@ -397,3 +397,7 @@ For `weatherapi-platform`, copy the CI config to `k8s-forge-app-gitops.yaml`, en
 ## Module 8 Observability readiness follow-up
 
 For `weatherapi-platform`, copy the GitOps config to `k8s-forge-app-observability.yaml`, enable `observability`, render with `k8s-forge observability render k8s-forge-app-observability.yaml --output generated-observability/`, then review the generated ServiceMonitor and Grafana dashboard JSON. The app must expose `/metrics` and Prometheus Operator CRDs must exist before scraping works.
+
+## Module 9 Logging readiness follow-up
+
+Copy the observability config to `k8s-forge-app-logging.yaml`, enable `logging`, then run `k8s-forge logging render k8s-forge-app-logging.yaml --output generated-logging/`. Review the LogQL examples, collector notes, and Grafana logs dashboard JSON. Loki, Grafana, and Promtail or Alloy must be installed manually before logs are queryable.
