@@ -50,6 +50,10 @@ TRIVY_COMMAND = ["trivy", "--version"]
 SYFT_COMMAND = ["syft", "version"]
 COSIGN_COMMAND = ["cosign", "version"]
 GIT_COMMAND = ["git", "--version"]
+ARGOCD_CLI_COMMAND = ["argocd", "version", "--client"]
+ARGOCD_NAMESPACE_COMMAND = ["kubectl", "get", "ns", "argocd"]
+ARGOCD_DEPLOY_COMMAND = ["kubectl", "-n", "argocd", "get", "deploy"]
+ARGOCD_APPLICATION_CRD_COMMAND = ["kubectl", "get", "crd", "applications.argoproj.io"]
 
 
 def test_run_local_command_success(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -214,6 +218,15 @@ def test_check_environment_reports_metrics_server_present(
             ("syft", "version"): "syft",
             ("cosign", "version"): "cosign",
             ("git", "--version"): "git version 2.43.0",
+            ("argocd", "version", "--client"): "argocd: v2.11.0",
+            ("kubectl", "get", "ns", "argocd"): "argocd",
+            ("kubectl", "-n", "argocd", "get", "deploy"): "argocd-server",
+            (
+                "kubectl",
+                "get",
+                "crd",
+                "applications.argoproj.io",
+            ): "applications.argoproj.io",
         }
         return subprocess.CompletedProcess(command, 0, outputs[tuple(command)], "")
 
@@ -587,4 +600,52 @@ def test_check_environment_reports_git_absent_as_non_blocking(
     report = check_environment()
 
     assert report.git.status == "missing"
+    assert report.ready is True
+
+
+def test_check_environment_reports_argocd_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        outputs = {
+            tuple(ARGOCD_CLI_COMMAND): "argocd: v2.11.0",
+            tuple(ARGOCD_NAMESPACE_COMMAND): "argocd",
+            tuple(ARGOCD_DEPLOY_COMMAND): "argocd-server",
+            tuple(ARGOCD_APPLICATION_CRD_COMMAND): "applications.argoproj.io",
+        }
+        return subprocess.CompletedProcess(
+            command, 0, outputs.get(tuple(command), "ok"), ""
+        )
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.argocd_cli.status == "OK"
+    assert report.argocd_namespace.status == "OK"
+    assert report.argocd_deployments.status == "OK"
+    assert report.argocd_applications_crd.status == "OK"
+
+
+def test_check_environment_reports_argocd_absent_as_non_blocking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == ARGOCD_CLI_COMMAND:
+            raise FileNotFoundError
+        if tuple(command) in {
+            tuple(ARGOCD_NAMESPACE_COMMAND),
+            tuple(ARGOCD_APPLICATION_CRD_COMMAND),
+        }:
+            return subprocess.CompletedProcess(command, 1, "", "not found")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.argocd_cli.status == "missing"
+    assert report.argocd_namespace.status == "missing"
+    assert report.argocd_deployments.status == "missing"
+    assert report.argocd_applications_crd.status == "missing"
     assert report.ready is True

@@ -465,3 +465,7 @@ Then inspect `README.md`, run `scan-image.sh` for Trivy, and run `generate-sbom.
 ## CI Readiness
 
 `k8s-forge ci render app.yaml --output generated-ci/` generates reviewable GitHub Actions workflow files. This is a local file generation step only: it does not push code, create secrets, publish images, or deploy Kubernetes resources. Review the generated files before copying them into `.github/workflows/`.
+
+## GitOps Readiness
+
+`k8s-forge gitops render app.yaml --output generated-gitops/` generates reviewable ArgoCD Application manifests. This is local file generation only: it does not install ArgoCD, push Git commits, create credentials, apply manifests, or synchronize applications.

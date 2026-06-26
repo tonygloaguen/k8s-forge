@@ -50,6 +50,8 @@ k8s_forge = [
   "supply_chain_templates/*.j2",
   "ci_templates/*.j2",
   "ci_templates/workflows/*.j2",
+  "gitops_templates/*.j2",
+  "gitops_templates/argocd/*.j2",
 ]
 
 [tool.ruff]

@@ -117,6 +117,7 @@ real Kubernetes cluster.
 - [Module 3 Linkerd service mesh workflow](module-3-linkerd.md)
 - [Module 4 NetworkPolicy workflow](module-4-networkpolicy.md)
 - [Module 6 CI readiness workflow](module-6-ci.md)
+- [Module 7 ArgoCD GitOps readiness workflow](module-7-gitops-argocd.md)
 - [Design notes](design.md)
 
 ## Local Release Check
@@ -143,3 +144,7 @@ After Kyverno readiness, see [Module 5 Supply Chain](module-5-supply-chain.md) t
 ## Next step: CI readiness
 
 After local Supply Chain readiness, see [Module 6 CI](module-6-ci.md) to generate GitHub Actions workflows for Python quality checks, image scanning, SBOM generation, and artifact upload.
+
+## Next step: GitOps readiness
+
+After CI readiness, see [Module 7 ArgoCD GitOps](module-7-gitops-argocd.md) to generate local ArgoCD Application manifests for Helm-based delivery review.

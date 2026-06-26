@@ -718,3 +718,120 @@ def test_ci_artifacts_enabled_is_strict_boolean() -> None:
 
     with pytest.raises(ValidationError):
         AppConfig.model_validate(config_data)
+
+
+def test_gitops_defaults_when_section_absent() -> None:
+    config = AppConfig.model_validate(_valid_config())
+
+    assert config.gitops.enabled is False
+    assert config.gitops.provider == "argocd"
+    assert config.gitops.application.name == ""
+    assert config.gitops.application.namespace == "argocd"
+    assert config.gitops.application.project == "default"
+    assert config.gitops.destination.server == "https://kubernetes.default.svc"
+    assert config.gitops.destination.namespace == ""
+    assert config.gitops.source.repo_url == ""
+    assert config.gitops.source.target_revision == "main"
+    assert config.gitops.source.path == ""
+    assert config.gitops.source.type == "helm"
+    assert config.gitops.sync_policy.automated is False
+    assert config.gitops.sync_policy.prune is False
+    assert config.gitops.sync_policy.self_heal is False
+
+
+def test_gitops_accepts_argocd_helm_source() -> None:
+    config_data = _valid_config()
+    config_data["gitops"] = {
+        "enabled": True,
+        "provider": "argocd",
+        "source": {
+            "repoURL": "https://github.com/example/app.git",
+            "targetRevision": "main",
+            "path": "charts/app",
+            "type": "helm",
+        },
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.gitops.enabled is True
+    assert config.gitops.source.repo_url == "https://github.com/example/app.git"
+    assert config.gitops.source.path == "charts/app"
+
+
+def test_gitops_rejects_invalid_provider() -> None:
+    config_data = _valid_config()
+    config_data["gitops"] = {"enabled": False, "provider": "flux"}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_gitops_rejects_invalid_source_type() -> None:
+    config_data = _valid_config()
+    config_data["gitops"] = {
+        "enabled": True,
+        "source": {
+            "repoURL": "https://github.com/example/app.git",
+            "path": "manifests",
+            "type": "raw",
+        },
+    }
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_gitops_requires_repo_url_when_enabled() -> None:
+    config_data = _valid_config()
+    config_data["gitops"] = {
+        "enabled": True,
+        "source": {"repoURL": "", "path": "charts/app"},
+    }
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_gitops_requires_source_path_when_enabled() -> None:
+    config_data = _valid_config()
+    config_data["gitops"] = {
+        "enabled": True,
+        "source": {"repoURL": "https://github.com/example/app.git", "path": ""},
+    }
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_gitops_accepts_empty_fallback_fields() -> None:
+    config_data = _valid_config()
+    config_data["gitops"] = {
+        "enabled": True,
+        "application": {"name": ""},
+        "destination": {"namespace": ""},
+        "source": {
+            "repoURL": "https://github.com/example/app.git",
+            "path": "charts/app",
+        },
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.gitops.application.name == ""
+    assert config.gitops.destination.namespace == ""
+
+
+def test_gitops_sync_policy_flags_are_strict_booleans() -> None:
+    config_data = _valid_config()
+    config_data["gitops"] = {
+        "enabled": True,
+        "source": {
+            "repoURL": "https://github.com/example/app.git",
+            "path": "charts/app",
+        },
+        "syncPolicy": {"automated": "true", "prune": False, "selfHeal": False},
+    }
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)

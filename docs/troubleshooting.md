@@ -54,3 +54,7 @@ kubectl -n <namespace> logs <pod-name>
 ## CI readiness notes
 
 If Git is missing, `k8s-forge doctor` reports it as a non-blocking CI readiness issue. Install Git before committing generated workflows. If generated workflows already exist, rerun `k8s-forge ci render` with `--force` only after reviewing the existing files.
+
+## GitOps readiness notes
+
+If ArgoCD is missing, `k8s-forge doctor` reports it as non-blocking. Generated Application manifests can be reviewed locally, but a cluster accepts them only after ArgoCD CRDs are installed manually.

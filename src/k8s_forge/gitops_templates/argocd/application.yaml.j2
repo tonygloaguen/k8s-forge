@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ application_name | tojson }}
+  namespace: {{ gitops.application.namespace | tojson }}
+spec:
+  project: {{ gitops.application.project | tojson }}
+  source:
+    repoURL: {{ gitops.source.repo_url | tojson }}
+    targetRevision: {{ gitops.source.target_revision | tojson }}
+    path: {{ gitops.source.path | tojson }}
+  destination:
+    server: {{ gitops.destination.server | tojson }}
+    namespace: {{ destination_namespace | tojson }}
+{% if gitops.sync_policy.automated %}
+  syncPolicy:
+    automated:
+      prune: {{ gitops.sync_policy.prune | lower }}
+      selfHeal: {{ gitops.sync_policy.self_heal | lower }}
+{% else %}
+  syncPolicy: {}
+{% endif %}

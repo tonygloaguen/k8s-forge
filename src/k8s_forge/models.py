@@ -356,6 +356,76 @@ class CiConfig(BaseModel):
     artifacts: CiArtifactsConfig = Field(default_factory=CiArtifactsConfig)
 
 
+class GitOpsApplicationConfig(BaseModel):
+    """ArgoCD Application metadata configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = ""
+    namespace: str = Field(default="argocd", min_length=1)
+    project: str = Field(default="default", min_length=1)
+
+
+class GitOpsDestinationConfig(BaseModel):
+    """ArgoCD Application destination configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    server: str = Field(default="https://kubernetes.default.svc", min_length=1)
+    namespace: str = ""
+
+
+class GitOpsSourceConfig(BaseModel):
+    """ArgoCD Application source configuration."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    repo_url: str = Field(default="", alias="repoURL")
+    target_revision: str = Field(default="main", alias="targetRevision", min_length=1)
+    path: str = ""
+    type: Literal["helm"] = "helm"
+
+
+class GitOpsSyncPolicyConfig(BaseModel):
+    """ArgoCD synchronization policy readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    automated: StrictBool = False
+    prune: StrictBool = False
+    self_heal: StrictBool = Field(default=False, alias="selfHeal")
+
+
+class GitOpsConfig(BaseModel):
+    """ArgoCD GitOps readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    enabled: StrictBool = False
+    provider: Literal["argocd"] = "argocd"
+    application: GitOpsApplicationConfig = Field(
+        default_factory=GitOpsApplicationConfig
+    )
+    destination: GitOpsDestinationConfig = Field(
+        default_factory=GitOpsDestinationConfig
+    )
+    source: GitOpsSourceConfig = Field(default_factory=GitOpsSourceConfig)
+    sync_policy: GitOpsSyncPolicyConfig = Field(
+        default_factory=GitOpsSyncPolicyConfig, alias="syncPolicy"
+    )
+
+    @model_validator(mode="after")
+    def validate_enabled_gitops(self) -> "GitOpsConfig":
+        """Require source fields when GitOps readiness is enabled."""
+        if self.enabled and not self.source.repo_url.strip():
+            msg = "source.repoURL is required when gitops.enabled is true"
+            raise ValueError(msg)
+        if self.enabled and not self.source.path.strip():
+            msg = "source.path is required when gitops.enabled is true"
+            raise ValueError(msg)
+        return self
+
+
 class AppConfig(BaseModel):
     """Top-level user configuration."""
 
@@ -374,6 +444,7 @@ class AppConfig(BaseModel):
     policy: PolicyConfig = Field(default_factory=PolicyConfig)
     supplyChain: SupplyChainConfig = Field(default_factory=SupplyChainConfig)
     ci: CiConfig = Field(default_factory=CiConfig)
+    gitops: GitOpsConfig = Field(default_factory=GitOpsConfig)
 
     @model_validator(mode="after")
     def validate_ingress_service(self) -> "AppConfig":

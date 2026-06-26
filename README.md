@@ -24,6 +24,7 @@ name.
 - generate optional Kyverno baseline Policy manifests in Audit mode;
 - generate local Supply Chain readiness scripts for Trivy, Syft, and optional Cosign;
 - generate GitHub Actions CI readiness workflows for Python and image security checks;
+- generate ArgoCD GitOps readiness manifests for Helm-based delivery review;
 - run guarded `kubectl` workflows for `dry-run`, `diff`, `apply`, and `status`;
 - check local Docker/kind/kubectl prerequisites and manage a local kind cluster;
 - keep generated manifests inspectable before cluster operations.
@@ -76,8 +77,8 @@ k8s-forge check app.yaml
 k8s-forge render app.yaml --output generated/
 k8s-forge helm render app.yaml --output charts/
 k8s-forge ci render app.yaml --output generated-ci/
+k8s-forge gitops render app.yaml --output generated-gitops/
 k8s-forge supply-chain render app.yaml --output generated-supply-chain/
-k8s-forge ci render app.yaml --output generated-ci/
 k8s-forge image load demo-app:latest --cluster devsecops
 k8s-forge dry-run app.yaml --output generated/
 k8s-forge diff app.yaml --output generated/
@@ -170,6 +171,10 @@ When `supplyChain.enabled` is true, `k8s-forge` can generate local helper script
 
 When `ci.enabled` is true, `k8s-forge` can generate GitHub Actions workflow files for Python quality checks, package build, local image scanning with Trivy, SBOM generation with Syft, and artifact upload. It does not push images, create secrets, deploy Kubernetes resources, or configure GitOps.
 
+## Module 7 GitOps
+
+When `gitops.enabled` is true, `k8s-forge` can generate local ArgoCD `Application` manifests that point to a Helm chart path in Git. It does not install ArgoCD, push commits, create credentials, apply manifests, or sync applications.
+
 ## Local kind Bootstrap
 
 `k8s-forge doctor` checks Docker, kind, kubectl, the current context, and
@@ -219,6 +224,7 @@ examples and tests.
 - [Module 4 Kyverno workflow](docs/module-4-kyverno.md)
 - [Module 5 Supply Chain workflow](docs/module-5-supply-chain.md)
 - [Module 6 CI readiness workflow](docs/module-6-ci.md)
+- [Module 7 ArgoCD GitOps readiness workflow](docs/module-7-gitops-argocd.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Real app case study: weatherapi-platform](docs/real-app-weatherapi.md)
 - [Design notes](docs/design.md)

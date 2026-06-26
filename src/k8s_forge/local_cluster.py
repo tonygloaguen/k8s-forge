@@ -59,6 +59,10 @@ class DoctorReport:
     syft: ToolCheck
     cosign: ToolCheck
     git: ToolCheck
+    argocd_cli: ToolCheck
+    argocd_namespace: ToolCheck
+    argocd_deployments: ToolCheck
+    argocd_applications_crd: ToolCheck
 
     @property
     def ready(self) -> bool:
@@ -197,6 +201,7 @@ def check_environment(timeout: int = 30) -> DoctorReport:
     syft = check_command("Syft", ["syft", "version"], timeout)
     cosign = check_command("Cosign", ["cosign", "version"], timeout)
     git = check_command("Git", ["git", "--version"], timeout)
+    argocd_cli = check_command("ArgoCD CLI", ["argocd", "version", "--client"], timeout)
 
     if kubectl.status == "OK":
         current_context = check_command(
@@ -264,6 +269,26 @@ def check_environment(timeout: int = 30) -> DoctorReport:
             )
         kyverno_crds = _kyverno_crd_check(timeout)
         policy_reports = _policy_reports_check(timeout)
+        argocd_namespace = _linkerd_optional_check(
+            "ArgoCD namespace", ["kubectl", "get", "ns", "argocd"], timeout
+        )
+        if argocd_namespace.status == "OK":
+            argocd_deployments = _linkerd_optional_check(
+                "ArgoCD deployments",
+                ["kubectl", "-n", "argocd", "get", "deploy"],
+                timeout,
+            )
+        else:
+            argocd_deployments = ToolCheck(
+                "ArgoCD deployments",
+                "missing",
+                "ArgoCD namespace is missing; deployments were not checked",
+            )
+        argocd_applications_crd = _linkerd_optional_check(
+            "ArgoCD Application CRD",
+            ["kubectl", "get", "crd", "applications.argoproj.io"],
+            timeout,
+        )
     else:
         current_context = ToolCheck(
             "current context", "unavailable", "kubectl is not available"
@@ -303,6 +328,15 @@ def check_environment(timeout: int = 30) -> DoctorReport:
         policy_reports = ToolCheck(
             "PolicyReports", "unavailable", "kubectl is not available"
         )
+        argocd_namespace = ToolCheck(
+            "ArgoCD namespace", "unavailable", "kubectl is not available"
+        )
+        argocd_deployments = ToolCheck(
+            "ArgoCD deployments", "unavailable", "kubectl is not available"
+        )
+        argocd_applications_crd = ToolCheck(
+            "ArgoCD Application CRD", "unavailable", "kubectl is not available"
+        )
 
     return DoctorReport(
         docker,
@@ -327,6 +361,10 @@ def check_environment(timeout: int = 30) -> DoctorReport:
         syft,
         cosign,
         git,
+        argocd_cli,
+        argocd_namespace,
+        argocd_deployments,
+        argocd_applications_crd,
     )
 
 

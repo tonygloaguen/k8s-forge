@@ -128,6 +128,26 @@ ci:
       format: cyclonedx-json
   artifacts:
     enabled: true
+
+gitops:
+  enabled: false
+  provider: argocd
+  application:
+    name: ""
+    namespace: argocd
+    project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ""
+  source:
+    repoURL: ""
+    targetRevision: main
+    path: charts-generated/demo-app
+    type: helm
+  syncPolicy:
+    automated: false
+    prune: false
+    selfHeal: false
 ```
 
 ## Field Reference
@@ -183,6 +203,18 @@ ci:
 | `ci.container.scan.severity` | list of strings | No | `HIGH`, `CRITICAL` | `UNKNOWN`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL` | Trivy severity threshold |
 | `ci.container.sbom.format` | string | No | `cyclonedx-json` | `cyclonedx-json`, `spdx-json`, `syft-json` | Syft SBOM output format |
 | `ci.artifacts.enabled` | boolean | No | `true` | boolean only | Controls generated artifact upload steps |
+| `gitops.enabled` | boolean | No | `false` | boolean only | Controls ArgoCD GitOps readiness file generation |
+| `gitops.provider` | string | No | `argocd` | only `argocd` in v0.10.0 | Selects the GitOps provider |
+| `gitops.application.name` | string | No | empty | falls back to `app.name` | ArgoCD Application name |
+| `gitops.application.namespace` | string | No | `argocd` | non-empty | Namespace where ArgoCD watches Application objects |
+| `gitops.destination.namespace` | string | No | empty | falls back to `app.namespace` | Namespace where ArgoCD deploys the workload |
+| `gitops.source.repoURL` | string | Required if enabled | empty | non-empty when enabled | Git repository containing the desired state |
+| `gitops.source.targetRevision` | string | No | `main` | non-empty | Branch, tag, or commit watched by ArgoCD |
+| `gitops.source.path` | string | Required if enabled | `charts-generated/<app>` | non-empty when enabled | Helm chart path inside the repo |
+| `gitops.source.type` | string | No | `helm` | only `helm` in v0.10.0 | Documents source type |
+| `gitops.syncPolicy.automated` | boolean | No | `false` | boolean only | Controls generated ArgoCD automated sync policy |
+| `gitops.syncPolicy.prune` | boolean | No | `false` | boolean only | Allows ArgoCD to delete resources removed from Git when automated sync is enabled |
+| `gitops.syncPolicy.selfHeal` | boolean | No | `false` | boolean only | Allows ArgoCD to revert manual cluster drift when automated sync is enabled |
 
 ## Section Details
 
@@ -400,6 +432,26 @@ ci:
       format: cyclonedx-json
   artifacts:
     enabled: true
+
+gitops:
+  enabled: false
+  provider: argocd
+  application:
+    name: ""
+    namespace: argocd
+    project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ""
+  source:
+    repoURL: ""
+    targetRevision: main
+    path: charts-generated/demo-app
+    type: helm
+  syncPolicy:
+    automated: false
+    prune: false
+    selfHeal: false
 ```
 
 ## Invalid Examples
@@ -629,3 +681,10 @@ The `ci` section controls GitHub Actions readiness generation. It does not affec
 `ci.yml` covers Python quality checks, tests, dependency audit, and package build. `security.yml` builds the configured image locally in GitHub Actions, scans it with Trivy, generates an SBOM with Syft, and optionally uploads artifacts.
 
 `k8s-forge` does not create GitHub secrets, push images, publish packages, run `kubectl apply`, or deploy Kubernetes resources in v0.9.0.
+
+
+### `gitops`
+
+The `gitops` section controls ArgoCD readiness generation. It does not affect raw Kubernetes rendering, Helm chart rendering, CI workflows, or cluster state. Use `k8s-forge gitops render app.yaml --output generated-gitops/` to generate reviewable ArgoCD files.
+
+`k8s-forge` generates an ArgoCD `Application` only in v0.10.0. It does not generate `AppProject`, credentials, Flux resources, `kubectl apply`, or `argocd app sync` commands. Manual sync is the default.

@@ -389,3 +389,7 @@ The generated scripts do not contain secrets and do not install Trivy, Syft, or 
 ## Module 6 CI readiness follow-up
 
 For `weatherapi-platform`, create a CI-specific config from the Supply Chain config, enable `ci`, then run `k8s-forge ci render k8s-forge-app-ci.yaml --output generated-ci/`. Review `generated-ci/.github/workflows/ci.yml` and `security.yml` before copying them into the application repository.
+
+## Module 7 GitOps readiness follow-up
+
+For `weatherapi-platform`, copy the CI config to `k8s-forge-app-gitops.yaml`, enable `gitops`, point `source.repoURL` to the application repository, and render with `k8s-forge gitops render k8s-forge-app-gitops.yaml --output generated-gitops/`.

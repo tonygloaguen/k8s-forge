@@ -1,0 +1,60 @@
+# ArgoCD GitOps Readiness
+
+Application: `{{ application_name }}`
+ArgoCD namespace: `{{ gitops.application.namespace }}`
+Destination namespace: `{{ destination_namespace }}`
+Source repository: `{{ gitops.source.repo_url }}`
+Source path: `{{ gitops.source.path }}`
+
+This directory contains local ArgoCD manifest examples generated from `app.yaml`.
+`k8s-forge` does not install ArgoCD, does not push Git commits, does not create credentials, does not apply manifests, and does not synchronize applications automatically.
+
+## What GitOps Means Here
+
+GitOps means a Git repository holds the desired state. ArgoCD reads that repository, compares the desired state with the cluster, and can synchronize differences when an operator chooses to do so.
+
+The generated `Application` points ArgoCD at a Helm chart path in Git:
+
+```text
+{{ gitops.source.repo_url }}
+{{ gitops.source.target_revision }}
+{{ gitops.source.path }}
+```
+
+## Generated Files
+
+- `argocd/application.yaml`: namespace-scoped ArgoCD `Application` manifest.
+
+## Synchronization Mode
+
+{% if gitops.sync_policy.automated -%}
+Automated sync is enabled in the generated manifest. Review this carefully before applying it to a real ArgoCD installation.
+
+- prune: `{{ gitops.sync_policy.prune }}`
+- selfHeal: `{{ gitops.sync_policy.self_heal }}`
+{% else -%}
+Automated sync is disabled. The generated `Application` uses manual synchronization by default.
+{% endif %}
+
+## Review Commands
+
+```bash
+cat argocd/application.yaml
+k8s-forge doctor
+```
+
+If ArgoCD is installed manually later, review the manifest and apply it yourself. `k8s-forge` intentionally does not run `kubectl apply` or `argocd app sync`.
+
+## Private Repositories
+
+Private repository credentials must be configured manually in ArgoCD. `k8s-forge` never generates Git credentials, GitHub secrets, ArgoCD secrets, tokens, or passwords.
+
+## Scope v0.10.0
+
+- ArgoCD `Application` only;
+- no `AppProject`;
+- Helm source only;
+- no Flux support;
+- no automatic sync;
+- no Git push;
+- no cluster modification.

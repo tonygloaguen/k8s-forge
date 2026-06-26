@@ -18,6 +18,11 @@ from k8s_forge.exceptions import (
     LocalCommandError,
     RenderError,
 )
+from k8s_forge.gitops_renderer import (
+    render_gitops_files,
+    resolve_gitops_application_name,
+    resolve_gitops_destination_namespace,
+)
 from k8s_forge.helm_renderer import render_helm_chart
 from k8s_forge.kubectl import KubectlResult, run_kubectl
 from k8s_forge.local_cluster import (
@@ -53,6 +58,7 @@ image_app = typer.Typer(help="Manage local images for kind clusters.")
 helm_app = typer.Typer(help="Generate local Helm charts.")
 supply_chain_app = typer.Typer(help="Generate supply chain readiness scripts.")
 ci_app = typer.Typer(help="Generate GitHub Actions CI readiness workflows.")
+gitops_app = typer.Typer(help="Generate ArgoCD GitOps readiness manifests.")
 
 
 class _QuotedString(str):
@@ -595,6 +601,97 @@ def _print_ci_diagnostics(report: DoctorReport) -> None:
         )
 
 
+def _print_gitops_warnings(config: AppConfig) -> None:
+    if not config.gitops.enabled:
+        return
+    repo_url = config.gitops.source.repo_url
+    if "example" in repo_url.lower():
+        _print_warning("The GitOps repoURL still looks like an example value.")
+    if not repo_url.strip():
+        _print_warning("gitops.source.repoURL is empty.")
+    if not config.gitops.source.path.strip():
+        _print_warning("gitops.source.path is empty.")
+    if config.gitops.sync_policy.automated:
+        _print_warning("ArgoCD automated sync is enabled. Review this carefully.")
+    if config.gitops.sync_policy.prune:
+        _print_warning(
+            "ArgoCD prune is enabled. It can delete resources missing from Git."
+        )
+    if config.gitops.sync_policy.self_heal:
+        _print_warning(
+            "ArgoCD selfHeal is enabled. It can revert manual cluster changes."
+        )
+
+
+def _print_gitops_summary(config: AppConfig) -> None:
+    if not config.gitops.enabled:
+        return
+    _print_hint("GitOps readiness is enabled.")
+    _print_hint(
+        "ArgoCD can continuously compare a Git repository with the cluster state."
+    )
+    _print_hint(
+        "k8s-forge generates ArgoCD manifests but does not install ArgoCD, "
+        "push Git commits, or sync applications automatically."
+    )
+    _print_hint(f"ArgoCD Application: {resolve_gitops_application_name(config)}")
+    _print_hint(
+        f"Destination namespace: {resolve_gitops_destination_namespace(config)}"
+    )
+    _print_gitops_warnings(config)
+
+
+def _print_gitops_render_hint(config_path: Path) -> None:
+    _print_hint("GitOps readiness is enabled.")
+    _print_hint("Kubernetes manifests were generated separately.")
+    _print_hint(
+        f"Run: k8s-forge gitops render {config_path} --output generated-gitops/"
+    )
+
+
+def _print_gitops_summary_table(paths: list[Path], output: Path) -> None:
+    table = Table(title="Generated GitOps files")
+    table.add_column("File")
+    for path in paths:
+        try:
+            rendered = str(path.relative_to(output))
+        except ValueError:
+            rendered = str(path)
+        table.add_row(rendered)
+    console.print(table)
+
+
+def _print_gitops_next_steps(output: Path) -> None:
+    _print_hint("Next review commands:")
+    _print_hint(f"  cat {output / 'README.md'}")
+    _print_hint(f"  cat {output / 'argocd' / 'application.yaml'}")
+    _print_hint("  k8s-forge doctor")
+
+
+def _print_argocd_diagnostics(report: DoctorReport) -> None:
+    _print_step("Checking ArgoCD GitOps readiness...")
+    _print_hint(
+        "ArgoCD manifests can be reviewed locally, but they become active only "
+        "after ArgoCD is installed in the cluster."
+    )
+    _print_hint(
+        "k8s-forge does not install ArgoCD and does not sync applications "
+        "automatically."
+    )
+    if (
+        report.argocd_namespace.status == "OK"
+        and report.argocd_deployments.status == "OK"
+        and report.argocd_applications_crd.status == "OK"
+    ):
+        console.print("[green]ArgoCD appears to be installed.[/green]")
+    else:
+        _print_warning("ArgoCD does not appear to be installed in this cluster.")
+        _print_hint(
+            "Generated Application manifests can be reviewed locally, but they "
+            "will be accepted by the cluster only after ArgoCD CRDs are installed."
+        )
+
+
 def _print_check_summary(config: AppConfig) -> None:
     """Print a concise validation summary."""
     table = Table(title="Application configuration")
@@ -784,6 +881,30 @@ def _starter_config_data(
             },
             "artifacts": {
                 "enabled": True,
+            },
+        },
+        "gitops": {
+            "enabled": False,
+            "provider": _QuotedString("argocd"),
+            "application": {
+                "name": _QuotedString(""),
+                "namespace": _QuotedString("argocd"),
+                "project": _QuotedString("default"),
+            },
+            "destination": {
+                "server": _QuotedString("https://kubernetes.default.svc"),
+                "namespace": _QuotedString(""),
+            },
+            "source": {
+                "repoURL": _QuotedString(""),
+                "targetRevision": _QuotedString("main"),
+                "path": _QuotedString(f"charts-generated/{name}"),
+                "type": _QuotedString("helm"),
+            },
+            "syncPolicy": {
+                "automated": False,
+                "prune": False,
+                "selfHeal": False,
             },
         },
     }
@@ -1077,6 +1198,7 @@ def check(
         _print_policy_validation_commands(loaded)
     _print_supply_chain_summary(loaded)
     _print_ci_summary(loaded)
+    _print_gitops_summary(loaded)
     _print_autoscaling_warning(loaded)
 
 
@@ -1109,6 +1231,8 @@ def render(
         _print_supply_chain_render_hint(config_path)
     if loaded.ci.enabled:
         _print_ci_render_hint(config_path)
+    if loaded.gitops.enabled:
+        _print_gitops_render_hint(config_path)
     _print_autoscaling_warning(loaded)
     console.print("[green]manifests generated[/green]")
     _print_render_summary(generated)
@@ -1337,6 +1461,10 @@ def doctor(
             report.syft,
             report.cosign,
             report.git,
+            report.argocd_cli,
+            report.argocd_namespace,
+            report.argocd_deployments,
+            report.argocd_applications_crd,
         ]
     )
     if report.metrics_server.status == "OK":
@@ -1402,6 +1530,7 @@ def doctor(
     _print_kyverno_diagnostics(report)
     _print_supply_chain_diagnostics(report)
     _print_ci_diagnostics(report)
+    _print_argocd_diagnostics(report)
 
     if report.ready:
         console.print("[green]Ready for local kind workflows.[/green]")
@@ -1690,8 +1819,48 @@ def ci_render(
     _print_ci_next_steps(output)
 
 
+@gitops_app.command("render")
+def gitops_render(
+    config_path: Annotated[Path, typer.Argument(help="Path to app.yaml.")],
+    output: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Output directory for GitOps files."),
+    ] = Path("generated-gitops"),
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Overwrite generated GitOps files if they exist."),
+    ] = False,
+) -> None:
+    """Render ArgoCD GitOps readiness files from app.yaml."""
+    _print_step("Rendering GitOps readiness files from app.yaml...")
+    _print_hint("This creates local ArgoCD manifest examples.")
+    _print_hint("This step does not contact the cluster and does not install ArgoCD.")
+    try:
+        loaded = load_app_config(config_path)
+    except ConfigLoadError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    if not loaded.gitops.enabled:
+        _print_hint("GitOps readiness is disabled in app.yaml.")
+        _print_hint("No GitOps files were generated.")
+        return
+
+    try:
+        generated = render_gitops_files(loaded, output, force=force)
+    except RenderError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    console.print(f"[green]GitOps files generated in {output}.[/green]")
+    _print_gitops_summary(loaded)
+    _print_gitops_summary_table(generated, output)
+    _print_gitops_next_steps(output)
+
+
 app.add_typer(cluster_app, name="cluster")
 app.add_typer(image_app, name="image")
 app.add_typer(helm_app, name="helm")
 app.add_typer(supply_chain_app, name="supply-chain")
 app.add_typer(ci_app, name="ci")
+app.add_typer(gitops_app, name="gitops")

@@ -128,3 +128,23 @@ ci:
       format: cyclonedx-json
   artifacts:
     enabled: true
+
+gitops:
+  enabled: false
+  provider: argocd
+  application:
+    name: ""
+    namespace: argocd
+    project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ""
+  source:
+    repoURL: ""
+    targetRevision: main
+    path: charts-generated/demo-app
+    type: helm
+  syncPolicy:
+    automated: false
+    prune: false
+    selfHeal: false
