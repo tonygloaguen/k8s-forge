@@ -1393,3 +1393,76 @@ def test_ansible_project_name_can_be_empty_for_fallback() -> None:
     config = AppConfig.model_validate(config_data)
 
     assert config.ansible.project_name == ""
+
+
+def test_security_defaults_when_section_absent() -> None:
+    config = AppConfig.model_validate(_valid_config())
+
+    assert config.security.enabled is False
+    assert config.security.project_name == ""
+    assert config.security.container.enabled is True
+    assert config.security.manifests.enabled is True
+    assert config.security.rbac.enabled is True
+    assert config.security.pod_security.enabled is True
+    assert config.security.network.enabled is True
+    assert config.security.secrets.enabled is True
+    assert config.security.supply_chain.enabled is True
+    assert config.security.checklist.enabled is True
+    assert config.security.examples.enabled is True
+
+
+def test_security_enabled_config_is_valid() -> None:
+    config_data = _valid_config()
+    config_data["security"] = {
+        "enabled": True,
+        "projectName": "weather-security",
+        "container": {"enabled": True},
+        "manifests": {"enabled": True},
+        "rbac": {"enabled": True},
+        "podSecurity": {"enabled": True},
+        "network": {"enabled": True},
+        "secrets": {"enabled": True},
+        "supplyChain": {"enabled": True},
+        "checklist": {"enabled": True},
+        "examples": {"enabled": True},
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.security.enabled is True
+    assert config.security.project_name == "weather-security"
+    assert config.security.pod_security.enabled is True
+    assert config.security.supply_chain.enabled is True
+
+
+def test_security_project_name_can_be_empty_for_fallback() -> None:
+    config_data = _valid_config()
+    config_data["security"] = {"enabled": True, "projectName": ""}
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.security.project_name == ""
+
+
+@pytest.mark.parametrize(
+    ("section", "payload"),
+    [
+        ("container", {"enabled": "yes"}),
+        ("manifests", {"enabled": "yes"}),
+        ("rbac", {"enabled": "yes"}),
+        ("podSecurity", {"enabled": "yes"}),
+        ("network", {"enabled": "yes"}),
+        ("secrets", {"enabled": "yes"}),
+        ("supplyChain", {"enabled": "yes"}),
+        ("checklist", {"enabled": "yes"}),
+        ("examples", {"enabled": "yes"}),
+    ],
+)
+def test_security_rejects_non_strict_booleans(
+    section: str, payload: dict[str, object]
+) -> None:
+    config_data = _valid_config()
+    config_data["security"] = {section: payload}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)

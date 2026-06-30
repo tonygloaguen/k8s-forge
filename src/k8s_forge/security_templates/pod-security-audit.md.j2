@@ -1,0 +1,21 @@
+# Pod Security Audit
+
+This review lists Pod Security controls to compare against the generated Deployment and any future Helm chart values.
+
+## Recommended controls
+
+- `runAsNonRoot: true`
+- explicit `runAsUser` when the image supports it
+- `allowPrivilegeEscalation: false`
+- `readOnlyRootFilesystem: true` when writable paths are not required
+- `capabilities.drop: ["ALL"]`
+- `seccompProfile` set to `RuntimeDefault`
+- no `hostNetwork`
+- no `hostPID`
+- no `hostIPC`
+- no privileged container
+- CPU and memory resources defined
+
+## Manual validation
+
+These controls must be reviewed in the rendered manifests and in any runtime admission policy. This readiness file does not inspect a live Pod and does not enforce Pod Security admission.

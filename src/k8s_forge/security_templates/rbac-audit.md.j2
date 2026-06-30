@@ -1,0 +1,19 @@
+# RBAC and ServiceAccount Audit
+
+k8s-forge currently focuses on application manifests and readiness files, so this audit is mainly a manual RBAC review guide.
+
+## High-risk RBAC patterns to review
+
+- ServiceAccount bound to `cluster-admin`.
+- Role or ClusterRole using `verbs: ["*"]`.
+- Role or ClusterRole using `resources: ["*"]`.
+- Permissions granting broad access to `secrets`.
+- Permissions using `impersonate`, `bind`, or `escalate`.
+- Pods running with the ServiceAccount `default` without an explicit decision.
+- Workloads exposed through a ServiceAccount with unnecessary namespace or cluster scope.
+
+## Recommended posture
+
+Use least privilege. Create dedicated ServiceAccounts only when the workload needs API access, bind only the resources and verbs required, and review RoleBindings separately from application delivery.
+
+This file does not query live RBAC state and does not prove runtime access decisions.

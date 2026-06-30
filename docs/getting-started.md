@@ -168,3 +168,7 @@ After tracing readiness, see [Module 11 Terraform](module-11-terraform.md) to ge
 ## Next step: Ansible readiness
 
 After Terraform readiness, see [Module 12 Ansible](module-12-ansible.md) to generate local automation examples without executing Ansible or modifying hosts.
+
+## Next step: Security Audit readiness
+
+After Ansible readiness, see [Module 13 Security Audit](module-13-security-audit.md) to generate a local hardening dossier without running scanners or contacting the cluster.

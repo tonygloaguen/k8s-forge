@@ -61,3 +61,7 @@ does not run Helm and does not install releases. Ingress rendering targets exist
 ## Ansible Readiness Renderer
 
 `ansible_renderer.py` should remain separate from Kubernetes, Helm, Terraform, and observability renderers. It produces local Ansible examples only and does not run Ansible, open remote sessions, modify hosts, create secrets, or deploy resources.
+
+## Security Audit Readiness Renderer
+
+`security_renderer.py` remains separate from Kubernetes, Helm, Supply Chain, CI, GitOps, observability, Terraform, and Ansible renderers. It produces local Markdown review files only and does not run scanners, contact the cluster, or modify doctor checks.

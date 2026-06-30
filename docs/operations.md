@@ -489,3 +489,7 @@ Then inspect `README.md`, run `scan-image.sh` for Trivy, and run `generate-sbom.
 ## Ansible Readiness
 
 `k8s-forge ansible render app.yaml --output generated-ansible/` generates local Ansible examples for automation review. These files do not run Ansible, open remote sessions, modify servers, contact Kubernetes, run Helm, run Terraform, or create secrets.
+
+## Security Audit Readiness
+
+`k8s-forge security render app.yaml --output generated-security-audit/` generates a local hardening dossier for containers, manifests, RBAC, Pod Security, network exposure, secrets handling, and supply chain review. These files do not run scanners, contact Kubernetes, or prove runtime compliance.

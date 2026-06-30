@@ -1,0 +1,21 @@
+# Network Security Audit
+
+Namespace: `{{ app.namespace }}`
+Service exposure review for `{{ app.name }}`.
+
+## Current config signals
+
+- NetworkPolicy: `{{ "enabled" if network_policy.enabled else "not enabled" }}`
+- NetworkPolicy profile: `{{ network_policy.profile }}`
+- Ingress: `{{ "enabled" if ingress.enabled else "not enabled" }}`
+- Ingress TLS: `{{ "enabled" if ingress.tls.enabled else "not enabled" }}`
+- cert-manager readiness: `{{ "enabled" if ingress.certManager.enabled else "not enabled" }}`
+
+## Review points
+
+- Prefer an ingress-only policy for initial least-privilege learning.
+- Keep Service type minimal and avoid unnecessary NodePort exposure.
+- Use Ingress TLS for real HTTP exposure.
+- cert-manager readiness still requires a controller and issuer at runtime.
+- Review egress separately before connecting the application to external services.
+- Keep exposure minimal and document every allowed path.

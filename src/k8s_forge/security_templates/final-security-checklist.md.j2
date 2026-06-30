@@ -1,0 +1,19 @@
+# Final Security Checklist
+
+Project: `{{ project_name }}`
+Application: `{{ app.name }}`
+Namespace: `{{ app.namespace }}`
+
+| Control | Status | Source | Risk | Recommended action |
+| --- | --- | --- | --- | --- |
+{% for item in checklist_items -%}
+| {{ item.control }} | {{ item.status }} | {{ item.source }} | {{ item.risk }} | {{ item.recommended_action }} |
+{% endfor %}
+
+## Status legend
+
+- `ok`: the configuration enables the readiness control or looks consistent for local review.
+- `warning`: the configuration is accepted for labs but should be hardened.
+- `manual`: the control needs human review or a runtime stack.
+- `not enabled`: the readiness feature is disabled in the current config.
+- `out of scope`: the control belongs to a later platform workflow.

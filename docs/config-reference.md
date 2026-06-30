@@ -912,3 +912,48 @@ ansible:
 | `ansible.collections.kubernetes.enabled` | boolean | No | `true` | boolean only | Documents Kubernetes collection readiness |
 | `ansible.collections.community.enabled` | boolean | No | `false` | boolean only | Documents community collection readiness |
 | `ansible.examples.enabled` | boolean | No | `true` | boolean only | Controls playbook example generation |
+
+
+## `security`
+
+The `security` section controls local Security Audit readiness generation. It does not affect raw Kubernetes rendering, Helm chart rendering, CI files, GitOps files, doctor checks, or cluster state. Use `k8s-forge security render app.yaml --output generated-security-audit/` to generate a reviewable hardening dossier.
+
+```yaml
+security:
+  enabled: false
+  projectName: ""
+  container:
+    enabled: true
+  manifests:
+    enabled: true
+  rbac:
+    enabled: true
+  podSecurity:
+    enabled: true
+  network:
+    enabled: true
+  secrets:
+    enabled: true
+  supplyChain:
+    enabled: true
+  checklist:
+    enabled: true
+  examples:
+    enabled: true
+```
+
+| Field | Type | Required | Default | Validation | Purpose |
+| --- | --- | --- | --- | --- | --- |
+| `security.enabled` | boolean | No | `false` | boolean only | Controls Security Audit readiness file generation |
+| `security.projectName` | string | No | empty | falls back to `app.name` | Educational security review project name |
+| `security.container.enabled` | boolean | No | `true` | boolean only | Controls container security review generation |
+| `security.manifests.enabled` | boolean | No | `true` | boolean only | Controls Kubernetes manifest audit generation |
+| `security.rbac.enabled` | boolean | No | `true` | boolean only | Controls RBAC and ServiceAccount review generation |
+| `security.podSecurity.enabled` | boolean | No | `true` | boolean only | Controls Pod Security recommendation generation |
+| `security.network.enabled` | boolean | No | `true` | boolean only | Controls NetworkPolicy and Ingress/TLS review generation |
+| `security.secrets.enabled` | boolean | No | `true` | boolean only | Controls sensitive configuration review generation |
+| `security.supplyChain.enabled` | boolean | No | `true` | boolean only | Controls supply-chain security review generation |
+| `security.checklist.enabled` | boolean | No | `true` | boolean only | Controls final hardening checklist generation |
+| `security.examples.enabled` | boolean | No | `true` | boolean only | Reserved for educational examples |
+
+Security Audit readiness is Markdown-only in v0.16.0. It does not run scanners, inspect live images, query RBAC, contact Kubernetes, or add doctor checks.

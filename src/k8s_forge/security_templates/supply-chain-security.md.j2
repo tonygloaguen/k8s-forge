@@ -1,0 +1,17 @@
+# Supply Chain Security Review
+
+Application image: `{{ app.image }}`
+Supply Chain readiness: `{{ "enabled" if supply_chain.enabled else "not enabled" }}`
+CI readiness: `{{ "enabled" if ci.enabled else "not enabled" }}`
+
+## Review points
+
+- Trivy can be used in the supply-chain workflow to review known vulnerabilities.
+- Syft can be used to prepare an SBOM so dependencies are traceable.
+- Cosign signing is optional and usually needs a registry-backed image reference.
+- GitHub Actions security workflow generation can automate image build, scan preparation, SBOM preparation, and artifact upload.
+- Prefer stable image tags or digests over mutable tags.
+
+## Limits
+
+This file does not run a scanner and does not claim that a scan has passed. It documents how to connect the local supply-chain readiness module and CI readiness module into a manual review process.

@@ -1,0 +1,32 @@
+# Container Security Review
+
+Application image: `{{ app.image }}`
+Image tag assessment: `{{ image_tag_status }}`
+
+## Image traceability
+
+- Avoid `latest` for real validation because mutable image references weaken reproducibility.
+- Prefer immutable version tags or digests for release candidates.
+- Use Trivy readiness from the supply-chain module to prepare vulnerability scanning.
+- Use Syft readiness from the supply-chain module to prepare SBOM generation.
+- Treat Cosign signing as optional readiness unless the image reference is registry-backed.
+
+## Runtime hardening recommendations
+
+Review the generated Deployment for these controls:
+
+- run the container as a non-root user;
+- set `readOnlyRootFilesystem: true` where the application allows it;
+- drop Linux capabilities with `capabilities.drop: ["ALL"]`;
+- keep `privileged: false`;
+- set `allowPrivilegeEscalation: false`;
+- define CPU and memory requests and limits;
+- define readiness and liveness probes;
+- keep image pull policy coherent with the tag strategy.
+
+## Current config signals
+
+- Resources configured: `{{ "yes" if resources_defined else "no" }}`
+- Liveness and readiness probes configured: `{{ "yes" if probes_defined else "no" }}`
+
+This file has not scanned the image. It records what to review and what to validate manually.

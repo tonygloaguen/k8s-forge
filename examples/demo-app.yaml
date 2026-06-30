@@ -249,3 +249,25 @@ ansible:
       enabled: false
   examples:
     enabled: true
+
+security:
+  enabled: false
+  projectName: ""
+  container:
+    enabled: true
+  manifests:
+    enabled: true
+  rbac:
+    enabled: true
+  podSecurity:
+    enabled: true
+  network:
+    enabled: true
+  secrets:
+    enabled: true
+  supplyChain:
+    enabled: true
+  checklist:
+    enabled: true
+  examples:
+    enabled: true

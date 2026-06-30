@@ -102,6 +102,7 @@ def test_cli_commands_exist() -> None:
         "tracing",
         "terraform",
         "ansible",
+        "security",
     ):
         assert command in result.output
 
@@ -3400,3 +3401,183 @@ def test_cli_doctor_never_runs_active_ansible_or_platform_commands(
     assert result.exit_code == 0
     assert ANSIBLE_COMMAND in calls
     assert ANSIBLE_LINT_COMMAND in calls
+
+
+def _write_security_config(path: Path, enabled: bool = True) -> None:
+    path.write_text(
+        f"""
+app:
+  name: weatherapi
+  namespace: weather
+  image: weatherapi:0.1.0
+  containerPort: 8000
+  replicas: 2
+service:
+  enabled: true
+  port: 80
+resources:
+  requests:
+    cpu: "50m"
+    memory: "64Mi"
+  limits:
+    cpu: "250m"
+    memory: "128Mi"
+probes:
+  liveness: /healthz
+  readiness: /readyz
+networkPolicy:
+  enabled: true
+  profile: ingress-only
+policy:
+  enabled: true
+  provider: kyverno
+supplyChain:
+  enabled: true
+ci:
+  enabled: true
+  container:
+    enabled: true
+security:
+  enabled: {str(enabled).lower()}
+  projectName: ""
+  container:
+    enabled: true
+  manifests:
+    enabled: true
+  rbac:
+    enabled: true
+  podSecurity:
+    enabled: true
+  network:
+    enabled: true
+  secrets:
+    enabled: true
+  supplyChain:
+    enabled: true
+  checklist:
+    enabled: true
+  examples:
+    enabled: true
+""".strip(),
+        encoding="utf-8",
+    )
+
+
+def test_cli_check_mentions_security_when_enabled(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    _write_security_config(config_path)
+
+    result = runner.invoke(app, ["check", str(config_path)])
+
+    assert result.exit_code == 0
+    assert "Security Audit readiness is enabled" in result.output
+    assert "Security project: weatherapi" in result.output
+    assert "Container security review: enabled" in result.output
+    assert "Kubernetes manifest review: enabled" in result.output
+    assert "RBAC review: enabled" in result.output
+    assert "Pod security review: enabled" in result.output
+    assert "Network security review: enabled" in result.output
+    assert "Secrets review: enabled" in result.output
+    assert "Supply chain review: enabled" in result.output
+    assert "Final security checklist: enabled" in result.output
+
+
+def test_cli_render_suggests_security_render_command(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated"
+    _write_security_config(config_path)
+
+    result = runner.invoke(
+        app,
+        ["render", str(config_path), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 0
+    assert "Security Audit readiness is enabled" in result.output
+    assert "Kubernetes manifests were generated separately" in result.output
+    assert "k8s-forge security render" in result.output
+    assert not (output_dir / "container-security.md").exists()
+
+
+def test_cli_security_render_generates_files(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-security-audit"
+    _write_security_config(config_path)
+
+    result = runner.invoke(
+        app,
+        ["security", "render", str(config_path), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 0
+    assert "Rendering Security Audit readiness files" in result.output
+    assert "does not run scanners" in result.output
+    assert "does not contact the cluster" in result.output
+    assert "Security Audit files generated" in result.output
+    assert "final-security-checklist.md" in result.output
+    assert (output_dir / "README.md").exists()
+    assert (output_dir / "container-security.md").exists()
+    assert (output_dir / "kubernetes-manifest-audit.md").exists()
+    assert (output_dir / "rbac-audit.md").exists()
+    assert (output_dir / "pod-security-audit.md").exists()
+    assert (output_dir / "network-security-audit.md").exists()
+    assert (output_dir / "secrets-audit.md").exists()
+    assert (output_dir / "supply-chain-security.md").exists()
+    assert (output_dir / "final-security-checklist.md").exists()
+
+
+def test_cli_security_render_disabled_is_clean(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-security-audit"
+    _write_security_config(config_path, enabled=False)
+
+    result = runner.invoke(
+        app,
+        ["security", "render", str(config_path), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 0
+    assert "Security Audit readiness is disabled" in result.output
+    assert not output_dir.exists()
+
+
+def test_cli_security_render_refuses_overwrite_without_force(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-security-audit"
+    _write_security_config(config_path)
+    output_dir.mkdir()
+    (output_dir / "README.md").write_text("existing", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["security", "render", str(config_path), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 1
+    assert "use --force" in result.output
+    assert (output_dir / "README.md").read_text(encoding="utf-8") == "existing"
+
+
+def test_cli_security_render_overwrites_with_force(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-security-audit"
+    _write_security_config(config_path)
+    output_dir.mkdir()
+    (output_dir / "README.md").write_text("existing", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "security",
+            "render",
+            str(config_path),
+            "--output",
+            str(output_dir),
+            "--force",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Security Audit Readiness" in (output_dir / "README.md").read_text(
+        encoding="utf-8"
+    )

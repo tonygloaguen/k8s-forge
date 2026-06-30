@@ -30,6 +30,7 @@ name.
 - generate tracing readiness files for OpenTelemetry, OTLP, Tempo, TraceQL, and Grafana traces dashboard review;
 - generate Terraform readiness files for local Infrastructure as Code review;
 - generate Ansible readiness files for local automation review;
+- generate Security Audit readiness files for local hardening review;
 - run guarded `kubectl` workflows for `dry-run`, `diff`, `apply`, and `status`;
 - check local Docker/kind/kubectl prerequisites and manage a local kind cluster;
 - keep generated manifests inspectable before cluster operations.
@@ -88,6 +89,7 @@ k8s-forge logging render app.yaml --output generated-logging/
 k8s-forge tracing render app.yaml --output generated-tracing/
 k8s-forge terraform render app.yaml --output generated-terraform/
 k8s-forge ansible render app.yaml --output generated-ansible/
+k8s-forge security render app.yaml --output generated-security-audit/
 k8s-forge supply-chain render app.yaml --output generated-supply-chain/
 k8s-forge image load demo-app:latest --cluster devsecops
 k8s-forge dry-run app.yaml --output generated/
@@ -240,6 +242,10 @@ examples and tests.
 
 When `ansible.enabled` is true, `k8s-forge` can generate local Ansible readiness examples with a local inventory, review-only playbook, group variables, and role notes. It does not run Ansible, open remote sessions, modify servers, contact Kubernetes, run Helm, run Terraform, create secrets, or generate login keys.
 
+## Module 13 Security Audit
+
+When `security.enabled` is true, `k8s-forge` can generate a local Security Audit readiness dossier covering container hardening, Kubernetes manifests, RBAC, ServiceAccounts, Pod Security, NetworkPolicy, Ingress/TLS, secrets handling, and supply chain review. It does not run scanners, contact the cluster, modify doctor checks, create secrets, or prove runtime compliance automatically.
+
 ## Documentation
 
 - [Getting started](docs/getting-started.md)
@@ -260,6 +266,7 @@ When `ansible.enabled` is true, `k8s-forge` can generate local Ansible readiness
 - [Module 10 Tracing readiness workflow](docs/module-10-tracing.md)
 - [Module 11 Terraform readiness workflow](docs/module-11-terraform.md)
 - [Module 12 Ansible readiness workflow](docs/module-12-ansible.md)
+- [Module 13 Security Audit readiness workflow](docs/module-13-security-audit.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Real app case study: weatherapi-platform](docs/real-app-weatherapi.md)
 - [Design notes](docs/design.md)

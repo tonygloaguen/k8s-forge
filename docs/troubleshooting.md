@@ -94,3 +94,11 @@ If Kubernetes reports that `servicemonitors.monitoring.coreos.com` is unknown, t
 | `doctor` reports Ansible missing | Ansible is not installed locally | This is non-blocking for readiness file generation |
 | `ansible-lint` is missing | Optional linting tool is absent | Install it manually only if you want lint checks later |
 | Generated playbook does not deploy anything | v0.15.0 is readiness-only | Use it for review and learning before any manual workflow |
+
+## Security Audit readiness notes
+
+| Symptom | Cause | Resolution |
+| --- | --- | --- |
+| Generated audit says a control is manual | Security Audit readiness is a local review, not a live scanner | Review the referenced generated manifests and runtime prerequisites manually |
+| Checklist marks a feature not enabled | The matching readiness module is disabled in `app.yaml` | Enable that module only when it belongs to the lab step |
+| Audit does not change doctor output | v0.16.0 adds no new doctor checks | Use existing doctor diagnostics for tooling and cluster prerequisites |

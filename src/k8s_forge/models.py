@@ -847,6 +847,102 @@ class AnsibleConfig(BaseModel):
     examples: AnsibleExamplesConfig = Field(default_factory=AnsibleExamplesConfig)
 
 
+class SecurityContainerConfig(BaseModel):
+    """Container security review switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class SecurityManifestsConfig(BaseModel):
+    """Kubernetes manifest security review switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class SecurityRbacConfig(BaseModel):
+    """RBAC security review switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class SecurityPodSecurityConfig(BaseModel):
+    """Pod Security review switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class SecurityNetworkConfig(BaseModel):
+    """Network security review switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class SecuritySecretsConfig(BaseModel):
+    """Sensitive configuration handling review switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class SecuritySupplyChainConfig(BaseModel):
+    """Supply chain security review switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class SecurityChecklistConfig(BaseModel):
+    """Final security checklist switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class SecurityExamplesConfig(BaseModel):
+    """Security review examples switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class SecurityConfig(BaseModel):
+    """Local security audit readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    enabled: StrictBool = False
+    project_name: str = Field(default="", alias="projectName")
+    container: SecurityContainerConfig = Field(default_factory=SecurityContainerConfig)
+    manifests: SecurityManifestsConfig = Field(default_factory=SecurityManifestsConfig)
+    rbac: SecurityRbacConfig = Field(default_factory=SecurityRbacConfig)
+    pod_security: SecurityPodSecurityConfig = Field(
+        default_factory=SecurityPodSecurityConfig,
+        alias="podSecurity",
+    )
+    network: SecurityNetworkConfig = Field(default_factory=SecurityNetworkConfig)
+    secrets: SecuritySecretsConfig = Field(default_factory=SecuritySecretsConfig)
+    supply_chain: SecuritySupplyChainConfig = Field(
+        default_factory=SecuritySupplyChainConfig,
+        alias="supplyChain",
+    )
+    checklist: SecurityChecklistConfig = Field(default_factory=SecurityChecklistConfig)
+    examples: SecurityExamplesConfig = Field(default_factory=SecurityExamplesConfig)
+
+
 class AppConfig(BaseModel):
     """Top-level user configuration."""
 
@@ -871,6 +967,7 @@ class AppConfig(BaseModel):
     tracing: TracingConfig = Field(default_factory=TracingConfig)
     terraform: TerraformConfig = Field(default_factory=TerraformConfig)
     ansible: AnsibleConfig = Field(default_factory=AnsibleConfig)
+    security: SecurityConfig = Field(default_factory=SecurityConfig)
 
     @model_validator(mode="after")
     def validate_ingress_service(self) -> "AppConfig":

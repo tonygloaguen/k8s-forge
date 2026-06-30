@@ -1,0 +1,22 @@
+# Security Audit Readiness - {{ project_name }}
+
+This directory is a local educational security review for `{{ app.name }}` in namespace `{{ app.namespace }}`.
+
+It summarizes security questions to review before moving from generated files to a real platform workflow. It does not run scanners, contact a cluster, inspect a live image, or prove runtime compliance.
+
+## Generated files
+
+- `container-security.md`: container hardening and image traceability review.
+- `kubernetes-manifest-audit.md`: generated Kubernetes object review.
+- `rbac-audit.md`: RBAC and ServiceAccount review points.
+- `pod-security-audit.md`: Pod Security recommendations.
+- `network-security-audit.md`: NetworkPolicy, Ingress, and TLS review.
+- `secrets-audit.md`: sensitive configuration handling notes.
+- `supply-chain-security.md`: Trivy, Syft, Cosign, and CI readiness notes.
+- `final-security-checklist.md`: final hardening matrix.
+
+## Important limits
+
+This is a readiness dossier, not a live assessment. It does not execute vulnerability scanners, admission checks, RBAC queries, or cluster inspections.
+
+Use `k8s-forge doctor` to inspect available local tooling, and use `k8s-forge supply-chain render` separately when you want local supply-chain scripts.

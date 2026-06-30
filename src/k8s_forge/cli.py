@@ -55,6 +55,10 @@ from k8s_forge.observability_renderer import (
     resolve_service_monitor_namespace,
 )
 from k8s_forge.renderer import render_manifests
+from k8s_forge.security_renderer import (
+    render_security_files,
+    resolve_security_project_name,
+)
 from k8s_forge.supply_chain_renderer import (
     is_registry_backed_image,
     render_supply_chain_files,
@@ -87,6 +91,7 @@ logging_app = typer.Typer(help="Generate logging readiness files.")
 tracing_app = typer.Typer(help="Generate tracing readiness files.")
 terraform_app = typer.Typer(help="Generate Terraform readiness files.")
 ansible_app = typer.Typer(help="Generate Ansible readiness files.")
+security_app = typer.Typer(help="Generate Security Audit readiness files.")
 
 
 class _QuotedString(str):
@@ -1221,6 +1226,76 @@ def _print_ansible_diagnostics(report: DoctorReport) -> None:
         _print_hint("ansible-lint is optional and was not detected.")
 
 
+def _print_security_summary(config: AppConfig) -> None:
+    if not config.security.enabled:
+        return
+    _print_hint("Security Audit readiness is enabled.")
+    _print_hint(
+        "k8s-forge will generate a local security review for containers, "
+        "manifests, RBAC, network policies, secrets, and supply chain."
+    )
+    _print_hint(
+        "This module does not run scanners, contact the cluster, or prove "
+        "runtime compliance automatically."
+    )
+    _print_hint(f"Security project: {resolve_security_project_name(config)}")
+    container_state = "enabled" if config.security.container.enabled else "disabled"
+    manifests_state = "enabled" if config.security.manifests.enabled else "disabled"
+    rbac_state = "enabled" if config.security.rbac.enabled else "disabled"
+    pod_security_state = (
+        "enabled" if config.security.pod_security.enabled else "disabled"
+    )
+    network_state = "enabled" if config.security.network.enabled else "disabled"
+    secrets_state = "enabled" if config.security.secrets.enabled else "disabled"
+    supply_chain_state = (
+        "enabled" if config.security.supply_chain.enabled else "disabled"
+    )
+    checklist_state = "enabled" if config.security.checklist.enabled else "disabled"
+    _print_hint(f"Container security review: {container_state}")
+    _print_hint(f"Kubernetes manifest review: {manifests_state}")
+    _print_hint(f"RBAC review: {rbac_state}")
+    _print_hint(f"Pod security review: {pod_security_state}")
+    _print_hint(f"Network security review: {network_state}")
+    _print_hint(f"Secrets review: {secrets_state}")
+    _print_hint(f"Supply chain review: {supply_chain_state}")
+    _print_hint(f"Final security checklist: {checklist_state}")
+
+
+def _print_security_render_hint(config_path: Path) -> None:
+    _print_hint("Security Audit readiness is enabled.")
+    _print_hint("Kubernetes manifests were generated separately.")
+    _print_hint(
+        "Run: k8s-forge security render "
+        f"{config_path} --output generated-security-audit/"
+    )
+
+
+def _print_security_summary_table(paths: list[Path], output: Path) -> None:
+    table = Table(title="Generated Security Audit files")
+    table.add_column("File")
+    for path in paths:
+        try:
+            rendered = str(path.relative_to(output))
+        except ValueError:
+            rendered = str(path)
+        table.add_row(rendered)
+    console.print(table)
+
+
+def _print_security_next_steps(output: Path) -> None:
+    _print_hint("Next review commands:")
+    _print_hint(f"  cat {output / 'README.md'}")
+    _print_hint(f"  cat {output / 'container-security.md'}")
+    _print_hint(f"  cat {output / 'kubernetes-manifest-audit.md'}")
+    _print_hint(f"  cat {output / 'rbac-audit.md'}")
+    _print_hint(f"  cat {output / 'pod-security-audit.md'}")
+    _print_hint(f"  cat {output / 'network-security-audit.md'}")
+    _print_hint(f"  cat {output / 'secrets-audit.md'}")
+    _print_hint(f"  cat {output / 'supply-chain-security.md'}")
+    _print_hint(f"  cat {output / 'final-security-checklist.md'}")
+    _print_hint("  k8s-forge doctor")
+
+
 def _print_check_summary(config: AppConfig) -> None:
     """Print a concise validation summary."""
     table = Table(title="Application configuration")
@@ -1540,6 +1615,19 @@ def _starter_config_data(
             },
             "examples": {"enabled": True},
         },
+        "security": {
+            "enabled": False,
+            "projectName": _QuotedString(""),
+            "container": {"enabled": True},
+            "manifests": {"enabled": True},
+            "rbac": {"enabled": True},
+            "podSecurity": {"enabled": True},
+            "network": {"enabled": True},
+            "secrets": {"enabled": True},
+            "supplyChain": {"enabled": True},
+            "checklist": {"enabled": True},
+            "examples": {"enabled": True},
+        },
     }
 
 
@@ -1837,6 +1925,7 @@ def check(
     _print_tracing_summary(loaded)
     _print_terraform_summary(loaded)
     _print_ansible_summary(loaded)
+    _print_security_summary(loaded)
     _print_autoscaling_warning(loaded)
 
 
@@ -1881,6 +1970,8 @@ def render(
         _print_terraform_render_hint(config_path)
     if loaded.ansible.enabled:
         _print_ansible_render_hint(config_path)
+    if loaded.security.enabled:
+        _print_security_render_hint(config_path)
     _print_autoscaling_warning(loaded)
     console.print("[green]manifests generated[/green]")
     _print_render_summary(generated)
@@ -2735,6 +2826,47 @@ def ansible_render(
     _print_ansible_next_steps(output, loaded.ansible.playbook.name)
 
 
+@security_app.command("render")
+def security_render(
+    config_path: Annotated[Path, typer.Argument(help="Path to app.yaml.")],
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output", "-o", help="Output directory for Security Audit files."
+        ),
+    ] = Path("generated-security-audit"),
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Overwrite existing Security Audit files."),
+    ] = False,
+) -> None:
+    """Render local Security Audit readiness files."""
+    _print_step("Rendering Security Audit readiness files from app.yaml...")
+    _print_hint("This creates a local security review and checklist.")
+    _print_hint(
+        "This step does not run scanners, does not contact the cluster, "
+        "and does not modify any external system."
+    )
+    try:
+        loaded = load_app_config(config_path)
+        generated = render_security_files(loaded, output, force=force)
+    except (ConfigLoadError, RenderError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    if not loaded.security.enabled:
+        _print_hint(
+            "Security Audit readiness is disabled; no Security Audit files were "
+            "generated."
+        )
+        return
+
+    _print_security_summary(loaded)
+    console.print(f"[green]Security Audit files generated in {output}.[/green]")
+    _print_security_summary_table(generated, output)
+    _print_security_next_steps(output)
+
+
 app.add_typer(cluster_app, name="cluster")
 app.add_typer(image_app, name="image")
 app.add_typer(helm_app, name="helm")
@@ -2746,3 +2878,4 @@ app.add_typer(logging_app, name="logging")
 app.add_typer(tracing_app, name="tracing")
 app.add_typer(terraform_app, name="terraform")
 app.add_typer(ansible_app, name="ansible")
+app.add_typer(security_app, name="security")
