@@ -56,6 +56,11 @@ from k8s_forge.supply_chain_renderer import (
     resolve_supply_chain_image,
     uses_latest_tag,
 )
+from k8s_forge.tracing_renderer import (
+    render_tracing_files,
+    resolve_tracing_dashboard_title,
+    resolve_tracing_service_name,
+)
 
 app = typer.Typer(
     help="Generic Kubernetes manifest generator for stateless web applications.",
@@ -70,6 +75,7 @@ ci_app = typer.Typer(help="Generate GitHub Actions CI readiness workflows.")
 gitops_app = typer.Typer(help="Generate ArgoCD GitOps readiness manifests.")
 observability_app = typer.Typer(help="Generate observability readiness files.")
 logging_app = typer.Typer(help="Generate logging readiness files.")
+tracing_app = typer.Typer(help="Generate tracing readiness files.")
 
 
 class _QuotedString(str):
@@ -919,6 +925,126 @@ def _print_logging_diagnostics(report: DoctorReport) -> None:
         _print_hint("Grafana was not detected for logging dashboard import.")
 
 
+def _print_tracing_warnings(config: AppConfig) -> None:
+    if not config.tracing.enabled:
+        return
+    if config.tracing.collector.enabled:
+        _print_warning(
+            "OpenTelemetry Collector is only the collector model here; it must "
+            "be installed and configured manually for real trace export."
+        )
+    if config.tracing.grafana.enabled and config.tracing.grafana.dashboard.enabled:
+        _print_warning(
+            "The Grafana traces dashboard is a local model. A Tempo datasource "
+            "must be configured manually in Grafana."
+        )
+    if config.tracing.instrumentation.enabled:
+        _print_hint(
+            "Application instrumentation is not automatic; the application must "
+            "emit spans with OpenTelemetry libraries or framework support."
+        )
+    if not config.tracing.instrumentation.service_name.strip():
+        _print_hint(
+            f"Tracing serviceName is empty; using application name {config.app.name}."
+        )
+    _print_hint(
+        "Traces will not be visible until the application is instrumented and "
+        "a collector plus backend such as Tempo are installed manually."
+    )
+
+
+def _print_tracing_summary(config: AppConfig) -> None:
+    if not config.tracing.enabled:
+        return
+    _print_hint("Tracing readiness is enabled.")
+    _print_hint(
+        "OpenTelemetry can export application traces to a compatible backend "
+        "such as Tempo."
+    )
+    _print_hint(
+        "k8s-forge generates tracing examples and dashboard files but does not "
+        "install OpenTelemetry Collector, Tempo, Grafana, or tracing agents "
+        "automatically."
+    )
+    _print_hint(f"Tracing provider: {config.tracing.provider}")
+    _print_hint(f"Trace backend: {config.tracing.backend.type}")
+    _print_hint(f"Collector model: {config.tracing.collector.type}")
+    _print_hint(f"OTLP protocol: {config.tracing.collector.protocol}")
+    dashboard_state = (
+        "enabled"
+        if config.tracing.grafana.enabled and config.tracing.grafana.dashboard.enabled
+        else "disabled"
+    )
+    _print_hint(f"Grafana traces dashboard: {dashboard_state}")
+    _print_tracing_warnings(config)
+
+
+def _print_tracing_render_hint(config_path: Path) -> None:
+    _print_hint("Tracing readiness is enabled.")
+    _print_hint("Kubernetes manifests were generated separately.")
+    _print_hint(
+        f"Run: k8s-forge tracing render {config_path} --output generated-tracing/"
+    )
+
+
+def _print_tracing_summary_table(paths: list[Path], output: Path) -> None:
+    table = Table(title="Generated tracing files")
+    table.add_column("File")
+    for path in paths:
+        try:
+            rendered = str(path.relative_to(output))
+        except ValueError:
+            rendered = str(path)
+        table.add_row(rendered)
+    console.print(table)
+
+
+def _print_tracing_next_steps(output: Path) -> None:
+    _print_hint("Next review commands:")
+    _print_hint(f"  cat {output / 'README.md'}")
+    _print_hint(f"  cat {output / 'opentelemetry' / 'instrumentation-notes.md'}")
+    _print_hint(f"  cat {output / 'opentelemetry' / 'otel-env.md'}")
+    _print_hint(f"  cat {output / 'tempo' / 'traceql-examples.md'}")
+    _print_hint(f"  cat {output / 'grafana' / 'traces-dashboard.json'}")
+    _print_hint(f"  cat {output / 'collector' / 'collector-notes.md'}")
+    _print_hint("  k8s-forge doctor")
+
+
+def _print_tracing_diagnostics(report: DoctorReport) -> None:
+    _print_step("Checking tracing readiness...")
+    _print_hint(
+        "OpenTelemetry exports traces only after the application is instrumented "
+        "and a compatible collector/backend is installed."
+    )
+    _print_hint(
+        "k8s-forge does not install OpenTelemetry Collector, Tempo, Grafana, "
+        "Jaeger, or tracing agents automatically."
+    )
+    _print_hint(
+        "Generated tracing files can be reviewed locally and used after the "
+        "tracing stack is installed manually."
+    )
+    if report.tempo.status == "OK" and report.otel_collector.status == "OK":
+        console.print(
+            "[green]Tempo and OpenTelemetry Collector appear to be available.[/green]"
+        )
+    else:
+        _print_warning(
+            "Tempo or a compatible tracing backend does not appear to be installed "
+            "in this cluster."
+        )
+        _print_hint(
+            "Generated tracing examples can be reviewed locally, but traces will "
+            "be queryable only after a tracing stack is installed manually."
+        )
+    if report.tracing_grafana.status == "OK":
+        console.print("[green]Grafana appears to be available for tracing.[/green]")
+    else:
+        _print_hint("Grafana was not detected for tracing dashboard import.")
+    if report.jaeger.status == "OK":
+        _print_hint("Jaeger was detected as a possible tracing backend alternative.")
+
+
 def _print_check_summary(config: AppConfig) -> None:
     """Print a concise validation summary."""
     table = Table(title="Application configuration")
@@ -1180,6 +1306,36 @@ def _starter_config_data(
                 },
             },
             "queries": {"enabled": True},
+        },
+        "tracing": {
+            "enabled": False,
+            "provider": _QuotedString("opentelemetry"),
+            "backend": {
+                "type": _QuotedString("tempo"),
+                "namespace": _QuotedString("monitoring"),
+                "datasourceName": _QuotedString("Tempo"),
+            },
+            "collector": {
+                "enabled": True,
+                "type": _QuotedString("opentelemetry-collector"),
+                "endpoint": _QuotedString(
+                    "http://otel-collector.monitoring.svc.cluster.local:4318"
+                ),
+                "protocol": _QuotedString("otlp-http"),
+            },
+            "instrumentation": {
+                "enabled": True,
+                "mode": _QuotedString("env"),
+                "serviceName": _QuotedString(""),
+            },
+            "grafana": {
+                "enabled": True,
+                "dashboard": {
+                    "enabled": True,
+                    "title": _QuotedString(""),
+                },
+            },
+            "examples": {"enabled": True},
         },
     }
 
@@ -1475,6 +1631,7 @@ def check(
     _print_gitops_summary(loaded)
     _print_observability_summary(loaded)
     _print_logging_summary(loaded)
+    _print_tracing_summary(loaded)
     _print_autoscaling_warning(loaded)
 
 
@@ -1513,6 +1670,8 @@ def render(
         _print_observability_render_hint(config_path)
     if loaded.logging.enabled:
         _print_logging_render_hint(config_path)
+    if loaded.tracing.enabled:
+        _print_tracing_render_hint(config_path)
     _print_autoscaling_warning(loaded)
     console.print("[green]manifests generated[/green]")
     _print_render_summary(generated)
@@ -1754,6 +1913,10 @@ def doctor(
             report.grafana,
             report.promtail,
             report.alloy,
+            report.tempo,
+            report.otel_collector,
+            report.tracing_grafana,
+            report.jaeger,
         ]
     )
     if report.metrics_server.status == "OK":
@@ -1822,6 +1985,7 @@ def doctor(
     _print_argocd_diagnostics(report)
     _print_observability_diagnostics(report)
     _print_logging_diagnostics(report)
+    _print_tracing_diagnostics(report)
 
     if report.ready:
         console.print("[green]Ready for local kind workflows.[/green]")
@@ -2243,6 +2407,46 @@ def logging_render(
     _print_logging_next_steps(output)
 
 
+@tracing_app.command("render")
+def tracing_render(
+    config_path: Annotated[Path, typer.Argument(help="Path to app.yaml.")],
+    output: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Output directory for tracing files."),
+    ] = Path("generated-tracing"),
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Overwrite existing tracing files."),
+    ] = False,
+) -> None:
+    """Render local tracing readiness files."""
+    _print_step("Rendering tracing readiness files from app.yaml...")
+    _print_hint(
+        "This creates local OpenTelemetry, OTLP, Tempo, TraceQL, and Grafana examples."
+    )
+    _print_hint(
+        "This step does not contact the cluster and does not install tracing "
+        "components."
+    )
+    try:
+        loaded = load_app_config(config_path)
+        generated = render_tracing_files(loaded, output, force=force)
+    except (ConfigLoadError, RenderError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    if not loaded.tracing.enabled:
+        _print_hint("Tracing readiness is disabled; no tracing files were generated.")
+        return
+
+    _print_tracing_summary(loaded)
+    _print_hint(f"Tracing service name: {resolve_tracing_service_name(loaded)}")
+    _print_hint(f"Grafana dashboard title: {resolve_tracing_dashboard_title(loaded)}")
+    console.print(f"[green]Tracing files generated in {output}.[/green]")
+    _print_tracing_summary_table(generated, output)
+    _print_tracing_next_steps(output)
+
+
 app.add_typer(cluster_app, name="cluster")
 app.add_typer(image_app, name="image")
 app.add_typer(helm_app, name="helm")
@@ -2251,3 +2455,4 @@ app.add_typer(ci_app, name="ci")
 app.add_typer(gitops_app, name="gitops")
 app.add_typer(observability_app, name="observability")
 app.add_typer(logging_app, name="logging")
+app.add_typer(tracing_app, name="tracing")

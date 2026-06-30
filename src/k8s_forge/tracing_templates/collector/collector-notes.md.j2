@@ -1,0 +1,30 @@
+# Collector Notes
+
+OpenTelemetry Collector is the pedagogical collector model for v0.13.0.
+
+## What A Collector Does
+
+An OpenTelemetry Collector receives OTLP telemetry from instrumented applications, processes it, and exports it to a backend such as Tempo.
+
+## Manual Prerequisites
+
+OpenTelemetry Collector, Tempo, Grafana, or Jaeger must be installed and configured manually if you want real trace collection. `k8s-forge` does not generate installation manifests, package manager commands, credentials, tokens, or secrets.
+
+## OTLP Protocols
+
+- `otlp-http` commonly uses port `4318` and protocol value `http/protobuf`.
+- `otlp-grpc` commonly uses port `4317` and protocol value `grpc`.
+
+Configured endpoint in this readiness file:
+
+```text
+{{ tracing.collector.endpoint }}
+```
+
+## Attribute Adaptation
+
+TraceQL examples assume attributes such as `resource.service.name` and `resource.k8s.namespace.name`. Real attributes depend on the OpenTelemetry SDK and instrumentation configuration.
+
+## Jaeger
+
+Jaeger is a common tracing backend and UI in some setups. v0.13.0 mentions it in diagnostics and documentation, but the generated examples target OpenTelemetry plus Tempo.

@@ -72,6 +72,10 @@ class DoctorReport:
     grafana: ToolCheck
     promtail: ToolCheck
     alloy: ToolCheck
+    tempo: ToolCheck
+    otel_collector: ToolCheck
+    tracing_grafana: ToolCheck
+    jaeger: ToolCheck
 
     @property
     def ready(self) -> bool:
@@ -355,6 +359,16 @@ def check_environment(timeout: int = 30) -> DoctorReport:
         grafana = _logging_component_check("Grafana", logging_pods, ("grafana",))
         promtail = _logging_component_check("Promtail", logging_pods, ("promtail",))
         alloy = _logging_component_check("Alloy", logging_pods, ("alloy",))
+        tempo = _logging_component_check("Tempo", logging_pods, ("tempo",))
+        otel_collector = _logging_component_check(
+            "OpenTelemetry Collector",
+            logging_pods,
+            ("otel-collector", "opentelemetry-collector"),
+        )
+        tracing_grafana = _logging_component_check(
+            "Tracing Grafana", logging_pods, ("grafana",)
+        )
+        jaeger = _logging_component_check("Jaeger", logging_pods, ("jaeger",))
     else:
         current_context = ToolCheck(
             "current context", "unavailable", "kubectl is not available"
@@ -422,6 +436,14 @@ def check_environment(timeout: int = 30) -> DoctorReport:
         grafana = ToolCheck("Grafana", "unavailable", "kubectl is not available")
         promtail = ToolCheck("Promtail", "unavailable", "kubectl is not available")
         alloy = ToolCheck("Alloy", "unavailable", "kubectl is not available")
+        tempo = ToolCheck("Tempo", "unavailable", "kubectl is not available")
+        otel_collector = ToolCheck(
+            "OpenTelemetry Collector", "unavailable", "kubectl is not available"
+        )
+        tracing_grafana = ToolCheck(
+            "Tracing Grafana", "unavailable", "kubectl is not available"
+        )
+        jaeger = ToolCheck("Jaeger", "unavailable", "kubectl is not available")
 
     return DoctorReport(
         docker,
@@ -459,6 +481,10 @@ def check_environment(timeout: int = 30) -> DoctorReport:
         grafana,
         promtail,
         alloy,
+        tempo,
+        otel_collector,
+        tracing_grafana,
+        jaeger,
     )
 
 

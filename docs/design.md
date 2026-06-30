@@ -53,3 +53,5 @@ does not run Helm and does not install releases. Ingress rendering targets exist
 `observability_renderer.py` should remain separate from raw Kubernetes, Helm, CI, Supply Chain, and GitOps renderers. It produces local Prometheus and Grafana examples only and does not install or configure a monitoring stack.
 
 `logging_renderer.py` should remain separate from metrics observability. It produces local Loki, LogQL, collector-note, and Grafana logs dashboard examples only and does not install or configure a logging stack.
+
+`tracing_renderer.py` should remain separate from metrics observability and logging. It produces local OpenTelemetry, Tempo, TraceQL, collector-note, and Grafana traces dashboard examples only and does not install or configure a tracing stack.

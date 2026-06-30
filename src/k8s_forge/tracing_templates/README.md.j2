@@ -1,0 +1,50 @@
+# Tracing Readiness
+
+Application: `{{ app.name }}`
+Namespace: `{{ app.namespace }}`
+Provider: `{{ tracing.provider }}`
+Backend: `{{ tracing.backend.type }}`
+Collector model: `{{ tracing.collector.type }}`
+OTLP endpoint: `{{ tracing.collector.endpoint }}`
+OTLP protocol: `{{ tracing.collector.protocol }}`
+Service name: `{{ service_name }}`
+Grafana datasource name: `{{ tracing.backend.datasource_name }}`
+
+This directory contains local tracing readiness examples generated from `app.yaml`.
+
+## What Was Generated
+
+- `opentelemetry/instrumentation-notes.md`: application instrumentation notes and useful semantic conventions.
+- `opentelemetry/otel-env.md`: example OpenTelemetry environment variables.
+- `tempo/traceql-examples.md`: example TraceQL queries for Tempo.
+- `grafana/traces-dashboard.json`: a local Grafana dashboard JSON model for traces.
+- `collector/collector-notes.md`: OpenTelemetry Collector notes.
+
+## Metrics, Logs, And Traces
+
+Metrics answer numeric questions. Logs show timestamped events. Traces show how one request moves through an application and across services. A distributed trace is made of spans. A parent span can contain child spans that describe nested work.
+
+## OpenTelemetry And OTLP
+
+OpenTelemetry is the vendor-neutral standard used here. OTLP is the protocol used to export traces. v0.13.0 documents both OTLP HTTP and OTLP gRPC but does not install or configure a collector.
+
+## Tempo And TraceQL
+
+Tempo is the pedagogical trace backend for v0.13.0. TraceQL queries depend on the attributes emitted by real instrumentation. The generated examples are starting points to adapt.
+
+## What k8s-forge Does Not Do
+
+`k8s-forge` does not install OpenTelemetry Collector, Tempo, Grafana, Jaeger, or tracing agents. It does not instrument application code, create sidecars, create mutation webhooks, create credentials, create tokens, create secrets, call Grafana APIs, import dashboards, or run cluster apply or package manager install commands.
+
+Traces will not be visible until the application is instrumented and a compatible collector/backend is installed manually.
+
+## Review Commands
+
+```bash
+cat README.md
+cat opentelemetry/instrumentation-notes.md
+cat opentelemetry/otel-env.md
+cat tempo/traceql-examples.md
+cat grafana/traces-dashboard.json
+cat collector/collector-notes.md
+```

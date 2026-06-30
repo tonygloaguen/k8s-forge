@@ -1,0 +1,18 @@
+# OpenTelemetry Environment Variable Examples
+
+These examples are local notes. They are not applied automatically to Kubernetes manifests.
+
+```bash
+OTEL_SERVICE_NAME={{ service_name }}
+OTEL_EXPORTER_OTLP_ENDPOINT={{ tracing.collector.endpoint }}
+OTEL_EXPORTER_OTLP_PROTOCOL={{ otel_protocol }}
+OTEL_RESOURCE_ATTRIBUTES=service.name={{ service_name }},deployment.environment=local,k8s.namespace.name={{ app.namespace }}
+```
+
+{% if tracing.collector.protocol == "otlp-http" -%}
+`otlp-http` commonly uses port `4318` and protocol value `http/protobuf`.
+{% else -%}
+`otlp-grpc` commonly uses port `4317` and protocol value `grpc`.
+{% endif %}
+
+Adapt these variables to the language SDK, framework, and runtime used by the application.

@@ -1,0 +1,35 @@
+# TraceQL Examples
+
+These examples target service `{{ service_name }}` in namespace `{{ app.namespace }}`.
+
+TraceQL attributes depend on the real instrumentation. If a query returns no data, inspect the trace attributes available in Grafana Explore and adapt the selectors.
+
+## Traces For The Service
+
+```traceql
+{ resource.service.name = "{{ service_name }}" }
+```
+
+## Traces For The Service And Namespace
+
+```traceql
+{ resource.service.name = "{{ service_name }}" && resource.k8s.namespace.name = "{{ app.namespace }}" }
+```
+
+## Route Filter
+
+```traceql
+{ span.http.route = "/weather" }
+```
+
+## GET Requests
+
+```traceql
+{ span.http.method = "GET" }
+```
+
+## Server Errors
+
+```traceql
+{ span.http.status_code >= 500 }
+```

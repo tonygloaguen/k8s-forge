@@ -96,6 +96,7 @@ def test_cli_commands_exist() -> None:
         "gitops",
         "observability",
         "logging",
+        "tracing",
     ):
         assert command in result.output
 

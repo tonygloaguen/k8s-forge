@@ -1067,3 +1067,156 @@ def test_logging_booleans_are_strict() -> None:
 
     with pytest.raises(ValidationError):
         AppConfig.model_validate(config_data)
+
+
+def test_tracing_defaults_when_section_absent() -> None:
+    config = AppConfig.model_validate(_valid_config())
+
+    assert config.tracing.enabled is False
+    assert config.tracing.provider == "opentelemetry"
+    assert config.tracing.backend.type == "tempo"
+    assert config.tracing.backend.namespace == "monitoring"
+    assert config.tracing.backend.datasource_name == "Tempo"
+    assert config.tracing.collector.enabled is True
+    assert config.tracing.collector.type == "opentelemetry-collector"
+    assert config.tracing.collector.endpoint.endswith(":4318")
+    assert config.tracing.collector.protocol == "otlp-http"
+    assert config.tracing.instrumentation.enabled is True
+    assert config.tracing.instrumentation.mode == "env"
+    assert config.tracing.instrumentation.service_name == ""
+    assert config.tracing.grafana.enabled is True
+    assert config.tracing.grafana.dashboard.enabled is True
+    assert config.tracing.grafana.dashboard.title == ""
+    assert config.tracing.examples.enabled is True
+
+
+def test_tracing_accepts_opentelemetry_provider() -> None:
+    config_data = _valid_config()
+    config_data["tracing"] = {"enabled": True, "provider": "opentelemetry"}
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.tracing.enabled is True
+    assert config.tracing.provider == "opentelemetry"
+
+
+def test_tracing_rejects_invalid_provider() -> None:
+    config_data = _valid_config()
+    config_data["tracing"] = {"enabled": True, "provider": "jaeger"}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_tracing_accepts_tempo_backend() -> None:
+    config_data = _valid_config()
+    config_data["tracing"] = {
+        "enabled": True,
+        "backend": {
+            "type": "tempo",
+            "namespace": "monitoring",
+            "datasourceName": "Tempo",
+        },
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.tracing.backend.type == "tempo"
+    assert config.tracing.backend.namespace == "monitoring"
+
+
+def test_tracing_rejects_invalid_backend() -> None:
+    config_data = _valid_config()
+    config_data["tracing"] = {"enabled": True, "backend": {"type": "jaeger"}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_tracing_accepts_opentelemetry_collector_and_protocols() -> None:
+    for protocol in ("otlp-http", "otlp-grpc"):
+        config_data = _valid_config()
+        config_data["tracing"] = {
+            "enabled": True,
+            "collector": {
+                "enabled": True,
+                "type": "opentelemetry-collector",
+                "endpoint": "http://otel-collector.monitoring.svc.cluster.local:4318",
+                "protocol": protocol,
+            },
+        }
+
+        config = AppConfig.model_validate(config_data)
+
+        assert config.tracing.collector.type == "opentelemetry-collector"
+        assert config.tracing.collector.protocol == protocol
+
+
+def test_tracing_rejects_invalid_collector_type() -> None:
+    config_data = _valid_config()
+    config_data["tracing"] = {"enabled": True, "collector": {"type": "jaeger-agent"}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_tracing_rejects_invalid_protocol() -> None:
+    config_data = _valid_config()
+    config_data["tracing"] = {"enabled": True, "collector": {"protocol": "zipkin"}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_tracing_accepts_env_instrumentation_and_service_name() -> None:
+    config_data = _valid_config()
+    config_data["tracing"] = {
+        "enabled": True,
+        "instrumentation": {
+            "enabled": True,
+            "mode": "env",
+            "serviceName": "demo-service",
+        },
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.tracing.instrumentation.mode == "env"
+    assert config.tracing.instrumentation.service_name == "demo-service"
+
+
+def test_tracing_rejects_invalid_instrumentation_mode() -> None:
+    config_data = _valid_config()
+    config_data["tracing"] = {
+        "enabled": True,
+        "instrumentation": {"mode": "auto"},
+    }
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_tracing_preserves_dashboard_title() -> None:
+    config_data = _valid_config()
+    config_data["tracing"] = {
+        "enabled": True,
+        "grafana": {"dashboard": {"title": "Demo Traces"}},
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.tracing.grafana.dashboard.title == "Demo Traces"
+
+
+def test_tracing_booleans_are_strict() -> None:
+    config_data = _valid_config()
+    config_data["tracing"] = {
+        "enabled": "yes",
+        "collector": {"enabled": "yes"},
+        "instrumentation": {"enabled": "yes"},
+        "grafana": {"enabled": "yes", "dashboard": {"enabled": "yes"}},
+        "examples": {"enabled": "yes"},
+    }
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)

@@ -790,3 +790,53 @@ logging:
 | `logging.grafana.dashboard.enabled` | boolean | No | `true` | boolean only | Controls logs dashboard JSON generation |
 | `logging.grafana.dashboard.title` | string | No | empty | falls back to `app.name` | Grafana logs dashboard title |
 | `logging.queries.enabled` | boolean | No | `true` | boolean only | Controls LogQL examples generation |
+
+## `tracing`
+
+The `tracing` section controls local tracing readiness generation. It does not affect raw Kubernetes rendering, Helm chart rendering, metrics observability files, logging files, GitOps files, or cluster state. Use `k8s-forge tracing render app.yaml --output generated-tracing/` to generate reviewable OpenTelemetry, Tempo, TraceQL, collector, and Grafana traces examples.
+
+```yaml
+tracing:
+  enabled: false
+  provider: opentelemetry
+  backend:
+    type: tempo
+    namespace: monitoring
+    datasourceName: Tempo
+  collector:
+    enabled: true
+    type: opentelemetry-collector
+    endpoint: http://otel-collector.monitoring.svc.cluster.local:4318
+    protocol: otlp-http
+  instrumentation:
+    enabled: true
+    mode: env
+    serviceName: ""
+  grafana:
+    enabled: true
+    dashboard:
+      enabled: true
+      title: ""
+  examples:
+    enabled: true
+```
+
+| Field | Type | Required | Default | Validation | Purpose |
+| --- | --- | --- | --- | --- | --- |
+| `tracing.enabled` | boolean | No | `false` | boolean only | Controls tracing readiness file generation |
+| `tracing.provider` | string | No | `opentelemetry` | only `opentelemetry` in v0.13.0 | Selects tracing provider model |
+| `tracing.backend.type` | string | No | `tempo` | only `tempo` | Selects the trace backend model |
+| `tracing.backend.namespace` | string | No | `monitoring` | non-empty | Namespace where Tempo is expected manually |
+| `tracing.backend.datasourceName` | string | No | `Tempo` | non-empty | Grafana datasource display name used in docs |
+| `tracing.collector.enabled` | boolean | No | `true` | boolean only | Controls collector notes generation |
+| `tracing.collector.type` | string | No | `opentelemetry-collector` | only `opentelemetry-collector` | Selects collector model |
+| `tracing.collector.endpoint` | string | No | `http://otel-collector.monitoring.svc.cluster.local:4318` | non-empty | OTLP endpoint example |
+| `tracing.collector.protocol` | string | No | `otlp-http` | `otlp-http` or `otlp-grpc` | OTLP protocol example |
+| `tracing.instrumentation.enabled` | boolean | No | `true` | boolean only | Controls instrumentation notes and OTEL env examples |
+| `tracing.instrumentation.mode` | string | No | `env` | only `env` | Documents env-var based instrumentation examples |
+| `tracing.instrumentation.serviceName` | string | No | empty | falls back to `app.name` | OpenTelemetry service name example |
+| `tracing.grafana.enabled` | boolean | No | `true` | boolean only | Controls Grafana tracing output |
+| `tracing.grafana.dashboard.enabled` | boolean | No | `true` | boolean only | Controls traces dashboard JSON generation |
+| `tracing.grafana.dashboard.title` | string | No | empty | falls back to `app.name` | Grafana traces dashboard title |
+| `tracing.examples.enabled` | boolean | No | `true` | boolean only | Controls TraceQL examples generation |
+

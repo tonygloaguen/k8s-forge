@@ -59,6 +59,11 @@ k8s_forge = [
   "logging_templates/loki/*.j2",
   "logging_templates/grafana/*.j2",
   "logging_templates/collector/*.j2",
+  "tracing_templates/*.j2",
+  "tracing_templates/opentelemetry/*.j2",
+  "tracing_templates/tempo/*.j2",
+  "tracing_templates/grafana/*.j2",
+  "tracing_templates/collector/*.j2",
 ]
 
 [tool.ruff]

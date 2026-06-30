@@ -156,3 +156,7 @@ After GitOps readiness, see [Module 8 Observability](module-8-observability.md) 
 ## Next step: logging readiness
 
 After metrics readiness, see [Module 9 Logging](module-9-logging.md) to generate local Loki LogQL examples, Promtail collector notes, and a Grafana logs dashboard JSON model.
+
+## Next step: tracing readiness
+
+After logging readiness, see [Module 10 Tracing](module-10-tracing.md) to generate local OpenTelemetry, OTLP, Tempo, TraceQL, and Grafana traces examples.

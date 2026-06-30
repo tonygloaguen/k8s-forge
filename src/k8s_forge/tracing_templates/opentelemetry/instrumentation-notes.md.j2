@@ -1,0 +1,26 @@
+# OpenTelemetry Instrumentation Notes
+
+Application: `{{ app.name }}`
+Resolved OTEL service name: `{{ service_name }}`
+
+Instrumentation depends on the application language, framework, and runtime. `k8s-forge` does not modify application code, does not add auto-instrumentation, does not inject sidecars, and does not create mutation webhooks.
+
+## Useful Semantic Conventions
+
+Useful attributes for the lab:
+
+```text
+service.name={{ service_name }}
+deployment.environment=local
+k8s.namespace.name={{ app.namespace }}
+k8s.pod.name=<pod-name>
+http.route=/weather
+http.method=GET
+http.status_code=200
+```
+
+For FastAPI or similar Python applications, instrumentation is usually configured in the application dependencies and startup code, then exported through OTLP to a collector.
+
+## Validation Mindset
+
+A generated dashboard or TraceQL query only becomes useful when the application emits spans and the collector forwards those spans to a backend such as Tempo.

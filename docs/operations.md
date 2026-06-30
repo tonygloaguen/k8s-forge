@@ -477,3 +477,7 @@ Then inspect `README.md`, run `scan-image.sh` for Trivy, and run `generate-sbom.
 ## Logging Readiness
 
 `k8s-forge logging render app.yaml --output generated-logging/` generates local LogQL examples, Promtail-oriented collector notes, and a Grafana logs dashboard JSON model. These files do not install Loki, Grafana, Promtail, or Alloy, do not create datasources or secrets, and do not apply manifests.
+
+## Tracing Readiness
+
+`k8s-forge tracing render app.yaml --output generated-tracing/` generates local OpenTelemetry instrumentation notes, OTEL environment examples, Tempo TraceQL examples, collector notes, and a Grafana traces dashboard JSON model. These files do not install OpenTelemetry Collector, Tempo, Grafana, or Jaeger, do not create datasources or secrets, and do not apply manifests.

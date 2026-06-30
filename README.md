@@ -27,6 +27,7 @@ name.
 - generate ArgoCD GitOps readiness manifests for Helm-based delivery review;
 - generate observability readiness files for Prometheus ServiceMonitor and Grafana dashboard review;
 - generate logging readiness files for Loki, LogQL, Promtail notes, and Grafana logs dashboard review;
+- generate tracing readiness files for OpenTelemetry, OTLP, Tempo, TraceQL, and Grafana traces dashboard review;
 - run guarded `kubectl` workflows for `dry-run`, `diff`, `apply`, and `status`;
 - check local Docker/kind/kubectl prerequisites and manage a local kind cluster;
 - keep generated manifests inspectable before cluster operations.
@@ -82,6 +83,7 @@ k8s-forge ci render app.yaml --output generated-ci/
 k8s-forge gitops render app.yaml --output generated-gitops/
 k8s-forge observability render app.yaml --output generated-observability/
 k8s-forge logging render app.yaml --output generated-logging/
+k8s-forge tracing render app.yaml --output generated-tracing/
 k8s-forge supply-chain render app.yaml --output generated-supply-chain/
 k8s-forge image load demo-app:latest --cluster devsecops
 k8s-forge dry-run app.yaml --output generated/
@@ -187,6 +189,10 @@ When `observability.enabled` is true, `k8s-forge` can generate local Prometheus 
 
 When `logging.enabled` is true, `k8s-forge` can generate local Loki LogQL examples, collector notes, and a Grafana logs dashboard JSON model. It does not install Loki, Grafana, Promtail, Alloy, create datasources, create secrets, apply manifests, or import dashboards.
 
+## Module 10 Tracing
+
+When `tracing.enabled` is true, `k8s-forge` can generate local OpenTelemetry notes, OTEL environment examples, Tempo TraceQL examples, collector notes, and a Grafana traces dashboard JSON model. It does not install OpenTelemetry Collector, Tempo, Grafana, Jaeger, create datasources, create secrets, apply manifests, or import dashboards.
+
 ## Local kind Bootstrap
 
 `k8s-forge doctor` checks Docker, kind, kubectl, the current context, and
@@ -239,6 +245,7 @@ examples and tests.
 - [Module 7 ArgoCD GitOps readiness workflow](docs/module-7-gitops-argocd.md)
 - [Module 8 Observability readiness workflow](docs/module-8-observability.md)
 - [Module 9 Logging readiness workflow](docs/module-9-logging.md)
+- [Module 10 Tracing readiness workflow](docs/module-10-tracing.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Real app case study: weatherapi-platform](docs/real-app-weatherapi.md)
 - [Design notes](docs/design.md)

@@ -401,3 +401,7 @@ For `weatherapi-platform`, copy the GitOps config to `k8s-forge-app-observabilit
 ## Module 9 Logging readiness follow-up
 
 Copy the observability config to `k8s-forge-app-logging.yaml`, enable `logging`, then run `k8s-forge logging render k8s-forge-app-logging.yaml --output generated-logging/`. Review the LogQL examples, collector notes, and Grafana logs dashboard JSON. Loki, Grafana, and Promtail or Alloy must be installed manually before logs are queryable.
+
+## Module 10 Tracing readiness follow-up
+
+Copy the logging config to `k8s-forge-app-tracing.yaml`, enable `tracing`, then run `k8s-forge tracing render k8s-forge-app-tracing.yaml --output generated-tracing/ --force`. Review the OpenTelemetry notes, OTEL environment examples, TraceQL examples, collector notes, and Grafana traces dashboard JSON. Application instrumentation, OpenTelemetry Collector, Tempo, and Grafana must be configured manually before traces are queryable.

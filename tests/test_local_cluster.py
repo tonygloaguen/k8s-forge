@@ -293,6 +293,10 @@ def test_check_environment_reports_metrics_server_present(
     assert report.grafana.status == "OK"
     assert report.promtail.status == "OK"
     assert report.alloy.status == "missing"
+    assert report.tempo.status == "missing"
+    assert report.otel_collector.status == "missing"
+    assert report.tracing_grafana.status == "OK"
+    assert report.jaeger.status == "missing"
 
 
 def test_check_environment_reports_metrics_server_absent(

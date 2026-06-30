@@ -587,6 +587,84 @@ class LoggingConfig(BaseModel):
     queries: LoggingQueriesConfig = Field(default_factory=LoggingQueriesConfig)
 
 
+class TracingBackendConfig(BaseModel):
+    """Tracing backend readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    type: Literal["tempo"] = "tempo"
+    namespace: str = Field(default="monitoring", min_length=1)
+    datasource_name: str = Field(default="Tempo", alias="datasourceName", min_length=1)
+
+
+class TracingCollectorConfig(BaseModel):
+    """OpenTelemetry Collector readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+    type: Literal["opentelemetry-collector"] = "opentelemetry-collector"
+    endpoint: str = Field(
+        default="http://otel-collector.monitoring.svc.cluster.local:4318",
+        min_length=1,
+    )
+    protocol: Literal["otlp-http", "otlp-grpc"] = "otlp-http"
+
+
+class TracingInstrumentationConfig(BaseModel):
+    """Application tracing instrumentation readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    enabled: StrictBool = True
+    mode: Literal["env"] = "env"
+    service_name: str = Field(default="", alias="serviceName")
+
+
+class TracingGrafanaDashboardConfig(BaseModel):
+    """Grafana trace dashboard readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+    title: str = ""
+
+
+class TracingGrafanaConfig(BaseModel):
+    """Grafana tracing readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+    dashboard: TracingGrafanaDashboardConfig = Field(
+        default_factory=TracingGrafanaDashboardConfig
+    )
+
+
+class TracingExamplesConfig(BaseModel):
+    """Tracing example file generation switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class TracingConfig(BaseModel):
+    """Tracing readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = False
+    provider: Literal["opentelemetry"] = "opentelemetry"
+    backend: TracingBackendConfig = Field(default_factory=TracingBackendConfig)
+    collector: TracingCollectorConfig = Field(default_factory=TracingCollectorConfig)
+    instrumentation: TracingInstrumentationConfig = Field(
+        default_factory=TracingInstrumentationConfig
+    )
+    grafana: TracingGrafanaConfig = Field(default_factory=TracingGrafanaConfig)
+    examples: TracingExamplesConfig = Field(default_factory=TracingExamplesConfig)
+
+
 class AppConfig(BaseModel):
     """Top-level user configuration."""
 
@@ -608,6 +686,7 @@ class AppConfig(BaseModel):
     gitops: GitOpsConfig = Field(default_factory=GitOpsConfig)
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    tracing: TracingConfig = Field(default_factory=TracingConfig)
 
     @model_validator(mode="after")
     def validate_ingress_service(self) -> "AppConfig":

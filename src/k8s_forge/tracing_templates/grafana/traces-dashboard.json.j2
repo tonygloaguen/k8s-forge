@@ -1,0 +1,67 @@
+{
+  "uid": "{{ app.name }}-traces-readiness",
+  "title": {{ dashboard_title | tojson }},
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "tags": ["k8s-forge", "tracing-readiness", "tempo", "opentelemetry"],
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "type": "traces",
+      "title": "Recent traces",
+      "description": "TraceQL example for the resolved OpenTelemetry service name. Adapt attributes to real instrumentation.",
+      "targets": [
+        {
+          "query": "{ resource.service.name = \"{{ service_name }}\" }",
+          "queryType": "traceql",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 0}
+    },
+    {
+      "id": 2,
+      "type": "traces",
+      "title": "Error traces",
+      "description": "Example query for server error spans.",
+      "targets": [
+        {
+          "query": "{ resource.service.name = \"{{ service_name }}\" && span.http.status_code >= 500 }",
+          "queryType": "traceql",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 10}
+    },
+    {
+      "id": 3,
+      "type": "traces",
+      "title": "Trace search by namespace",
+      "description": "Example query that includes the Kubernetes namespace resource attribute.",
+      "targets": [
+        {
+          "query": "{ resource.service.name = \"{{ service_name }}\" && resource.k8s.namespace.name = \"{{ app.namespace }}\" }",
+          "queryType": "traceql",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 10}
+    },
+    {
+      "id": 4,
+      "type": "traces",
+      "title": "Latency exploration model",
+      "description": "Template panel for latency exploration once real span duration attributes are available.",
+      "targets": [
+        {
+          "query": "{ resource.service.name = \"{{ service_name }}\" }",
+          "queryType": "traceql",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 18}
+    }
+  ]
+}

@@ -63,6 +63,14 @@ If Git is missing, `k8s-forge doctor` reports it as a non-blocking CI readiness 
 | Dashboard imports but panels are empty | Loki datasource or log collector is not configured | Install and validate the logging stack manually |
 | `doctor` reports Loki or collector missing | Logging stack is not installed | This is non-blocking for readiness file generation |
 
+## Tracing readiness notes
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| TraceQL query returns no data | The app is not instrumented or emitted different attributes | Inspect real trace attributes in Grafana Explore and adapt queries |
+| Dashboard imports but panels are empty | Tempo datasource, collector, or instrumentation is missing | Install and validate the tracing stack manually |
+| `doctor` reports Tempo or collector missing | Tracing stack is not installed | This is non-blocking for readiness file generation |
+
 ## GitOps readiness notes
 
 If ArgoCD is missing, `k8s-forge doctor` reports it as non-blocking. Generated Application manifests can be reviewed locally, but a cluster accepts them only after ArgoCD CRDs are installed manually.

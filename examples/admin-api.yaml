@@ -191,3 +191,27 @@ logging:
       title: ""
   queries:
     enabled: true
+
+tracing:
+  enabled: false
+  provider: opentelemetry
+  backend:
+    type: tempo
+    namespace: monitoring
+    datasourceName: Tempo
+  collector:
+    enabled: true
+    type: opentelemetry-collector
+    endpoint: http://otel-collector.monitoring.svc.cluster.local:4318
+    protocol: otlp-http
+  instrumentation:
+    enabled: true
+    mode: env
+    serviceName: ""
+  grafana:
+    enabled: true
+    dashboard:
+      enabled: true
+      title: ""
+  examples:
+    enabled: true
