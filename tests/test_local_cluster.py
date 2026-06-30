@@ -50,6 +50,7 @@ TRIVY_COMMAND = ["trivy", "--version"]
 SYFT_COMMAND = ["syft", "version"]
 COSIGN_COMMAND = ["cosign", "version"]
 GIT_COMMAND = ["git", "--version"]
+TERRAFORM_COMMAND = ["terraform", "version"]
 ARGOCD_CLI_COMMAND = ["argocd", "version", "--client"]
 ARGOCD_NAMESPACE_COMMAND = ["kubectl", "get", "ns", "argocd"]
 ARGOCD_DEPLOY_COMMAND = ["kubectl", "-n", "argocd", "get", "deploy"]
@@ -234,6 +235,7 @@ def test_check_environment_reports_metrics_server_present(
             ("syft", "version"): "syft",
             ("cosign", "version"): "cosign",
             ("git", "--version"): "git version 2.43.0",
+            ("terraform", "version"): "Terraform v1.8.0",
             ("argocd", "version", "--client"): "argocd: v2.11.0",
             ("kubectl", "get", "ns", "argocd"): "argocd",
             ("kubectl", "-n", "argocd", "get", "deploy"): "argocd-server",
@@ -803,3 +805,56 @@ def test_check_environment_keeps_logging_pod_errors_non_blocking(
     assert report.promtail.status == "unavailable"
     assert report.alloy.status == "unavailable"
     assert report.ready is True
+
+
+def test_check_environment_reports_terraform_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == TERRAFORM_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "Terraform v1.8.0", "")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.terraform.status == "OK"
+    assert "Terraform v1.8.0" in report.terraform.details
+
+
+def test_check_environment_reports_terraform_absent_as_non_blocking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == TERRAFORM_COMMAND:
+            raise FileNotFoundError
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.terraform.status == "missing"
+    assert report.ready is True
+
+
+def test_check_environment_never_runs_mutating_terraform_commands(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forbidden = {"init", "plan", "apply", "destroy"}
+    calls: list[list[str]] = []
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        if command and command[0] == "terraform" and len(command) > 1:
+            assert command[1] not in forbidden
+            return subprocess.CompletedProcess(command, 0, "Terraform v1.8.0", "")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.terraform.status == "OK"
+    assert TERRAFORM_COMMAND in calls

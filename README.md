@@ -28,6 +28,7 @@ name.
 - generate observability readiness files for Prometheus ServiceMonitor and Grafana dashboard review;
 - generate logging readiness files for Loki, LogQL, Promtail notes, and Grafana logs dashboard review;
 - generate tracing readiness files for OpenTelemetry, OTLP, Tempo, TraceQL, and Grafana traces dashboard review;
+- generate Terraform readiness files for local Infrastructure as Code review;
 - run guarded `kubectl` workflows for `dry-run`, `diff`, `apply`, and `status`;
 - check local Docker/kind/kubectl prerequisites and manage a local kind cluster;
 - keep generated manifests inspectable before cluster operations.
@@ -84,6 +85,7 @@ k8s-forge gitops render app.yaml --output generated-gitops/
 k8s-forge observability render app.yaml --output generated-observability/
 k8s-forge logging render app.yaml --output generated-logging/
 k8s-forge tracing render app.yaml --output generated-tracing/
+k8s-forge terraform render app.yaml --output generated-terraform/
 k8s-forge supply-chain render app.yaml --output generated-supply-chain/
 k8s-forge image load demo-app:latest --cluster devsecops
 k8s-forge dry-run app.yaml --output generated/
@@ -193,6 +195,10 @@ When `logging.enabled` is true, `k8s-forge` can generate local Loki LogQL exampl
 
 When `tracing.enabled` is true, `k8s-forge` can generate local OpenTelemetry notes, OTEL environment examples, Tempo TraceQL examples, collector notes, and a Grafana traces dashboard JSON model. It does not install OpenTelemetry Collector, Tempo, Grafana, Jaeger, create datasources, create secrets, apply manifests, or import dashboards.
 
+## Module 11 Terraform
+
+When `terraform.enabled` is true, `k8s-forge` can generate local Terraform readiness examples for Kubernetes and Helm providers using a local backend model. It does not run Terraform, contact a cloud provider, create access material, generate kubeconfig files, or provision infrastructure.
+
 ## Local kind Bootstrap
 
 `k8s-forge doctor` checks Docker, kind, kubectl, the current context, and
@@ -246,6 +252,7 @@ examples and tests.
 - [Module 8 Observability readiness workflow](docs/module-8-observability.md)
 - [Module 9 Logging readiness workflow](docs/module-9-logging.md)
 - [Module 10 Tracing readiness workflow](docs/module-10-tracing.md)
+- [Module 11 Terraform readiness workflow](docs/module-11-terraform.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Real app case study: weatherapi-platform](docs/real-app-weatherapi.md)
 - [Design notes](docs/design.md)

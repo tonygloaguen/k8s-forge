@@ -1220,3 +1220,81 @@ def test_tracing_booleans_are_strict() -> None:
 
     with pytest.raises(ValidationError):
         AppConfig.model_validate(config_data)
+
+
+def test_terraform_defaults_when_section_absent() -> None:
+    config_data = _valid_config()
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.terraform.enabled is False
+    assert config.terraform.project_name == ""
+    assert config.terraform.backend.type == "local"
+    assert config.terraform.providers.kubernetes.enabled is True
+    assert config.terraform.providers.helm.enabled is True
+    assert config.terraform.providers.cloud.enabled is False
+    assert config.terraform.modules.enabled is True
+    assert config.terraform.examples.enabled is True
+
+
+def test_terraform_enabled_config_is_valid() -> None:
+    config_data = _valid_config()
+    config_data["terraform"] = {
+        "enabled": True,
+        "projectName": "weather-platform",
+        "backend": {"type": "local"},
+        "providers": {
+            "kubernetes": {"enabled": True},
+            "helm": {"enabled": True},
+            "cloud": {"enabled": False},
+        },
+        "modules": {"enabled": True},
+        "examples": {"enabled": True},
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.terraform.enabled is True
+    assert config.terraform.project_name == "weather-platform"
+    assert config.terraform.backend.type == "local"
+
+
+def test_terraform_rejects_invalid_backend() -> None:
+    config_data = _valid_config()
+    config_data["terraform"] = {"backend": {"type": "remote"}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_terraform_project_name_can_be_empty_for_fallback() -> None:
+    config_data = _valid_config()
+    config_data["terraform"] = {"enabled": True, "projectName": ""}
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.terraform.project_name == ""
+
+
+def test_terraform_rejects_non_strict_provider_booleans() -> None:
+    config_data = _valid_config()
+    config_data["terraform"] = {"providers": {"kubernetes": {"enabled": "yes"}}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_terraform_rejects_non_strict_modules_boolean() -> None:
+    config_data = _valid_config()
+    config_data["terraform"] = {"modules": {"enabled": "yes"}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_terraform_rejects_non_strict_examples_boolean() -> None:
+    config_data = _valid_config()
+    config_data["terraform"] = {"examples": {"enabled": "yes"}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)

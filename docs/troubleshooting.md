@@ -71,6 +71,14 @@ If Git is missing, `k8s-forge doctor` reports it as a non-blocking CI readiness 
 | Dashboard imports but panels are empty | Tempo datasource, collector, or instrumentation is missing | Install and validate the tracing stack manually |
 | `doctor` reports Tempo or collector missing | Tracing stack is not installed | This is non-blocking for readiness file generation |
 
+## Terraform readiness notes
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| `doctor` reports Terraform missing | Terraform is not installed locally | This is non-blocking for readiness file generation |
+| Terraform files look incomplete | Cloud provider rendering is outside v0.14.0 | Keep cloud examples manual for now |
+| Provider examples cannot be used as-is | Local cluster config and review workflow are user-owned | Adapt paths and settings manually before any real Terraform workflow |
+
 ## GitOps readiness notes
 
 If ArgoCD is missing, `k8s-forge doctor` reports it as non-blocking. Generated Application manifests can be reviewed locally, but a cluster accepts them only after ArgoCD CRDs are installed manually.

@@ -1,0 +1,48 @@
+# Terraform Readiness
+
+Project: `{{ project_name }}`
+Application: `{{ app.name }}`
+Namespace: `{{ app.namespace }}`
+Backend model: `{{ terraform.backend.type }}`
+Kubernetes provider example: `{{ "enabled" if terraform.providers.kubernetes.enabled else "disabled" }}`
+Helm provider example: `{{ "enabled" if terraform.providers.helm.enabled else "disabled" }}`
+Cloud provider example: `{{ "enabled" if terraform.providers.cloud.enabled else "disabled" }}`
+
+This directory contains local Infrastructure as Code examples generated from `app.yaml`. The files are meant for review and learning before any manual Terraform workflow.
+
+## What Was Generated
+
+- `versions.tf`: Terraform and provider version requirements.
+- `providers.tf`: Kubernetes and Helm provider examples when enabled.
+- `variables.tf`: input variables that describe the app and local paths.
+- `main.tf`: small Kubernetes and Helm resource examples when examples are enabled.
+- `outputs.tf`: review outputs for project, app, namespace, and chart path.
+
+## Infrastructure As Code
+
+Infrastructure as Code describes infrastructure in versioned text files. Terraform uses providers to talk to target APIs, variables to parameterize configuration, outputs to expose useful values, and state to remember known resources.
+
+## Local Backend Only
+
+v0.14.0 uses a local backend model only. A remote backend is intentionally not generated because remote state normally needs organization-specific storage, access control, and sensitive configuration.
+
+## Provider Scope
+
+The Kubernetes and Helm provider blocks are examples. The cloud provider switch is accepted by the model but no real cloud provider is generated in v0.14.0.
+
+## Safety Boundaries
+
+`k8s-forge` only writes these local files. It does not run Terraform commands that create, modify, or delete resources. It does not contact a cluster, contact a cloud provider, generate access material, generate cluster config files, or change ArgoCD.
+
+Review and adapt these examples before any manual workflow.
+
+## Review Commands
+
+```bash
+cat README.md
+cat versions.tf
+cat providers.tf
+cat variables.tf
+cat main.tf
+cat outputs.tf
+```

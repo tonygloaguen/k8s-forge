@@ -1,0 +1,24 @@
+{% if terraform.providers.kubernetes.enabled -%}
+provider "kubernetes" {
+  config_path = var.kubeconfig_path != "" ? var.kubeconfig_path : null
+}
+{% else -%}
+# Kubernetes provider example is disabled in app.yaml.
+{% endif %}
+
+{% if terraform.providers.helm.enabled -%}
+provider "helm" {
+  kubernetes {
+    config_path = var.kubeconfig_path != "" ? var.kubeconfig_path : null
+  }
+}
+{% else -%}
+# Helm provider example is disabled in app.yaml.
+{% endif %}
+
+{% if terraform.providers.cloud.enabled -%}
+# Cloud provider examples are intentionally not rendered in v0.14.0.
+# Keep cloud-specific configuration outside this educational readiness output.
+{% else -%}
+# Cloud provider example is disabled. v0.14.0 renders no real cloud provider.
+{% endif %}

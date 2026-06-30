@@ -59,6 +59,7 @@ class DoctorReport:
     syft: ToolCheck
     cosign: ToolCheck
     git: ToolCheck
+    terraform: ToolCheck
     argocd_cli: ToolCheck
     argocd_namespace: ToolCheck
     argocd_deployments: ToolCheck
@@ -229,6 +230,7 @@ def check_environment(timeout: int = 30) -> DoctorReport:
     syft = check_command("Syft", ["syft", "version"], timeout)
     cosign = check_command("Cosign", ["cosign", "version"], timeout)
     git = check_command("Git", ["git", "--version"], timeout)
+    terraform = check_command("Terraform", ["terraform", "version"], timeout)
     argocd_cli = check_command("ArgoCD CLI", ["argocd", "version", "--client"], timeout)
 
     if kubectl.status == "OK":
@@ -468,6 +470,7 @@ def check_environment(timeout: int = 30) -> DoctorReport:
         syft,
         cosign,
         git,
+        terraform,
         argocd_cli,
         argocd_namespace,
         argocd_deployments,

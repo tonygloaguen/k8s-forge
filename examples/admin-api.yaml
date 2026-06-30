@@ -215,3 +215,20 @@ tracing:
       title: ""
   examples:
     enabled: true
+
+terraform:
+  enabled: false
+  projectName: ""
+  backend:
+    type: local
+  providers:
+    kubernetes:
+      enabled: true
+    helm:
+      enabled: true
+    cloud:
+      enabled: false
+  modules:
+    enabled: true
+  examples:
+    enabled: true

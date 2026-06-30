@@ -405,3 +405,7 @@ Copy the observability config to `k8s-forge-app-logging.yaml`, enable `logging`,
 ## Module 10 Tracing readiness follow-up
 
 Copy the logging config to `k8s-forge-app-tracing.yaml`, enable `tracing`, then run `k8s-forge tracing render k8s-forge-app-tracing.yaml --output generated-tracing/ --force`. Review the OpenTelemetry notes, OTEL environment examples, TraceQL examples, collector notes, and Grafana traces dashboard JSON. Application instrumentation, OpenTelemetry Collector, Tempo, and Grafana must be configured manually before traces are queryable.
+
+## Module 11 Terraform readiness follow-up
+
+Copy the tracing config to `k8s-forge-app-terraform.yaml`, enable `terraform`, then run `k8s-forge terraform render k8s-forge-app-terraform.yaml --output generated-terraform/ --force`. Review the generated Terraform files as educational Infrastructure as Code examples. No infrastructure is provisioned automatically.

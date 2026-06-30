@@ -1,0 +1,34 @@
+{% if terraform.providers.kubernetes.enabled -%}
+resource "kubernetes_namespace" "application" {
+  count = var.create_namespace_example ? 1 : 0
+
+  metadata {
+    name = var.namespace
+
+    labels = {
+      "app.kubernetes.io/name"       = var.app_name
+      "app.kubernetes.io/managed-by" = "terraform-example"
+    }
+  }
+}
+{% else -%}
+# Kubernetes resource examples are disabled because the Kubernetes provider is disabled.
+{% endif %}
+
+{% if terraform.providers.helm.enabled -%}
+resource "helm_release" "application" {
+  count = var.enable_helm_release_example ? 1 : 0
+
+  name      = var.app_name
+  namespace = var.namespace
+  chart     = var.chart_path
+
+  create_namespace = false
+}
+{% else -%}
+# Helm release examples are disabled because the Helm provider is disabled.
+{% endif %}
+
+{% if terraform.modules.enabled -%}
+# Module examples are reserved for a later version. v0.14.0 keeps this file small.
+{% endif %}

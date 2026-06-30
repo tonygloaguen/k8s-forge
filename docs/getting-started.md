@@ -160,3 +160,7 @@ After metrics readiness, see [Module 9 Logging](module-9-logging.md) to generate
 ## Next step: tracing readiness
 
 After logging readiness, see [Module 10 Tracing](module-10-tracing.md) to generate local OpenTelemetry, OTLP, Tempo, TraceQL, and Grafana traces examples.
+
+## Next step: Terraform readiness
+
+After tracing readiness, see [Module 11 Terraform](module-11-terraform.md) to generate local Infrastructure as Code examples without provisioning anything.

@@ -56,6 +56,10 @@ from k8s_forge.supply_chain_renderer import (
     resolve_supply_chain_image,
     uses_latest_tag,
 )
+from k8s_forge.terraform_renderer import (
+    render_terraform_files,
+    resolve_terraform_project_name,
+)
 from k8s_forge.tracing_renderer import (
     render_tracing_files,
     resolve_tracing_dashboard_title,
@@ -76,6 +80,7 @@ gitops_app = typer.Typer(help="Generate ArgoCD GitOps readiness manifests.")
 observability_app = typer.Typer(help="Generate observability readiness files.")
 logging_app = typer.Typer(help="Generate logging readiness files.")
 tracing_app = typer.Typer(help="Generate tracing readiness files.")
+terraform_app = typer.Typer(help="Generate Terraform readiness files.")
 
 
 class _QuotedString(str):
@@ -1045,6 +1050,85 @@ def _print_tracing_diagnostics(report: DoctorReport) -> None:
         _print_hint("Jaeger was detected as a possible tracing backend alternative.")
 
 
+def _print_terraform_summary(config: AppConfig) -> None:
+    if not config.terraform.enabled:
+        return
+    _print_hint("Terraform readiness is enabled.")
+    _print_hint(
+        "Terraform can describe infrastructure as code, but k8s-forge only "
+        "generates local educational examples."
+    )
+    _print_hint(
+        "k8s-forge does not run Terraform commands that create, modify, or "
+        "destroy resources."
+    )
+    _print_hint(f"Terraform project: {resolve_terraform_project_name(config)}")
+    _print_hint(f"Terraform backend: {config.terraform.backend.type}")
+    kubernetes_state = (
+        "enabled" if config.terraform.providers.kubernetes.enabled else "disabled"
+    )
+    helm_state = "enabled" if config.terraform.providers.helm.enabled else "disabled"
+    cloud_state = "enabled" if config.terraform.providers.cloud.enabled else "disabled"
+    _print_hint(f"Kubernetes provider example: {kubernetes_state}")
+    _print_hint(f"Helm provider example: {helm_state}")
+    _print_hint(f"Cloud provider example: {cloud_state}")
+    if config.terraform.providers.cloud.enabled:
+        _print_warning(
+            "terraform.providers.cloud.enabled is true, but v0.14.0 does not "
+            "render a real cloud provider."
+        )
+
+
+def _print_terraform_render_hint(config_path: Path) -> None:
+    _print_hint("Terraform readiness is enabled.")
+    _print_hint("Kubernetes manifests were generated separately.")
+    _print_hint(
+        f"Run: k8s-forge terraform render {config_path} --output generated-terraform/"
+    )
+
+
+def _print_terraform_summary_table(paths: list[Path], output: Path) -> None:
+    table = Table(title="Generated Terraform files")
+    table.add_column("File")
+    for path in paths:
+        try:
+            rendered = str(path.relative_to(output))
+        except ValueError:
+            rendered = str(path)
+        table.add_row(rendered)
+    console.print(table)
+
+
+def _print_terraform_next_steps(output: Path) -> None:
+    _print_hint("Next review commands:")
+    _print_hint(f"  cat {output / 'README.md'}")
+    _print_hint(f"  cat {output / 'versions.tf'}")
+    _print_hint(f"  cat {output / 'providers.tf'}")
+    _print_hint(f"  cat {output / 'variables.tf'}")
+    _print_hint(f"  cat {output / 'main.tf'}")
+    _print_hint(f"  cat {output / 'outputs.tf'}")
+    _print_hint("  k8s-forge doctor")
+
+
+def _print_terraform_diagnostics(report: DoctorReport) -> None:
+    _print_step("Checking Terraform readiness...")
+    _print_hint(
+        "Terraform can be used to model infrastructure, but k8s-forge does not "
+        "run Terraform commands that create, modify, or destroy resources."
+    )
+    _print_hint(
+        "Generated Terraform files can be reviewed locally before any manual "
+        "Terraform workflow."
+    )
+    if report.terraform.status == "OK":
+        console.print("[green]Terraform is available.[/green]")
+    else:
+        _print_warning(
+            "Terraform is not installed. Terraform readiness files can still be "
+            "rendered and reviewed locally."
+        )
+
+
 def _print_check_summary(config: AppConfig) -> None:
     """Print a concise validation summary."""
     table = Table(title="Application configuration")
@@ -1335,6 +1419,18 @@ def _starter_config_data(
                     "title": _QuotedString(""),
                 },
             },
+            "examples": {"enabled": True},
+        },
+        "terraform": {
+            "enabled": False,
+            "projectName": _QuotedString(""),
+            "backend": {"type": _QuotedString("local")},
+            "providers": {
+                "kubernetes": {"enabled": True},
+                "helm": {"enabled": True},
+                "cloud": {"enabled": False},
+            },
+            "modules": {"enabled": True},
             "examples": {"enabled": True},
         },
     }
@@ -1632,6 +1728,7 @@ def check(
     _print_observability_summary(loaded)
     _print_logging_summary(loaded)
     _print_tracing_summary(loaded)
+    _print_terraform_summary(loaded)
     _print_autoscaling_warning(loaded)
 
 
@@ -1672,6 +1769,8 @@ def render(
         _print_logging_render_hint(config_path)
     if loaded.tracing.enabled:
         _print_tracing_render_hint(config_path)
+    if loaded.terraform.enabled:
+        _print_terraform_render_hint(config_path)
     _print_autoscaling_warning(loaded)
     console.print("[green]manifests generated[/green]")
     _print_render_summary(generated)
@@ -1900,6 +1999,7 @@ def doctor(
             report.syft,
             report.cosign,
             report.git,
+            report.terraform,
             report.argocd_cli,
             report.argocd_namespace,
             report.argocd_deployments,
@@ -1986,6 +2086,7 @@ def doctor(
     _print_observability_diagnostics(report)
     _print_logging_diagnostics(report)
     _print_tracing_diagnostics(report)
+    _print_terraform_diagnostics(report)
 
     if report.ready:
         console.print("[green]Ready for local kind workflows.[/green]")
@@ -2447,6 +2548,44 @@ def tracing_render(
     _print_tracing_next_steps(output)
 
 
+@terraform_app.command("render")
+def terraform_render(
+    config_path: Annotated[Path, typer.Argument(help="Path to app.yaml.")],
+    output: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Output directory for Terraform files."),
+    ] = Path("generated-terraform"),
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Overwrite existing Terraform files."),
+    ] = False,
+) -> None:
+    """Render local Terraform readiness files."""
+    _print_step("Rendering Terraform readiness files from app.yaml...")
+    _print_hint("This creates local Infrastructure as Code examples.")
+    _print_hint(
+        "This step does not contact the cluster, does not contact any cloud "
+        "provider, and does not run Terraform."
+    )
+    try:
+        loaded = load_app_config(config_path)
+        generated = render_terraform_files(loaded, output, force=force)
+    except (ConfigLoadError, RenderError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    if not loaded.terraform.enabled:
+        _print_hint(
+            "Terraform readiness is disabled; no Terraform files were generated."
+        )
+        return
+
+    _print_terraform_summary(loaded)
+    console.print(f"[green]Terraform files generated in {output}.[/green]")
+    _print_terraform_summary_table(generated, output)
+    _print_terraform_next_steps(output)
+
+
 app.add_typer(cluster_app, name="cluster")
 app.add_typer(image_app, name="image")
 app.add_typer(helm_app, name="helm")
@@ -2456,3 +2595,4 @@ app.add_typer(gitops_app, name="gitops")
 app.add_typer(observability_app, name="observability")
 app.add_typer(logging_app, name="logging")
 app.add_typer(tracing_app, name="tracing")
+app.add_typer(terraform_app, name="terraform")

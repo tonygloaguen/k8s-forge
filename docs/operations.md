@@ -481,3 +481,7 @@ Then inspect `README.md`, run `scan-image.sh` for Trivy, and run `generate-sbom.
 ## Tracing Readiness
 
 `k8s-forge tracing render app.yaml --output generated-tracing/` generates local OpenTelemetry instrumentation notes, OTEL environment examples, Tempo TraceQL examples, collector notes, and a Grafana traces dashboard JSON model. These files do not install OpenTelemetry Collector, Tempo, Grafana, or Jaeger, do not create datasources or secrets, and do not apply manifests.
+
+## Terraform Readiness
+
+`k8s-forge terraform render app.yaml --output generated-terraform/` generates local Terraform examples for Kubernetes and Helm provider review. These files do not run Terraform, contact cloud providers, create access material, create cluster config files, or provision resources.

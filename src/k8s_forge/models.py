@@ -665,6 +665,85 @@ class TracingConfig(BaseModel):
     examples: TracingExamplesConfig = Field(default_factory=TracingExamplesConfig)
 
 
+class TerraformBackendConfig(BaseModel):
+    """Terraform backend readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["local"] = "local"
+
+
+class TerraformKubernetesProviderConfig(BaseModel):
+    """Terraform Kubernetes provider example switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class TerraformHelmProviderConfig(BaseModel):
+    """Terraform Helm provider example switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class TerraformCloudProviderConfig(BaseModel):
+    """Terraform cloud provider example switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = False
+
+
+class TerraformProvidersConfig(BaseModel):
+    """Terraform provider example configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kubernetes: TerraformKubernetesProviderConfig = Field(
+        default_factory=TerraformKubernetesProviderConfig
+    )
+    helm: TerraformHelmProviderConfig = Field(
+        default_factory=TerraformHelmProviderConfig
+    )
+    cloud: TerraformCloudProviderConfig = Field(
+        default_factory=TerraformCloudProviderConfig
+    )
+
+
+class TerraformModulesConfig(BaseModel):
+    """Terraform module example generation switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class TerraformExamplesConfig(BaseModel):
+    """Terraform example file generation switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class TerraformConfig(BaseModel):
+    """Terraform readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    enabled: StrictBool = False
+    project_name: str = Field(default="", alias="projectName")
+    backend: TerraformBackendConfig = Field(default_factory=TerraformBackendConfig)
+    providers: TerraformProvidersConfig = Field(
+        default_factory=TerraformProvidersConfig
+    )
+    modules: TerraformModulesConfig = Field(default_factory=TerraformModulesConfig)
+    examples: TerraformExamplesConfig = Field(default_factory=TerraformExamplesConfig)
+
+
 class AppConfig(BaseModel):
     """Top-level user configuration."""
 
@@ -687,6 +766,7 @@ class AppConfig(BaseModel):
     observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     tracing: TracingConfig = Field(default_factory=TracingConfig)
+    terraform: TerraformConfig = Field(default_factory=TerraformConfig)
 
     @model_validator(mode="after")
     def validate_ingress_service(self) -> "AppConfig":

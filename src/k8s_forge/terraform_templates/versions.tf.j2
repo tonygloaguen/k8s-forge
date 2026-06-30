@@ -1,0 +1,20 @@
+terraform {
+  required_version = ">= 1.6.0"
+
+  backend "local" {}
+
+  required_providers {
+{% if terraform.providers.kubernetes.enabled %}
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = ">= 2.30.0"
+    }
+{% endif %}
+{% if terraform.providers.helm.enabled %}
+    helm = {
+      source  = "hashicorp/helm"
+      version = ">= 2.13.0"
+    }
+{% endif %}
+  }
+}

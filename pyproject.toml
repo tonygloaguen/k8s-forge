@@ -64,6 +64,7 @@ k8s_forge = [
   "tracing_templates/tempo/*.j2",
   "tracing_templates/grafana/*.j2",
   "tracing_templates/collector/*.j2",
+  "terraform_templates/*.j2",
 ]
 
 [tool.ruff]

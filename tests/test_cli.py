@@ -50,6 +50,7 @@ TRIVY_COMMAND = ["trivy", "--version"]
 SYFT_COMMAND = ["syft", "version"]
 COSIGN_COMMAND = ["cosign", "version"]
 GIT_COMMAND = ["git", "--version"]
+TERRAFORM_COMMAND = ["terraform", "version"]
 ARGOCD_CLI_COMMAND = ["argocd", "version", "--client"]
 ARGOCD_NAMESPACE_COMMAND = ["kubectl", "get", "ns", "argocd"]
 ARGOCD_DEPLOY_COMMAND = ["kubectl", "-n", "argocd", "get", "deploy"]
@@ -97,6 +98,7 @@ def test_cli_commands_exist() -> None:
         "observability",
         "logging",
         "tracing",
+        "terraform",
     ):
         assert command in result.output
 
@@ -1082,6 +1084,7 @@ def test_cli_doctor_all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
             ("syft", "version"): "syft",
             ("cosign", "version"): "cosign",
             ("git", "--version"): "git version 2.43.0",
+            ("terraform", "version"): "Terraform v1.8.0",
             ("argocd", "version", "--client"): "argocd: v2.11.0",
             ("kubectl", "get", "ns", "argocd"): "argocd",
             ("kubectl", "-n", "argocd", "get", "deploy"): "argocd-server",
@@ -2984,3 +2987,201 @@ def test_cli_doctor_reports_logging_present(monkeypatch: pytest.MonkeyPatch) -> 
     assert "Checking logging readiness" in result.output
     assert "Loki and a compatible log collector appear" in result.output
     assert "Grafana appears to be available" in result.output
+
+
+def _write_terraform_config(path: Path, enabled: bool = True) -> None:
+    path.write_text(
+        f"""
+app:
+  name: weatherapi
+  namespace: weather
+  image: weatherapi:0.1.0
+  containerPort: 8000
+  replicas: 2
+service:
+  enabled: true
+  port: 80
+terraform:
+  enabled: {str(enabled).lower()}
+  projectName: ""
+  backend:
+    type: local
+  providers:
+    kubernetes:
+      enabled: true
+    helm:
+      enabled: true
+    cloud:
+      enabled: false
+  modules:
+    enabled: true
+  examples:
+    enabled: true
+""".strip(),
+        encoding="utf-8",
+    )
+
+
+def test_cli_check_mentions_terraform_when_enabled(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    _write_terraform_config(config_path)
+
+    result = runner.invoke(app, ["check", str(config_path)])
+
+    assert result.exit_code == 0
+    assert "Terraform readiness is enabled" in result.output
+    assert "Terraform backend: local" in result.output
+    assert "Kubernetes provider example: enabled" in result.output
+    assert "Helm provider example: enabled" in result.output
+    assert "Cloud provider example: disabled" in result.output
+    assert "does not run Terraform commands" in result.output
+
+
+def test_cli_render_suggests_terraform_render_command(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated"
+    _write_terraform_config(config_path)
+
+    result = runner.invoke(
+        app,
+        ["render", str(config_path), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 0
+    assert "Terraform readiness is enabled" in result.output
+    assert "Kubernetes manifests were generated separately" in result.output
+    assert "k8s-forge terraform render" in result.output
+    assert not (output_dir / "versions.tf").exists()
+
+
+def test_cli_terraform_render_generates_files(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-terraform"
+    _write_terraform_config(config_path)
+
+    result = runner.invoke(
+        app,
+        ["terraform", "render", str(config_path), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 0
+    assert "Rendering Terraform readiness files" in result.output
+    assert "does not contact the cluster" in result.output
+    assert "does not run Terraform" in result.output
+    assert "Terraform files generated" in result.output
+    assert "versions.tf" in result.output
+    assert (output_dir / "README.md").exists()
+    assert (output_dir / "versions.tf").exists()
+    assert (output_dir / "providers.tf").exists()
+    assert (output_dir / "variables.tf").exists()
+    assert (output_dir / "main.tf").exists()
+    assert (output_dir / "outputs.tf").exists()
+
+
+def test_cli_terraform_render_disabled_is_clean(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-terraform"
+    _write_terraform_config(config_path, enabled=False)
+
+    result = runner.invoke(
+        app,
+        ["terraform", "render", str(config_path), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 0
+    assert "Terraform readiness is disabled" in result.output
+    assert not output_dir.exists()
+
+
+def test_cli_terraform_render_refuses_overwrite_without_force(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-terraform"
+    _write_terraform_config(config_path)
+    output_dir.mkdir()
+    (output_dir / "README.md").write_text("existing", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["terraform", "render", str(config_path), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 1
+    assert "use --force" in result.output
+    assert (output_dir / "README.md").read_text(encoding="utf-8") == "existing"
+
+
+def test_cli_terraform_render_overwrites_with_force(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-terraform"
+    _write_terraform_config(config_path)
+    output_dir.mkdir()
+    (output_dir / "README.md").write_text("existing", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "terraform",
+            "render",
+            str(config_path),
+            "--output",
+            str(output_dir),
+            "--force",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Terraform Readiness" in (output_dir / "README.md").read_text(
+        encoding="utf-8"
+    )
+
+
+def test_cli_doctor_reports_terraform_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == TERRAFORM_COMMAND:
+            raise FileNotFoundError
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "Checking Terraform readiness" in result.output
+    assert "Terraform is not installed" in result.output
+    assert "Ready for local kind workflows" in result.output
+
+
+def test_cli_doctor_reports_terraform_present(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == TERRAFORM_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "Terraform v1.8.0", "")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "Terraform is available" in result.output
+    assert "Terraform v1.8.0" in result.output
+
+
+def test_cli_doctor_never_runs_mutating_terraform_commands(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forbidden = {"init", "plan", "apply", "destroy"}
+    calls: list[list[str]] = []
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        if command and command[0] == "terraform" and len(command) > 1:
+            assert command[1] not in forbidden
+            return subprocess.CompletedProcess(command, 0, "Terraform v1.8.0", "")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert TERRAFORM_COMMAND in calls

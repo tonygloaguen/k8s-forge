@@ -840,3 +840,37 @@ tracing:
 | `tracing.grafana.dashboard.title` | string | No | empty | falls back to `app.name` | Grafana traces dashboard title |
 | `tracing.examples.enabled` | boolean | No | `true` | boolean only | Controls TraceQL examples generation |
 
+## `terraform`
+
+The `terraform` section controls local Terraform readiness generation. It does not affect raw Kubernetes rendering, Helm chart rendering, GitOps files, CI files, or cluster state. Use `k8s-forge terraform render app.yaml --output generated-terraform/` to generate reviewable Infrastructure as Code examples.
+
+```yaml
+terraform:
+  enabled: false
+  projectName: ""
+  backend:
+    type: local
+  providers:
+    kubernetes:
+      enabled: true
+    helm:
+      enabled: true
+    cloud:
+      enabled: false
+  modules:
+    enabled: true
+  examples:
+    enabled: true
+```
+
+| Field | Type | Required | Default | Validation | Purpose |
+| --- | --- | --- | --- | --- | --- |
+| `terraform.enabled` | boolean | No | `false` | boolean only | Controls Terraform readiness file generation |
+| `terraform.projectName` | string | No | empty | falls back to `app.name` | Educational Terraform project name |
+| `terraform.backend.type` | string | No | `local` | only `local` in v0.14.0 | Selects backend model |
+| `terraform.providers.kubernetes.enabled` | boolean | No | `true` | boolean only | Controls Kubernetes provider examples |
+| `terraform.providers.helm.enabled` | boolean | No | `true` | boolean only | Controls Helm provider examples |
+| `terraform.providers.cloud.enabled` | boolean | No | `false` | boolean only | Accepted but no real cloud provider is rendered |
+| `terraform.modules.enabled` | boolean | No | `true` | boolean only | Reserved for later module examples |
+| `terraform.examples.enabled` | boolean | No | `true` | boolean only | Controls main.tf example generation |
+
