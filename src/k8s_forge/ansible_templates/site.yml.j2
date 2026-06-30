@@ -1,0 +1,22 @@
+---
+- name: k8s-forge Ansible readiness example
+  hosts: local
+  gather_facts: false
+  tasks:
+    - name: Show project context
+      ansible.builtin.debug:
+        msg: "Review local automation context for {{ app.name }} in {{ app.namespace }}."
+
+    - name: Show generated artifact paths
+      ansible.builtin.debug:
+        msg:
+          manifest_path: "{{ manifest_path }}"
+          chart_path: "{{ chart_path }}"
+
+    - name: Confirm readiness-only scope
+      ansible.builtin.assert:
+        that:
+          - project_name | length > 0
+          - app_name | length > 0
+          - namespace | length > 0
+        success_msg: "Readiness variables are present for local review."

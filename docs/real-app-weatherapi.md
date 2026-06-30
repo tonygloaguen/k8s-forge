@@ -409,3 +409,7 @@ Copy the logging config to `k8s-forge-app-tracing.yaml`, enable `tracing`, then 
 ## Module 11 Terraform readiness follow-up
 
 Copy the tracing config to `k8s-forge-app-terraform.yaml`, enable `terraform`, then run `k8s-forge terraform render k8s-forge-app-terraform.yaml --output generated-terraform/ --force`. Review the generated Terraform files as educational Infrastructure as Code examples. No infrastructure is provisioned automatically.
+
+## Module 12 Ansible readiness follow-up
+
+Copy the Terraform config to `k8s-forge-app-ansible.yaml`, enable `ansible`, then run `k8s-forge ansible render k8s-forge-app-ansible.yaml --output generated-ansible/ --force`. Review the generated Ansible files as educational automation examples. No host is contacted and no system is modified automatically.

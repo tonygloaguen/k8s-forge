@@ -485,3 +485,7 @@ Then inspect `README.md`, run `scan-image.sh` for Trivy, and run `generate-sbom.
 ## Terraform Readiness
 
 `k8s-forge terraform render app.yaml --output generated-terraform/` generates local Terraform examples for Kubernetes and Helm provider review. These files do not run Terraform, contact cloud providers, create access material, create cluster config files, or provision resources.
+
+## Ansible Readiness
+
+`k8s-forge ansible render app.yaml --output generated-ansible/` generates local Ansible examples for automation review. These files do not run Ansible, open remote sessions, modify servers, contact Kubernetes, run Helm, run Terraform, or create secrets.

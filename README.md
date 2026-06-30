@@ -29,6 +29,7 @@ name.
 - generate logging readiness files for Loki, LogQL, Promtail notes, and Grafana logs dashboard review;
 - generate tracing readiness files for OpenTelemetry, OTLP, Tempo, TraceQL, and Grafana traces dashboard review;
 - generate Terraform readiness files for local Infrastructure as Code review;
+- generate Ansible readiness files for local automation review;
 - run guarded `kubectl` workflows for `dry-run`, `diff`, `apply`, and `status`;
 - check local Docker/kind/kubectl prerequisites and manage a local kind cluster;
 - keep generated manifests inspectable before cluster operations.
@@ -86,6 +87,7 @@ k8s-forge observability render app.yaml --output generated-observability/
 k8s-forge logging render app.yaml --output generated-logging/
 k8s-forge tracing render app.yaml --output generated-tracing/
 k8s-forge terraform render app.yaml --output generated-terraform/
+k8s-forge ansible render app.yaml --output generated-ansible/
 k8s-forge supply-chain render app.yaml --output generated-supply-chain/
 k8s-forge image load demo-app:latest --cluster devsecops
 k8s-forge dry-run app.yaml --output generated/
@@ -234,6 +236,10 @@ may be stored in plain text during the MVP. The MVP uses Kubernetes
 `stringData` for readability and should only be used with placeholder values in
 examples and tests.
 
+## Module 12 Ansible
+
+When `ansible.enabled` is true, `k8s-forge` can generate local Ansible readiness examples with a local inventory, review-only playbook, group variables, and role notes. It does not run Ansible, open remote sessions, modify servers, contact Kubernetes, run Helm, run Terraform, create secrets, or generate login keys.
+
 ## Documentation
 
 - [Getting started](docs/getting-started.md)
@@ -253,6 +259,7 @@ examples and tests.
 - [Module 9 Logging readiness workflow](docs/module-9-logging.md)
 - [Module 10 Tracing readiness workflow](docs/module-10-tracing.md)
 - [Module 11 Terraform readiness workflow](docs/module-11-terraform.md)
+- [Module 12 Ansible readiness workflow](docs/module-12-ansible.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Real app case study: weatherapi-platform](docs/real-app-weatherapi.md)
 - [Design notes](docs/design.md)

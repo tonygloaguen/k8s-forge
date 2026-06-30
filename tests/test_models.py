@@ -1298,3 +1298,98 @@ def test_terraform_rejects_non_strict_examples_boolean() -> None:
 
     with pytest.raises(ValidationError):
         AppConfig.model_validate(config_data)
+
+
+def test_ansible_defaults_when_section_absent() -> None:
+    config_data = _valid_config()
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.ansible.enabled is False
+    assert config.ansible.project_name == ""
+    assert config.ansible.inventory.type == "local"
+    assert config.ansible.inventory.hosts == ["localhost"]
+    assert config.ansible.playbook.name == "site.yml"
+    assert config.ansible.roles.enabled is True
+    assert config.ansible.collections.kubernetes.enabled is True
+    assert config.ansible.collections.community.enabled is False
+    assert config.ansible.examples.enabled is True
+
+
+def test_ansible_enabled_config_is_valid() -> None:
+    config_data = _valid_config()
+    config_data["ansible"] = {
+        "enabled": True,
+        "projectName": "weather-automation",
+        "inventory": {"type": "local", "hosts": ["localhost"]},
+        "playbook": {"name": "site.yaml"},
+        "roles": {"enabled": True},
+        "collections": {
+            "kubernetes": {"enabled": True},
+            "community": {"enabled": False},
+        },
+        "examples": {"enabled": True},
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.ansible.enabled is True
+    assert config.ansible.project_name == "weather-automation"
+    assert config.ansible.playbook.name == "site.yaml"
+
+
+def test_ansible_rejects_invalid_inventory_type() -> None:
+    config_data = _valid_config()
+    config_data["ansible"] = {"inventory": {"type": "production"}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_ansible_rejects_empty_hosts() -> None:
+    config_data = _valid_config()
+    config_data["ansible"] = {"inventory": {"hosts": []}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_ansible_rejects_empty_host_entry() -> None:
+    config_data = _valid_config()
+    config_data["ansible"] = {"inventory": {"hosts": [""]}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_ansible_rejects_empty_playbook_name() -> None:
+    config_data = _valid_config()
+    config_data["ansible"] = {"playbook": {"name": ""}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_ansible_rejects_playbook_name_without_yaml_suffix() -> None:
+    config_data = _valid_config()
+    config_data["ansible"] = {"playbook": {"name": "site.txt"}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_ansible_rejects_non_strict_booleans() -> None:
+    config_data = _valid_config()
+    config_data["ansible"] = {"roles": {"enabled": "yes"}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_ansible_project_name_can_be_empty_for_fallback() -> None:
+    config_data = _valid_config()
+    config_data["ansible"] = {"enabled": True, "projectName": ""}
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.ansible.project_name == ""

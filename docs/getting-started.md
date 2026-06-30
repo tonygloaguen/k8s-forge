@@ -164,3 +164,7 @@ After logging readiness, see [Module 10 Tracing](module-10-tracing.md) to genera
 ## Next step: Terraform readiness
 
 After tracing readiness, see [Module 11 Terraform](module-11-terraform.md) to generate local Infrastructure as Code examples without provisioning anything.
+
+## Next step: Ansible readiness
+
+After Terraform readiness, see [Module 12 Ansible](module-12-ansible.md) to generate local automation examples without executing Ansible or modifying hosts.

@@ -874,3 +874,41 @@ terraform:
 | `terraform.modules.enabled` | boolean | No | `true` | boolean only | Reserved for later module examples |
 | `terraform.examples.enabled` | boolean | No | `true` | boolean only | Controls main.tf example generation |
 
+
+
+## `ansible`
+
+The `ansible` section controls local Ansible readiness generation. It does not affect raw Kubernetes rendering, Helm chart rendering, Terraform files, or cluster state. Use `k8s-forge ansible render app.yaml --output generated-ansible/` to generate reviewable automation examples.
+
+```yaml
+ansible:
+  enabled: false
+  projectName: ""
+  inventory:
+    type: local
+    hosts:
+      - localhost
+  playbook:
+    name: site.yml
+  roles:
+    enabled: true
+  collections:
+    kubernetes:
+      enabled: true
+    community:
+      enabled: false
+  examples:
+    enabled: true
+```
+
+| Field | Type | Required | Default | Validation | Purpose |
+| --- | --- | --- | --- | --- | --- |
+| `ansible.enabled` | boolean | No | `false` | boolean only | Controls Ansible readiness file generation |
+| `ansible.projectName` | string | No | empty | falls back to `app.name` | Educational Ansible project name |
+| `ansible.inventory.type` | string | No | `local` | only `local` in v0.15.0 | Selects local inventory model |
+| `ansible.inventory.hosts` | list[string] | No | `[localhost]` | non-empty | Local example hosts |
+| `ansible.playbook.name` | string | No | `site.yml` | `.yml` or `.yaml` | Generated playbook filename |
+| `ansible.roles.enabled` | boolean | No | `true` | boolean only | Controls role notes generation |
+| `ansible.collections.kubernetes.enabled` | boolean | No | `true` | boolean only | Documents Kubernetes collection readiness |
+| `ansible.collections.community.enabled` | boolean | No | `false` | boolean only | Documents community collection readiness |
+| `ansible.examples.enabled` | boolean | No | `true` | boolean only | Controls playbook example generation |

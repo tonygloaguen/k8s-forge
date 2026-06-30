@@ -86,3 +86,11 @@ If ArgoCD is missing, `k8s-forge doctor` reports it as non-blocking. Generated A
 ## Observability readiness notes
 
 If Kubernetes reports that `servicemonitors.monitoring.coreos.com` is unknown, the Prometheus Operator CRDs are missing. This is expected until a monitoring stack such as kube-prometheus-stack is installed manually. If dashboards show no data, confirm that the application exposes `/metrics` and that Prometheus is scraping the Service.
+
+## Ansible readiness notes
+
+| Symptom | Likely cause | Action |
+| --- | --- | --- |
+| `doctor` reports Ansible missing | Ansible is not installed locally | This is non-blocking for readiness file generation |
+| `ansible-lint` is missing | Optional linting tool is absent | Install it manually only if you want lint checks later |
+| Generated playbook does not deploy anything | v0.15.0 is readiness-only | Use it for review and learning before any manual workflow |

@@ -1,0 +1,4 @@
+[local]
+{% for host in ansible.inventory.hosts -%}
+{{ host }} ansible_connection=local
+{% endfor -%}

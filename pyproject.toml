@@ -65,6 +65,9 @@ k8s_forge = [
   "tracing_templates/grafana/*.j2",
   "tracing_templates/collector/*.j2",
   "terraform_templates/*.j2",
+  "ansible_templates/*.j2",
+  "ansible_templates/group_vars/*.j2",
+  "ansible_templates/roles/*.j2",
 ]
 
 [tool.ruff]

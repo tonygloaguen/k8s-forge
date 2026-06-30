@@ -1,0 +1,47 @@
+# Ansible Readiness
+
+Application: `{{ app.name }}`
+Namespace: `{{ app.namespace }}`
+Project: `{{ project_name }}`
+Inventory type: `{{ ansible.inventory.type }}`
+Example hosts: `{{ ansible.inventory.hosts | join(", ") }}`
+Roles structure: `{{ "enabled" if ansible.roles.enabled else "disabled" }}`
+Kubernetes collection example: `{{ "enabled" if ansible.collections.kubernetes.enabled else "disabled" }}`
+Community collection example: `{{ "enabled" if ansible.collections.community.enabled else "disabled" }}`
+
+This directory contains local automation examples generated from `app.yaml`. The files are meant for review and learning before any manual Ansible workflow.
+
+## Generated Files
+
+- `ansible.cfg`: local project settings for this example directory.
+- `inventory.ini`: local-only inventory using `localhost`.
+- `{{ ansible.playbook.name }}`: non-changing playbook example with review output only.
+- `group_vars/all.yml`: application context variables.
+- `roles/README.md`: notes for future role organization.
+
+## Concepts
+
+Ansible is an automation and configuration management tool. It uses inventories to describe targets, playbooks to group automation steps, tasks to express actions, roles to organize repeated work, group variables to share configuration, and collections to package reusable modules.
+
+Terraform and Ansible serve different learning goals. Terraform models infrastructure resources and state. Ansible is commonly used for operational workflows and configuration tasks. In v0.15.0, `k8s-forge` generates only local examples for reading.
+
+## Safety Boundaries
+
+`k8s-forge` only writes these local files. It does not run Ansible commands that contact hosts or modify systems. It does not open remote sessions, contact the Kubernetes API, run Helm, run Terraform, create sensitive values, create login keys, or configure AWX or Tower.
+
+The generated playbook uses review-only tasks. It is intentionally not a deployment workflow.
+
+## Manual Review
+
+Review the files locally:
+
+```bash
+cat README.md
+cat ansible.cfg
+cat inventory.ini
+cat {{ ansible.playbook.name }}
+cat group_vars/all.yml
+cat roles/README.md
+```
+
+AWX and Tower can orchestrate Ansible in larger environments, but they are outside v0.15.0.

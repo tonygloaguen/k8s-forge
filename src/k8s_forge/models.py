@@ -744,6 +744,109 @@ class TerraformConfig(BaseModel):
     examples: TerraformExamplesConfig = Field(default_factory=TerraformExamplesConfig)
 
 
+class AnsibleInventoryConfig(BaseModel):
+    """Ansible inventory readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["local"] = "local"
+    hosts: list[str] = Field(default_factory=lambda: ["localhost"])
+
+    @field_validator("hosts")
+    @classmethod
+    def validate_hosts(cls, value: list[str]) -> list[str]:
+        """Ensure the educational inventory has at least one host name."""
+        if not value:
+            msg = "ansible.inventory.hosts must not be empty"
+            raise ValueError(msg)
+        if any(not host.strip() for host in value):
+            msg = "ansible.inventory.hosts entries must not be empty"
+            raise ValueError(msg)
+        return value
+
+
+class AnsiblePlaybookConfig(BaseModel):
+    """Ansible playbook readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = "site.yml"
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        """Validate the local playbook filename."""
+        stripped = value.strip()
+        if not stripped:
+            msg = "ansible.playbook.name must not be empty"
+            raise ValueError(msg)
+        if not stripped.endswith((".yml", ".yaml")):
+            msg = "ansible.playbook.name must end with .yml or .yaml"
+            raise ValueError(msg)
+        return stripped
+
+
+class AnsibleRolesConfig(BaseModel):
+    """Ansible roles structure generation switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class AnsibleKubernetesCollectionConfig(BaseModel):
+    """Ansible Kubernetes collection example switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class AnsibleCommunityCollectionConfig(BaseModel):
+    """Ansible community collection example switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = False
+
+
+class AnsibleCollectionsConfig(BaseModel):
+    """Ansible collection example configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kubernetes: AnsibleKubernetesCollectionConfig = Field(
+        default_factory=AnsibleKubernetesCollectionConfig
+    )
+    community: AnsibleCommunityCollectionConfig = Field(
+        default_factory=AnsibleCommunityCollectionConfig
+    )
+
+
+class AnsibleExamplesConfig(BaseModel):
+    """Ansible example file generation switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class AnsibleConfig(BaseModel):
+    """Ansible readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    enabled: StrictBool = False
+    project_name: str = Field(default="", alias="projectName")
+    inventory: AnsibleInventoryConfig = Field(default_factory=AnsibleInventoryConfig)
+    playbook: AnsiblePlaybookConfig = Field(default_factory=AnsiblePlaybookConfig)
+    roles: AnsibleRolesConfig = Field(default_factory=AnsibleRolesConfig)
+    collections: AnsibleCollectionsConfig = Field(
+        default_factory=AnsibleCollectionsConfig
+    )
+    examples: AnsibleExamplesConfig = Field(default_factory=AnsibleExamplesConfig)
+
+
 class AppConfig(BaseModel):
     """Top-level user configuration."""
 
@@ -767,6 +870,7 @@ class AppConfig(BaseModel):
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     tracing: TracingConfig = Field(default_factory=TracingConfig)
     terraform: TerraformConfig = Field(default_factory=TerraformConfig)
+    ansible: AnsibleConfig = Field(default_factory=AnsibleConfig)
 
     @model_validator(mode="after")
     def validate_ingress_service(self) -> "AppConfig":

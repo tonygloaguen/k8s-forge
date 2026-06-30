@@ -57,3 +57,7 @@ does not run Helm and does not install releases. Ingress rendering targets exist
 `tracing_renderer.py` should remain separate from metrics observability and logging. It produces local OpenTelemetry, Tempo, TraceQL, collector-note, and Grafana traces dashboard examples only and does not install or configure a tracing stack.
 
 `terraform_renderer.py` should remain separate from Kubernetes, Helm, GitOps, and CI renderers. It produces local Terraform examples only and does not run Terraform, contact clouds, create access material, generate cluster config files, or provision resources.
+
+## Ansible Readiness Renderer
+
+`ansible_renderer.py` should remain separate from Kubernetes, Helm, Terraform, and observability renderers. It produces local Ansible examples only and does not run Ansible, open remote sessions, modify hosts, create secrets, or deploy resources.

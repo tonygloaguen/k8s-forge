@@ -51,6 +51,8 @@ SYFT_COMMAND = ["syft", "version"]
 COSIGN_COMMAND = ["cosign", "version"]
 GIT_COMMAND = ["git", "--version"]
 TERRAFORM_COMMAND = ["terraform", "version"]
+ANSIBLE_COMMAND = ["ansible", "--version"]
+ANSIBLE_LINT_COMMAND = ["ansible-lint", "--version"]
 ARGOCD_CLI_COMMAND = ["argocd", "version", "--client"]
 ARGOCD_NAMESPACE_COMMAND = ["kubectl", "get", "ns", "argocd"]
 ARGOCD_DEPLOY_COMMAND = ["kubectl", "-n", "argocd", "get", "deploy"]
@@ -99,6 +101,7 @@ def test_cli_commands_exist() -> None:
         "logging",
         "tracing",
         "terraform",
+        "ansible",
     ):
         assert command in result.output
 
@@ -1085,6 +1088,8 @@ def test_cli_doctor_all_tools_present(monkeypatch: pytest.MonkeyPatch) -> None:
             ("cosign", "version"): "cosign",
             ("git", "--version"): "git version 2.43.0",
             ("terraform", "version"): "Terraform v1.8.0",
+            ("ansible", "--version"): "ansible [core 2.16.0",
+            ("ansible-lint", "--version"): "ansible-lint 24.0.0",
             ("argocd", "version", "--client"): "argocd: v2.11.0",
             ("kubectl", "get", "ns", "argocd"): "argocd",
             ("kubectl", "-n", "argocd", "get", "deploy"): "argocd-server",
@@ -3185,3 +3190,213 @@ def test_cli_doctor_never_runs_mutating_terraform_commands(
 
     assert result.exit_code == 0
     assert TERRAFORM_COMMAND in calls
+
+
+def _write_ansible_config(path: Path, enabled: bool = True) -> None:
+    path.write_text(
+        f"""
+app:
+  name: weatherapi
+  namespace: weather
+  image: weatherapi:0.1.0
+  containerPort: 8000
+  replicas: 2
+service:
+  enabled: true
+  port: 80
+ansible:
+  enabled: {str(enabled).lower()}
+  projectName: ""
+  inventory:
+    type: local
+    hosts:
+      - localhost
+  playbook:
+    name: site.yml
+  roles:
+    enabled: true
+  collections:
+    kubernetes:
+      enabled: true
+    community:
+      enabled: false
+  examples:
+    enabled: true
+""".strip(),
+        encoding="utf-8",
+    )
+
+
+def test_cli_check_mentions_ansible_when_enabled(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    _write_ansible_config(config_path)
+
+    result = runner.invoke(app, ["check", str(config_path)])
+
+    assert result.exit_code == 0
+    assert "Ansible readiness is enabled" in result.output
+    assert "Ansible inventory type: local" in result.output
+    assert "Ansible example host: localhost" in result.output
+    assert "Ansible roles structure: enabled" in result.output
+    assert "Kubernetes collection example: enabled" in result.output
+    assert "Community collection example: disabled" in result.output
+
+
+def test_cli_render_suggests_ansible_render_command(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated"
+    _write_ansible_config(config_path)
+
+    result = runner.invoke(
+        app,
+        ["render", str(config_path), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 0
+    assert "Ansible readiness is enabled" in result.output
+    assert "Kubernetes manifests were generated separately" in result.output
+    assert "k8s-forge ansible render" in result.output
+    assert not (output_dir / "site.yml").exists()
+
+
+def test_cli_ansible_render_generates_files(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-ansible"
+    _write_ansible_config(config_path)
+
+    result = runner.invoke(
+        app,
+        ["ansible", "render", str(config_path), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 0
+    assert "Rendering Ansible readiness files" in result.output
+    assert "does not contact hosts" in result.output
+    assert "does not open SSH connections" in result.output
+    assert "does not run Ansible" in result.output
+    assert "Ansible files generated" in result.output
+    assert "site.yml" in result.output
+    assert (output_dir / "README.md").exists()
+    assert (output_dir / "ansible.cfg").exists()
+    assert (output_dir / "inventory.ini").exists()
+    assert (output_dir / "site.yml").exists()
+    assert (output_dir / "group_vars" / "all.yml").exists()
+    assert (output_dir / "roles" / "README.md").exists()
+
+
+def test_cli_ansible_render_disabled_is_clean(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-ansible"
+    _write_ansible_config(config_path, enabled=False)
+
+    result = runner.invoke(
+        app,
+        ["ansible", "render", str(config_path), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 0
+    assert "Ansible readiness is disabled" in result.output
+    assert not output_dir.exists()
+
+
+def test_cli_ansible_render_refuses_overwrite_without_force(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-ansible"
+    _write_ansible_config(config_path)
+    output_dir.mkdir()
+    (output_dir / "README.md").write_text("existing", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["ansible", "render", str(config_path), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 1
+    assert "use --force" in result.output
+    assert (output_dir / "README.md").read_text(encoding="utf-8") == "existing"
+
+
+def test_cli_ansible_render_overwrites_with_force(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-ansible"
+    _write_ansible_config(config_path)
+    output_dir.mkdir()
+    (output_dir / "README.md").write_text("existing", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "ansible",
+            "render",
+            str(config_path),
+            "--output",
+            str(output_dir),
+            "--force",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Ansible Readiness" in (output_dir / "README.md").read_text(encoding="utf-8")
+
+
+def test_cli_doctor_reports_ansible_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command in (ANSIBLE_COMMAND, ANSIBLE_LINT_COMMAND):
+            raise FileNotFoundError
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "Checking Ansible readiness" in result.output
+    assert "Ansible is not installed" in result.output
+    assert "ansible-lint is optional" in result.output
+    assert "Ready for local kind workflows" in result.output
+
+
+def test_cli_doctor_reports_ansible_present(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == ANSIBLE_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "ansible [core 2.16.0]", "")
+        if command == ANSIBLE_LINT_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "ansible-lint 24.0.0", "")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert "Ansible is available" in result.output
+    assert "ansible-lint is available" in result.output
+    assert "ansible [core 2.16.0]" in result.output
+
+
+def test_cli_doctor_never_runs_active_ansible_or_platform_commands(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forbidden = {
+        "ansible-playbook",
+        "ssh",
+        "scp",
+        "kubectl apply",
+        "helm install",
+        "terraform apply",
+    }
+    calls: list[list[str]] = []
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        rendered = " ".join(command)
+        assert rendered not in forbidden
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    assert ANSIBLE_COMMAND in calls
+    assert ANSIBLE_LINT_COMMAND in calls

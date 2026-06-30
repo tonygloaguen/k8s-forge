@@ -7,9 +7,14 @@ import typer
 import yaml
 from pydantic import ValidationError
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 from k8s_forge import __version__
+from k8s_forge.ansible_renderer import (
+    render_ansible_files,
+    resolve_ansible_project_name,
+)
 from k8s_forge.ci_renderer import render_ci_files, resolve_ci_image
 from k8s_forge.config_loader import load_app_config
 from k8s_forge.exceptions import (
@@ -81,6 +86,7 @@ observability_app = typer.Typer(help="Generate observability readiness files.")
 logging_app = typer.Typer(help="Generate logging readiness files.")
 tracing_app = typer.Typer(help="Generate tracing readiness files.")
 terraform_app = typer.Typer(help="Generate Terraform readiness files.")
+ansible_app = typer.Typer(help="Generate Ansible readiness files.")
 
 
 class _QuotedString(str):
@@ -1129,6 +1135,92 @@ def _print_terraform_diagnostics(report: DoctorReport) -> None:
         )
 
 
+def _print_ansible_summary(config: AppConfig) -> None:
+    if not config.ansible.enabled:
+        return
+    _print_hint("Ansible readiness is enabled.")
+    _print_hint(
+        "Ansible can automate configuration and operational tasks, but "
+        "k8s-forge only generates local educational examples."
+    )
+    _print_hint(
+        "k8s-forge does not run Ansible commands, open SSH connections, "
+        "or modify remote hosts."
+    )
+    _print_hint(f"Ansible project: {resolve_ansible_project_name(config)}")
+    _print_hint(f"Ansible inventory type: {config.ansible.inventory.type}")
+    _print_hint(f"Ansible example host: {', '.join(config.ansible.inventory.hosts)}")
+    roles_state = "enabled" if config.ansible.roles.enabled else "disabled"
+    kubernetes_state = (
+        "enabled" if config.ansible.collections.kubernetes.enabled else "disabled"
+    )
+    community_state = (
+        "enabled" if config.ansible.collections.community.enabled else "disabled"
+    )
+    _print_hint(f"Ansible roles structure: {roles_state}")
+    _print_hint(f"Kubernetes collection example: {kubernetes_state}")
+    _print_hint(f"Community collection example: {community_state}")
+
+
+def _print_ansible_render_hint(config_path: Path) -> None:
+    _print_hint("Ansible readiness is enabled.")
+    _print_hint("Kubernetes manifests were generated separately.")
+    _print_hint(
+        f"Run: k8s-forge ansible render {config_path} --output generated-ansible/"
+    )
+
+
+def _print_ansible_summary_table(paths: list[Path], output: Path) -> None:
+    table = Table(title="Generated Ansible files")
+    table.add_column("File")
+    for path in paths:
+        try:
+            rendered = str(path.relative_to(output))
+        except ValueError:
+            rendered = str(path)
+        table.add_row(rendered)
+    console.print(table)
+
+
+def _print_ansible_next_steps(output: Path, playbook_name: str) -> None:
+    _print_hint("Next review commands:")
+    _print_hint(f"  cat {output / 'README.md'}")
+    _print_hint(f"  cat {output / 'ansible.cfg'}")
+    _print_hint(f"  cat {output / 'inventory.ini'}")
+    _print_hint(f"  cat {output / playbook_name}")
+    _print_hint(f"  cat {output / 'group_vars' / 'all.yml'}")
+    _print_hint(f"  cat {output / 'roles' / 'README.md'}")
+    _print_hint("  k8s-forge doctor")
+
+
+def _print_ansible_diagnostics(report: DoctorReport) -> None:
+    _print_step("Checking Ansible readiness...")
+    _print_hint(
+        "Ansible can automate configuration and operational workflows, but "
+        "k8s-forge does not run playbooks or contact remote hosts."
+    )
+    _print_hint(
+        "Generated Ansible files can be reviewed locally before any manual "
+        "Ansible workflow."
+    )
+    if report.ansible.status == "OK":
+        console.print(
+            f"[green]Ansible is available.[/green] {escape(report.ansible.details)}"
+        )
+    else:
+        _print_warning(
+            "Ansible is not installed. Ansible readiness files can still be "
+            "rendered and reviewed locally."
+        )
+    if report.ansible_lint.status == "OK":
+        console.print(
+            "[green]ansible-lint is available.[/green] "
+            f"{escape(report.ansible_lint.details)}"
+        )
+    else:
+        _print_hint("ansible-lint is optional and was not detected.")
+
+
 def _print_check_summary(config: AppConfig) -> None:
     """Print a concise validation summary."""
     table = Table(title="Application configuration")
@@ -1433,6 +1525,21 @@ def _starter_config_data(
             "modules": {"enabled": True},
             "examples": {"enabled": True},
         },
+        "ansible": {
+            "enabled": False,
+            "projectName": _QuotedString(""),
+            "inventory": {
+                "type": _QuotedString("local"),
+                "hosts": [_QuotedString("localhost")],
+            },
+            "playbook": {"name": _QuotedString("site.yml")},
+            "roles": {"enabled": True},
+            "collections": {
+                "kubernetes": {"enabled": True},
+                "community": {"enabled": False},
+            },
+            "examples": {"enabled": True},
+        },
     }
 
 
@@ -1729,6 +1836,7 @@ def check(
     _print_logging_summary(loaded)
     _print_tracing_summary(loaded)
     _print_terraform_summary(loaded)
+    _print_ansible_summary(loaded)
     _print_autoscaling_warning(loaded)
 
 
@@ -1771,6 +1879,8 @@ def render(
         _print_tracing_render_hint(config_path)
     if loaded.terraform.enabled:
         _print_terraform_render_hint(config_path)
+    if loaded.ansible.enabled:
+        _print_ansible_render_hint(config_path)
     _print_autoscaling_warning(loaded)
     console.print("[green]manifests generated[/green]")
     _print_render_summary(generated)
@@ -2000,6 +2110,8 @@ def doctor(
             report.cosign,
             report.git,
             report.terraform,
+            report.ansible,
+            report.ansible_lint,
             report.argocd_cli,
             report.argocd_namespace,
             report.argocd_deployments,
@@ -2087,6 +2199,7 @@ def doctor(
     _print_logging_diagnostics(report)
     _print_tracing_diagnostics(report)
     _print_terraform_diagnostics(report)
+    _print_ansible_diagnostics(report)
 
     if report.ready:
         console.print("[green]Ready for local kind workflows.[/green]")
@@ -2586,6 +2699,42 @@ def terraform_render(
     _print_terraform_next_steps(output)
 
 
+@ansible_app.command("render")
+def ansible_render(
+    config_path: Annotated[Path, typer.Argument(help="Path to app.yaml.")],
+    output: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Output directory for Ansible files."),
+    ] = Path("generated-ansible"),
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Overwrite existing Ansible files."),
+    ] = False,
+) -> None:
+    """Render local Ansible readiness files."""
+    _print_step("Rendering Ansible readiness files from app.yaml...")
+    _print_hint("This creates local automation examples.")
+    _print_hint(
+        "This step does not contact hosts, does not open SSH connections, "
+        "and does not run Ansible."
+    )
+    try:
+        loaded = load_app_config(config_path)
+        generated = render_ansible_files(loaded, output, force=force)
+    except (ConfigLoadError, RenderError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    if not loaded.ansible.enabled:
+        _print_hint("Ansible readiness is disabled; no Ansible files were generated.")
+        return
+
+    _print_ansible_summary(loaded)
+    console.print(f"[green]Ansible files generated in {output}.[/green]")
+    _print_ansible_summary_table(generated, output)
+    _print_ansible_next_steps(output, loaded.ansible.playbook.name)
+
+
 app.add_typer(cluster_app, name="cluster")
 app.add_typer(image_app, name="image")
 app.add_typer(helm_app, name="helm")
@@ -2596,3 +2745,4 @@ app.add_typer(observability_app, name="observability")
 app.add_typer(logging_app, name="logging")
 app.add_typer(tracing_app, name="tracing")
 app.add_typer(terraform_app, name="terraform")
+app.add_typer(ansible_app, name="ansible")

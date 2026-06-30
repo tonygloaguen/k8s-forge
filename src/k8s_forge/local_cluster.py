@@ -60,6 +60,8 @@ class DoctorReport:
     cosign: ToolCheck
     git: ToolCheck
     terraform: ToolCheck
+    ansible: ToolCheck
+    ansible_lint: ToolCheck
     argocd_cli: ToolCheck
     argocd_namespace: ToolCheck
     argocd_deployments: ToolCheck
@@ -231,6 +233,8 @@ def check_environment(timeout: int = 30) -> DoctorReport:
     cosign = check_command("Cosign", ["cosign", "version"], timeout)
     git = check_command("Git", ["git", "--version"], timeout)
     terraform = check_command("Terraform", ["terraform", "version"], timeout)
+    ansible = check_command("Ansible", ["ansible", "--version"], timeout)
+    ansible_lint = check_command("ansible-lint", ["ansible-lint", "--version"], timeout)
     argocd_cli = check_command("ArgoCD CLI", ["argocd", "version", "--client"], timeout)
 
     if kubectl.status == "OK":
@@ -471,6 +475,8 @@ def check_environment(timeout: int = 30) -> DoctorReport:
         cosign,
         git,
         terraform,
+        ansible,
+        ansible_lint,
         argocd_cli,
         argocd_namespace,
         argocd_deployments,

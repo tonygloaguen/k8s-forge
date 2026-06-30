@@ -51,6 +51,8 @@ SYFT_COMMAND = ["syft", "version"]
 COSIGN_COMMAND = ["cosign", "version"]
 GIT_COMMAND = ["git", "--version"]
 TERRAFORM_COMMAND = ["terraform", "version"]
+ANSIBLE_COMMAND = ["ansible", "--version"]
+ANSIBLE_LINT_COMMAND = ["ansible-lint", "--version"]
 ARGOCD_CLI_COMMAND = ["argocd", "version", "--client"]
 ARGOCD_NAMESPACE_COMMAND = ["kubectl", "get", "ns", "argocd"]
 ARGOCD_DEPLOY_COMMAND = ["kubectl", "-n", "argocd", "get", "deploy"]
@@ -236,6 +238,8 @@ def test_check_environment_reports_metrics_server_present(
             ("cosign", "version"): "cosign",
             ("git", "--version"): "git version 2.43.0",
             ("terraform", "version"): "Terraform v1.8.0",
+            ("ansible", "--version"): "ansible [core 2.16.0]",
+            ("ansible-lint", "--version"): "ansible-lint 24.0.0",
             ("argocd", "version", "--client"): "argocd: v2.11.0",
             ("kubectl", "get", "ns", "argocd"): "argocd",
             ("kubectl", "-n", "argocd", "get", "deploy"): "argocd-server",
@@ -858,3 +862,66 @@ def test_check_environment_never_runs_mutating_terraform_commands(
 
     assert report.terraform.status == "OK"
     assert TERRAFORM_COMMAND in calls
+
+
+def test_check_environment_reports_ansible_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command == ANSIBLE_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "ansible [core 2.16.0]", "")
+        if command == ANSIBLE_LINT_COMMAND:
+            return subprocess.CompletedProcess(command, 0, "ansible-lint 24.0.0", "")
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.ansible.status == "OK"
+    assert report.ansible_lint.status == "OK"
+    assert "ansible [core 2.16.0]" in report.ansible.details
+
+
+def test_check_environment_reports_ansible_absent_as_non_blocking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        if command in (ANSIBLE_COMMAND, ANSIBLE_LINT_COMMAND):
+            raise FileNotFoundError
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.ansible.status == "missing"
+    assert report.ansible_lint.status == "missing"
+    assert report.ready is True
+
+
+def test_check_environment_never_runs_active_ansible_or_platform_commands(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forbidden = {
+        "ansible-playbook",
+        "ssh",
+        "scp",
+        "kubectl apply",
+        "helm install",
+        "terraform apply",
+    }
+    calls: list[list[str]] = []
+
+    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        assert " ".join(command) not in forbidden
+        return subprocess.CompletedProcess(command, 0, "ok", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    report = check_environment()
+
+    assert report.ansible.status == "OK"
+    assert ANSIBLE_COMMAND in calls
+    assert ANSIBLE_LINT_COMMAND in calls
