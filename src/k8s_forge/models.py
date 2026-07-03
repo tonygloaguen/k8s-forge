@@ -943,6 +943,126 @@ class SecurityConfig(BaseModel):
     examples: SecurityExamplesConfig = Field(default_factory=SecurityExamplesConfig)
 
 
+class CapstoneReportConfig(BaseModel):
+    """Capstone report metadata configuration."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = ""
+    audience: Literal["technical", "training", "internship"] = "technical"
+
+
+class CapstoneChecklistConfig(BaseModel):
+    """Capstone validation checklist generation switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class CapstoneArchitectureConfig(BaseModel):
+    """Capstone architecture overview generation switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class CapstoneDevSecOpsMatrixConfig(BaseModel):
+    """Capstone DevSecOps chain generation switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class CapstoneModulesSummaryConfig(BaseModel):
+    """Capstone modules summary generation switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class CapstoneManualStepsConfig(BaseModel):
+    """Capstone manual steps generation switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class CapstoneRuntimeDependenciesConfig(BaseModel):
+    """Capstone runtime dependencies generation switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class CapstoneSecuritySummaryConfig(BaseModel):
+    """Capstone security summary generation switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class CapstoneV1ReadinessConfig(BaseModel):
+    """Capstone v1 readiness generation switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class CapstoneExamplesConfig(BaseModel):
+    """Capstone educational examples switch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool = True
+
+
+class CapstoneConfig(BaseModel):
+    """Final DevSecOps lab synthesis readiness configuration."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    enabled: StrictBool = False
+    project_name: str = Field(default="", alias="projectName")
+    report: CapstoneReportConfig = Field(default_factory=CapstoneReportConfig)
+    checklist: CapstoneChecklistConfig = Field(default_factory=CapstoneChecklistConfig)
+    architecture: CapstoneArchitectureConfig = Field(
+        default_factory=CapstoneArchitectureConfig
+    )
+    devsecops_matrix: CapstoneDevSecOpsMatrixConfig = Field(
+        default_factory=CapstoneDevSecOpsMatrixConfig,
+        alias="devsecopsMatrix",
+    )
+    modules_summary: CapstoneModulesSummaryConfig = Field(
+        default_factory=CapstoneModulesSummaryConfig,
+        alias="modulesSummary",
+    )
+    manual_steps: CapstoneManualStepsConfig = Field(
+        default_factory=CapstoneManualStepsConfig,
+        alias="manualSteps",
+    )
+    runtime_dependencies: CapstoneRuntimeDependenciesConfig = Field(
+        default_factory=CapstoneRuntimeDependenciesConfig,
+        alias="runtimeDependencies",
+    )
+    security_summary: CapstoneSecuritySummaryConfig = Field(
+        default_factory=CapstoneSecuritySummaryConfig,
+        alias="securitySummary",
+    )
+    v1_readiness: CapstoneV1ReadinessConfig = Field(
+        default_factory=CapstoneV1ReadinessConfig,
+        alias="v1Readiness",
+    )
+    examples: CapstoneExamplesConfig = Field(default_factory=CapstoneExamplesConfig)
+
+
 class AppConfig(BaseModel):
     """Top-level user configuration."""
 
@@ -968,6 +1088,7 @@ class AppConfig(BaseModel):
     terraform: TerraformConfig = Field(default_factory=TerraformConfig)
     ansible: AnsibleConfig = Field(default_factory=AnsibleConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
+    capstone: CapstoneConfig = Field(default_factory=CapstoneConfig)
 
     @model_validator(mode="after")
     def validate_ingress_service(self) -> "AppConfig":

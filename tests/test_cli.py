@@ -103,6 +103,7 @@ def test_cli_commands_exist() -> None:
         "terraform",
         "ansible",
         "security",
+        "capstone",
     ):
         assert command in result.output
 
@@ -3579,5 +3580,170 @@ def test_cli_security_render_overwrites_with_force(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert "Security Audit Readiness" in (output_dir / "README.md").read_text(
+        encoding="utf-8"
+    )
+
+
+def _write_capstone_config(path: Path, enabled: bool = True) -> None:
+    path.write_text(
+        f"""
+app:
+  name: weatherapi
+  namespace: weather
+  image: weatherapi:0.1.0
+  containerPort: 8000
+  replicas: 2
+service:
+  enabled: true
+  port: 80
+security:
+  enabled: true
+capstone:
+  enabled: {str(enabled).lower()}
+  projectName: ""
+  report:
+    title: ""
+    audience: technical
+  checklist:
+    enabled: true
+  architecture:
+    enabled: true
+  devsecopsMatrix:
+    enabled: true
+  modulesSummary:
+    enabled: true
+  manualSteps:
+    enabled: true
+  runtimeDependencies:
+    enabled: true
+  securitySummary:
+    enabled: true
+  v1Readiness:
+    enabled: true
+  examples:
+    enabled: true
+""".strip(),
+        encoding="utf-8",
+    )
+
+
+def test_cli_check_mentions_capstone_when_enabled(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    _write_capstone_config(config_path)
+
+    result = runner.invoke(app, ["check", str(config_path)])
+
+    assert result.exit_code == 0
+    assert "Capstone readiness is enabled" in result.output
+    assert "Capstone project: weatherapi" in result.output
+    assert "Architecture overview: enabled" in result.output
+    assert "DevSecOps matrix: enabled" in result.output
+    assert "Modules summary: enabled" in result.output
+    assert "Validation checklist: enabled" in result.output
+    assert "Manual steps: enabled" in result.output
+    assert "Runtime dependencies: enabled" in result.output
+    assert "Security summary: enabled" in result.output
+    assert "v1 readiness: enabled" in result.output
+
+
+def test_cli_render_suggests_capstone_render_command(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated"
+    _write_capstone_config(config_path)
+
+    result = runner.invoke(
+        app,
+        ["render", str(config_path), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 0
+    assert "Capstone readiness is enabled" in result.output
+    assert "Kubernetes manifests were generated separately" in result.output
+    assert "k8s-forge capstone render" in result.output
+    assert not (output_dir / "lab-summary.md").exists()
+
+
+def test_cli_capstone_render_generates_files(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-capstone"
+    _write_capstone_config(config_path)
+
+    result = runner.invoke(
+        app,
+        ["capstone", "render", str(config_path), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 0
+    assert "Rendering Capstone readiness files" in result.output
+    assert "final local DevSecOps lab summary" in result.output
+    assert "does not contact the cluster" in result.output
+    assert "Capstone files generated" in result.output
+    assert "v1-readiness.md" in result.output
+    assert (output_dir / "README.md").exists()
+    assert (output_dir / "lab-summary.md").exists()
+    assert (output_dir / "architecture-overview.md").exists()
+    assert (output_dir / "devsecops-chain.md").exists()
+    assert (output_dir / "modules-summary.md").exists()
+    assert (output_dir / "validation-checklist.md").exists()
+    assert (output_dir / "manual-steps.md").exists()
+    assert (output_dir / "runtime-dependencies.md").exists()
+    assert (output_dir / "security-summary.md").exists()
+    assert (output_dir / "v1-readiness.md").exists()
+    assert (output_dir / "final-report-outline.md").exists()
+
+
+def test_cli_capstone_render_disabled_is_clean(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-capstone"
+    _write_capstone_config(config_path, enabled=False)
+
+    result = runner.invoke(
+        app,
+        ["capstone", "render", str(config_path), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 0
+    assert "Capstone readiness is disabled" in result.output
+    assert not output_dir.exists()
+
+
+def test_cli_capstone_render_refuses_overwrite_without_force(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-capstone"
+    _write_capstone_config(config_path)
+    output_dir.mkdir()
+    (output_dir / "README.md").write_text("existing", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["capstone", "render", str(config_path), "--output", str(output_dir)],
+    )
+
+    assert result.exit_code == 1
+    assert "use --force" in result.output
+    assert (output_dir / "README.md").read_text(encoding="utf-8") == "existing"
+
+
+def test_cli_capstone_render_overwrites_with_force(tmp_path: Path) -> None:
+    config_path = tmp_path / "app.yaml"
+    output_dir = tmp_path / "generated-capstone"
+    _write_capstone_config(config_path)
+    output_dir.mkdir()
+    (output_dir / "README.md").write_text("existing", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        [
+            "capstone",
+            "render",
+            str(config_path),
+            "--output",
+            str(output_dir),
+            "--force",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Capstone Readiness" in (output_dir / "README.md").read_text(
         encoding="utf-8"
     )

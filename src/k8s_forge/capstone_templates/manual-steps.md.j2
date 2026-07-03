@@ -1,0 +1,22 @@
+# Manual Steps
+
+k8s-forge intentionally leaves platform installation and runtime operations to the learner or operator.
+
+Manual work includes:
+
+- install ingress-nginx when Ingress is part of the lab;
+- install cert-manager when certificate automation is part of the lab;
+- install Linkerd before expecting service mesh behavior;
+- install Kyverno before relying on runtime admission policy;
+- install ArgoCD before expecting GitOps reconciliation;
+- install Prometheus and Grafana before metrics dashboards are useful;
+- install Loki and a compatible collector before logs are queryable;
+- install Tempo and OpenTelemetry Collector before traces are queryable;
+- run Terraform workflows manually outside k8s-forge;
+- run Ansible workflows manually outside k8s-forge;
+- run image scan and SBOM workflows manually when needed;
+- provide real sensitive values through an external process;
+- push code or workflow files manually after review;
+- design production deployment as a separate controlled process.
+
+This file is a checklist of responsibilities. It is not an execution plan.

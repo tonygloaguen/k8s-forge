@@ -1,0 +1,15 @@
+# Validation Checklist
+
+| Control | Status | Evidence | Manual action |
+| --- | --- | --- | --- |
+{% for item in checklist_items -%}
+| {{ item.control }} | {{ item.status }} | {{ item.evidence }} | {{ item.manual_action }} |
+{% endfor %}
+
+## Status legend
+
+- `ready`: available for local review.
+- `generated`: generated when the related readiness module is enabled.
+- `manual`: requires human setup or review.
+- `requires runtime`: depends on an installed platform component.
+- `out of scope`: not performed by k8s-forge in this lab.

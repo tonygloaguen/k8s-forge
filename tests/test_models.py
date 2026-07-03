@@ -1466,3 +1466,102 @@ def test_security_rejects_non_strict_booleans(
 
     with pytest.raises(ValidationError):
         AppConfig.model_validate(config_data)
+
+
+def test_capstone_defaults_when_section_absent() -> None:
+    config = AppConfig.model_validate(_valid_config())
+
+    assert config.capstone.enabled is False
+    assert config.capstone.project_name == ""
+    assert config.capstone.report.title == ""
+    assert config.capstone.report.audience == "technical"
+    assert config.capstone.checklist.enabled is True
+    assert config.capstone.architecture.enabled is True
+    assert config.capstone.devsecops_matrix.enabled is True
+    assert config.capstone.modules_summary.enabled is True
+    assert config.capstone.manual_steps.enabled is True
+    assert config.capstone.runtime_dependencies.enabled is True
+    assert config.capstone.security_summary.enabled is True
+    assert config.capstone.v1_readiness.enabled is True
+    assert config.capstone.examples.enabled is True
+
+
+def test_capstone_enabled_config_is_valid() -> None:
+    config_data = _valid_config()
+    config_data["capstone"] = {
+        "enabled": True,
+        "projectName": "weather-capstone",
+        "report": {"title": "Weather Lab", "audience": "technical"},
+        "checklist": {"enabled": True},
+        "architecture": {"enabled": True},
+        "devsecopsMatrix": {"enabled": True},
+        "modulesSummary": {"enabled": True},
+        "manualSteps": {"enabled": True},
+        "runtimeDependencies": {"enabled": True},
+        "securitySummary": {"enabled": True},
+        "v1Readiness": {"enabled": True},
+        "examples": {"enabled": True},
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.capstone.enabled is True
+    assert config.capstone.project_name == "weather-capstone"
+    assert config.capstone.report.title == "Weather Lab"
+    assert config.capstone.report.audience == "technical"
+
+
+@pytest.mark.parametrize("audience", ["technical", "training", "internship"])
+def test_capstone_accepts_supported_audiences(audience: str) -> None:
+    config_data = _valid_config()
+    config_data["capstone"] = {"report": {"audience": audience}}
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.capstone.report.audience == audience
+
+
+def test_capstone_rejects_invalid_audience() -> None:
+    config_data = _valid_config()
+    config_data["capstone"] = {"report": {"audience": "executive"}}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)
+
+
+def test_capstone_project_name_and_title_can_be_empty_for_fallback() -> None:
+    config_data = _valid_config()
+    config_data["capstone"] = {
+        "enabled": True,
+        "projectName": "",
+        "report": {"title": ""},
+    }
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.capstone.project_name == ""
+    assert config.capstone.report.title == ""
+
+
+@pytest.mark.parametrize(
+    ("section", "payload"),
+    [
+        ("checklist", {"enabled": "yes"}),
+        ("architecture", {"enabled": "yes"}),
+        ("devsecopsMatrix", {"enabled": "yes"}),
+        ("modulesSummary", {"enabled": "yes"}),
+        ("manualSteps", {"enabled": "yes"}),
+        ("runtimeDependencies", {"enabled": "yes"}),
+        ("securitySummary", {"enabled": "yes"}),
+        ("v1Readiness", {"enabled": "yes"}),
+        ("examples", {"enabled": "yes"}),
+    ],
+)
+def test_capstone_rejects_non_strict_booleans(
+    section: str, payload: dict[str, object]
+) -> None:
+    config_data = _valid_config()
+    config_data["capstone"] = {section: payload}
+
+    with pytest.raises(ValidationError):
+        AppConfig.model_validate(config_data)

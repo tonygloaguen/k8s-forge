@@ -65,3 +65,7 @@ does not run Helm and does not install releases. Ingress rendering targets exist
 ## Security Audit Readiness Renderer
 
 `security_renderer.py` remains separate from Kubernetes, Helm, Supply Chain, CI, GitOps, observability, Terraform, and Ansible renderers. It produces local Markdown review files only and does not run scanners, contact the cluster, or modify doctor checks.
+
+## Capstone Readiness Renderer
+
+`capstone_renderer.py` should remain separate from all technology-specific renderers. It produces the final local Markdown synthesis of Kubernetes raw, Helm, Ingress, Linkerd, NetworkPolicy, Kyverno, Supply Chain, CI, GitOps, observability, logging, tracing, Terraform, Ansible, and Security Audit readiness. It does not deploy, scan, contact external systems, or add doctor checks.

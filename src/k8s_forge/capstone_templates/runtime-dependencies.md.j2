@@ -1,0 +1,9 @@
+# Runtime Dependencies
+
+| Dependency | Classification | Used by | Note |
+| --- | --- | --- | --- |
+{% for item in runtime_dependencies -%}
+| {{ item.name }} | {{ item.classification }} | {{ item.used_by }} | {{ item.note }} |
+{% endfor %}
+
+Classifications are educational: `required` means the application needs that class of runtime to exist, `optional` means it depends on enabled modules, `manual` means the tool is used only when the operator chooses to run a separate workflow, and `out of scope` means k8s-forge only documents the topic.

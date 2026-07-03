@@ -1,0 +1,9 @@
+# Modules Summary
+
+| Module | Version | Purpose | Generated output | Runtime dependency | Status |
+| --- | --- | --- | --- | --- | --- |
+{% for item in module_summaries -%}
+| {{ item.module }} | {{ item.version }} | {{ item.purpose }} | {{ item.generated_output }} | {{ item.runtime_dependency }} | {{ item.status }} |
+{% endfor %}
+
+The table includes all modules from Kubernetes raw through Security Audit readiness. A `generated` status means local files can be produced or are always part of the base renderer. A `manual` status means the corresponding readiness section is not enabled or still needs human action.

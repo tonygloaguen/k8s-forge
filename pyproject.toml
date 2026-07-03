@@ -69,6 +69,7 @@ k8s_forge = [
   "ansible_templates/group_vars/*.j2",
   "ansible_templates/roles/*.j2",
   "security_templates/*.j2",
+  "capstone_templates/*.j2",
 ]
 
 [tool.ruff]

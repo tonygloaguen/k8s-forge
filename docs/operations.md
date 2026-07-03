@@ -493,3 +493,7 @@ Then inspect `README.md`, run `scan-image.sh` for Trivy, and run `generate-sbom.
 ## Security Audit Readiness
 
 `k8s-forge security render app.yaml --output generated-security-audit/` generates a local hardening dossier for containers, manifests, RBAC, Pod Security, network exposure, secrets handling, and supply chain review. These files do not run scanners, contact Kubernetes, or prove runtime compliance.
+
+## Capstone Readiness
+
+`k8s-forge capstone render app.yaml --output generated-capstone/` generates the final local DevSecOps lab synthesis. It is useful for review, reporting, and v1.0.0 preparation. It does not deploy, scan, contact the cluster, contact cloud providers, or modify runtime state.

@@ -15,6 +15,11 @@ from k8s_forge.ansible_renderer import (
     render_ansible_files,
     resolve_ansible_project_name,
 )
+from k8s_forge.capstone_renderer import (
+    render_capstone_files,
+    resolve_capstone_project_name,
+    resolve_capstone_report_title,
+)
 from k8s_forge.ci_renderer import render_ci_files, resolve_ci_image
 from k8s_forge.config_loader import load_app_config
 from k8s_forge.exceptions import (
@@ -92,6 +97,7 @@ tracing_app = typer.Typer(help="Generate tracing readiness files.")
 terraform_app = typer.Typer(help="Generate Terraform readiness files.")
 ansible_app = typer.Typer(help="Generate Ansible readiness files.")
 security_app = typer.Typer(help="Generate Security Audit readiness files.")
+capstone_app = typer.Typer(help="Generate Capstone readiness files.")
 
 
 class _QuotedString(str):
@@ -1296,6 +1302,80 @@ def _print_security_next_steps(output: Path) -> None:
     _print_hint("  k8s-forge doctor")
 
 
+def _print_capstone_summary(config: AppConfig) -> None:
+    if not config.capstone.enabled:
+        return
+    _print_hint("Capstone readiness is enabled.")
+    _print_hint(
+        "k8s-forge will generate a final DevSecOps lab summary and validation "
+        "checklist."
+    )
+    _print_hint(
+        "This module does not deploy, verify, or modify the platform automatically."
+    )
+    _print_hint(f"Capstone project: {resolve_capstone_project_name(config)}")
+    architecture_state = (
+        "enabled" if config.capstone.architecture.enabled else "disabled"
+    )
+    matrix_state = "enabled" if config.capstone.devsecops_matrix.enabled else "disabled"
+    modules_state = "enabled" if config.capstone.modules_summary.enabled else "disabled"
+    checklist_state = "enabled" if config.capstone.checklist.enabled else "disabled"
+    manual_steps_state = (
+        "enabled" if config.capstone.manual_steps.enabled else "disabled"
+    )
+    runtime_state = (
+        "enabled" if config.capstone.runtime_dependencies.enabled else "disabled"
+    )
+    security_state = (
+        "enabled" if config.capstone.security_summary.enabled else "disabled"
+    )
+    v1_state = "enabled" if config.capstone.v1_readiness.enabled else "disabled"
+    _print_hint(f"Architecture overview: {architecture_state}")
+    _print_hint(f"DevSecOps matrix: {matrix_state}")
+    _print_hint(f"Modules summary: {modules_state}")
+    _print_hint(f"Validation checklist: {checklist_state}")
+    _print_hint(f"Manual steps: {manual_steps_state}")
+    _print_hint(f"Runtime dependencies: {runtime_state}")
+    _print_hint(f"Security summary: {security_state}")
+    _print_hint(f"v1 readiness: {v1_state}")
+
+
+def _print_capstone_render_hint(config_path: Path) -> None:
+    _print_hint("Capstone readiness is enabled.")
+    _print_hint("Kubernetes manifests were generated separately.")
+    _print_hint(
+        f"Run: k8s-forge capstone render {config_path} --output generated-capstone/"
+    )
+
+
+def _print_capstone_summary_table(paths: list[Path], output: Path) -> None:
+    table = Table(title="Generated Capstone files")
+    table.add_column("File")
+    for path in paths:
+        try:
+            rendered = str(path.relative_to(output))
+        except ValueError:
+            rendered = str(path)
+        table.add_row(rendered)
+    console.print(table)
+
+
+def _print_capstone_next_steps(output: Path) -> None:
+    _print_hint("Next review commands:")
+    _print_hint(f"  cat {output / 'README.md'}")
+    _print_hint(f"  cat {output / 'lab-summary.md'}")
+    _print_hint(f"  cat {output / 'architecture-overview.md'}")
+    _print_hint(f"  cat {output / 'devsecops-chain.md'}")
+    _print_hint(f"  cat {output / 'modules-summary.md'}")
+    _print_hint(f"  cat {output / 'validation-checklist.md'}")
+    _print_hint(f"  cat {output / 'manual-steps.md'}")
+    _print_hint(f"  cat {output / 'runtime-dependencies.md'}")
+    _print_hint(f"  cat {output / 'security-summary.md'}")
+    _print_hint(f"  cat {output / 'v1-readiness.md'}")
+    _print_hint(f"  cat {output / 'final-report-outline.md'}")
+    _print_hint("  k8s-forge doctor")
+
+
 def _print_check_summary(config: AppConfig) -> None:
     """Print a concise validation summary."""
     table = Table(title="Application configuration")
@@ -1628,6 +1708,23 @@ def _starter_config_data(
             "checklist": {"enabled": True},
             "examples": {"enabled": True},
         },
+        "capstone": {
+            "enabled": False,
+            "projectName": _QuotedString(""),
+            "report": {
+                "title": _QuotedString(""),
+                "audience": _QuotedString("technical"),
+            },
+            "checklist": {"enabled": True},
+            "architecture": {"enabled": True},
+            "devsecopsMatrix": {"enabled": True},
+            "modulesSummary": {"enabled": True},
+            "manualSteps": {"enabled": True},
+            "runtimeDependencies": {"enabled": True},
+            "securitySummary": {"enabled": True},
+            "v1Readiness": {"enabled": True},
+            "examples": {"enabled": True},
+        },
     }
 
 
@@ -1926,6 +2023,7 @@ def check(
     _print_terraform_summary(loaded)
     _print_ansible_summary(loaded)
     _print_security_summary(loaded)
+    _print_capstone_summary(loaded)
     _print_autoscaling_warning(loaded)
 
 
@@ -1972,6 +2070,8 @@ def render(
         _print_ansible_render_hint(config_path)
     if loaded.security.enabled:
         _print_security_render_hint(config_path)
+    if loaded.capstone.enabled:
+        _print_capstone_render_hint(config_path)
     _print_autoscaling_warning(loaded)
     console.print("[green]manifests generated[/green]")
     _print_render_summary(generated)
@@ -2867,6 +2967,43 @@ def security_render(
     _print_security_next_steps(output)
 
 
+@capstone_app.command("render")
+def capstone_render(
+    config_path: Annotated[Path, typer.Argument(help="Path to app.yaml.")],
+    output: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Output directory for Capstone files."),
+    ] = Path("generated-capstone"),
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Overwrite existing Capstone files."),
+    ] = False,
+) -> None:
+    """Render local Capstone readiness files."""
+    _print_step("Rendering Capstone readiness files from app.yaml...")
+    _print_hint("This creates a final local DevSecOps lab summary.")
+    _print_hint(
+        "This step does not contact the cluster, does not run deployment "
+        "commands, and does not modify any external system."
+    )
+    try:
+        loaded = load_app_config(config_path)
+        generated = render_capstone_files(loaded, output, force=force)
+    except (ConfigLoadError, RenderError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    if not loaded.capstone.enabled:
+        _print_hint("Capstone readiness is disabled; no Capstone files were generated.")
+        return
+
+    _print_capstone_summary(loaded)
+    _print_hint(f"Capstone report title: {resolve_capstone_report_title(loaded)}")
+    console.print(f"[green]Capstone files generated in {output}.[/green]")
+    _print_capstone_summary_table(generated, output)
+    _print_capstone_next_steps(output)
+
+
 app.add_typer(cluster_app, name="cluster")
 app.add_typer(image_app, name="image")
 app.add_typer(helm_app, name="helm")
@@ -2879,3 +3016,4 @@ app.add_typer(tracing_app, name="tracing")
 app.add_typer(terraform_app, name="terraform")
 app.add_typer(ansible_app, name="ansible")
 app.add_typer(security_app, name="security")
+app.add_typer(capstone_app, name="capstone")

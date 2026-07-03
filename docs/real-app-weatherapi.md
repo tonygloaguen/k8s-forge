@@ -417,3 +417,7 @@ Copy the Terraform config to `k8s-forge-app-ansible.yaml`, enable `ansible`, the
 ## Module 13 Security Audit readiness follow-up
 
 Copy the Ansible config to `k8s-forge-app-security.yaml`, enable `security`, then run `k8s-forge security render k8s-forge-app-security.yaml --output generated-security-audit/ --force`. Review the Markdown dossier for container hardening, Kubernetes manifests, RBAC, Pod Security, NetworkPolicy, secrets handling, and supply-chain readiness. No scanner is launched and the cluster is not contacted.
+
+## Module 14 Capstone readiness follow-up
+
+Copy the Security Audit config to `k8s-forge-app-capstone.yaml`, enable `capstone`, then run `k8s-forge capstone render k8s-forge-app-capstone.yaml --output generated-capstone/ --force`. Review the final Markdown dossier for the full DevSecOps chain, module summary, validation checklist, manual steps, runtime dependencies, Security Audit synthesis, and v1.0.0 readiness. No deployment, scan, or cluster contact is performed.

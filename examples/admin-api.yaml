@@ -273,3 +273,28 @@ security:
     enabled: true
   examples:
     enabled: true
+
+capstone:
+  enabled: false
+  projectName: ""
+  report:
+    title: ""
+    audience: technical
+  checklist:
+    enabled: true
+  architecture:
+    enabled: true
+  devsecopsMatrix:
+    enabled: true
+  modulesSummary:
+    enabled: true
+  manualSteps:
+    enabled: true
+  runtimeDependencies:
+    enabled: true
+  securitySummary:
+    enabled: true
+  v1Readiness:
+    enabled: true
+  examples:
+    enabled: true

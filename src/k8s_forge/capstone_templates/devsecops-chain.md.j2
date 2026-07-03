@@ -1,0 +1,17 @@
+# DevSecOps Chain
+
+| Step | k8s-forge module | Purpose |
+| --- | --- | --- |
+| Code | Kubernetes raw / Helm | Describe the application in `app.yaml` and render local assets |
+| Build | CI GitHub Actions | Prepare Python build and package checks |
+| Test | CI GitHub Actions | Prepare linting, typing, and test workflows |
+| Scan | Supply Chain / CI / Security Audit | Prepare vulnerability, SBOM, and hardening review workflows |
+| Package | Helm | Package Kubernetes intent as a local chart |
+| Deploy | Kubernetes raw / Helm / GitOps | Generate assets that can later feed manual or GitOps delivery |
+| Observe | Observability | Prepare metrics scraping and dashboard review |
+| Trace | Tracing | Prepare OpenTelemetry and Tempo examples |
+| Secure | NetworkPolicy / Kyverno / Security Audit | Prepare network, admission, and hardening controls |
+| Audit | Security Audit | Produce local security review and checklist |
+| Document | Capstone | Produce final lab synthesis and `v1.0.0 readiness` notes |
+
+Every step remains readiness-oriented. The Capstone records the chain; it does not execute the chain.

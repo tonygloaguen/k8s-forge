@@ -102,3 +102,11 @@ If Kubernetes reports that `servicemonitors.monitoring.coreos.com` is unknown, t
 | Generated audit says a control is manual | Security Audit readiness is a local review, not a live scanner | Review the referenced generated manifests and runtime prerequisites manually |
 | Checklist marks a feature not enabled | The matching readiness module is disabled in `app.yaml` | Enable that module only when it belongs to the lab step |
 | Audit does not change doctor output | v0.16.0 adds no new doctor checks | Use existing doctor diagnostics for tooling and cluster prerequisites |
+
+## Capstone readiness notes
+
+| Symptom | Cause | Resolution |
+| --- | --- | --- |
+| Capstone marks a module as manual | The matching readiness section is disabled or runtime setup is outside k8s-forge | Enable the readiness section when needed and perform runtime setup manually |
+| Capstone files do not prove runtime health | Capstone is a Markdown synthesis, not a live validation | Use the generated dossier for review and run separate manual validations |
+| Doctor output is unchanged | Capstone adds no new tool requirement | Use existing doctor diagnostics for earlier modules |

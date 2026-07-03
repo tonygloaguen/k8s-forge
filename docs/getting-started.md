@@ -172,3 +172,7 @@ After Terraform readiness, see [Module 12 Ansible](module-12-ansible.md) to gene
 ## Next step: Security Audit readiness
 
 After Ansible readiness, see [Module 13 Security Audit](module-13-security-audit.md) to generate a local hardening dossier without running scanners or contacting the cluster.
+
+## Next step: Capstone readiness
+
+After Security Audit readiness, see [Module 14 Capstone](module-14-capstone.md) to generate the final local DevSecOps lab synthesis and prepare stabilization toward v1.0.0.

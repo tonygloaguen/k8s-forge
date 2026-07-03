@@ -31,6 +31,7 @@ name.
 - generate Terraform readiness files for local Infrastructure as Code review;
 - generate Ansible readiness files for local automation review;
 - generate Security Audit readiness files for local hardening review;
+- generate Capstone readiness files for the final DevSecOps lab synthesis;
 - run guarded `kubectl` workflows for `dry-run`, `diff`, `apply`, and `status`;
 - check local Docker/kind/kubectl prerequisites and manage a local kind cluster;
 - keep generated manifests inspectable before cluster operations.
@@ -90,6 +91,7 @@ k8s-forge tracing render app.yaml --output generated-tracing/
 k8s-forge terraform render app.yaml --output generated-terraform/
 k8s-forge ansible render app.yaml --output generated-ansible/
 k8s-forge security render app.yaml --output generated-security-audit/
+k8s-forge capstone render app.yaml --output generated-capstone/
 k8s-forge supply-chain render app.yaml --output generated-supply-chain/
 k8s-forge image load demo-app:latest --cluster devsecops
 k8s-forge dry-run app.yaml --output generated/
@@ -246,6 +248,10 @@ When `ansible.enabled` is true, `k8s-forge` can generate local Ansible readiness
 
 When `security.enabled` is true, `k8s-forge` can generate a local Security Audit readiness dossier covering container hardening, Kubernetes manifests, RBAC, ServiceAccounts, Pod Security, NetworkPolicy, Ingress/TLS, secrets handling, and supply chain review. It does not run scanners, contact the cluster, modify doctor checks, create secrets, or prove runtime compliance automatically.
 
+## Module 14 Capstone
+
+When `capstone.enabled` is true, `k8s-forge` can generate a final local DevSecOps lab synthesis covering Kubernetes raw, Helm, Ingress/TLS, Linkerd, NetworkPolicy, Kyverno, Supply Chain, CI, GitOps, Observability, Logging, Tracing, Terraform, Ansible, and Security Audit readiness. It does not deploy, scan, contact the cluster, contact the cloud, create sensitive values, or validate runtime compliance.
+
 ## Documentation
 
 - [Getting started](docs/getting-started.md)
@@ -267,6 +273,7 @@ When `security.enabled` is true, `k8s-forge` can generate a local Security Audit
 - [Module 11 Terraform readiness workflow](docs/module-11-terraform.md)
 - [Module 12 Ansible readiness workflow](docs/module-12-ansible.md)
 - [Module 13 Security Audit readiness workflow](docs/module-13-security-audit.md)
+- [Module 14 Capstone readiness workflow](docs/module-14-capstone.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Real app case study: weatherapi-platform](docs/real-app-weatherapi.md)
 - [Design notes](docs/design.md)

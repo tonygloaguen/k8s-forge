@@ -957,3 +957,53 @@ security:
 | `security.examples.enabled` | boolean | No | `true` | boolean only | Reserved for educational examples |
 
 Security Audit readiness is Markdown-only in v0.16.0. It does not run scanners, inspect live images, query RBAC, contact Kubernetes, or add doctor checks.
+
+
+## `capstone`
+
+The `capstone` section controls final DevSecOps lab synthesis generation. It does not affect raw Kubernetes rendering, Helm chart rendering, Security Audit files, doctor checks, or cluster state. Use `k8s-forge capstone render app.yaml --output generated-capstone/` to generate the final Markdown dossier.
+
+```yaml
+capstone:
+  enabled: false
+  projectName: ""
+  report:
+    title: ""
+    audience: technical
+  checklist:
+    enabled: true
+  architecture:
+    enabled: true
+  devsecopsMatrix:
+    enabled: true
+  modulesSummary:
+    enabled: true
+  manualSteps:
+    enabled: true
+  runtimeDependencies:
+    enabled: true
+  securitySummary:
+    enabled: true
+  v1Readiness:
+    enabled: true
+  examples:
+    enabled: true
+```
+
+| Field | Type | Required | Default | Validation | Purpose |
+| --- | --- | --- | --- | --- | --- |
+| `capstone.enabled` | boolean | No | `false` | boolean only | Controls Capstone readiness file generation |
+| `capstone.projectName` | string | No | empty | falls back to `app.name` | Educational Capstone project name |
+| `capstone.report.title` | string | No | empty | falls back to `<app.name> DevSecOps Cloud-Native Lab` | Final report title |
+| `capstone.report.audience` | string | No | `technical` | `technical`, `training`, or `internship` | Tailors the report outline |
+| `capstone.checklist.enabled` | boolean | No | `true` | boolean only | Controls validation checklist generation |
+| `capstone.architecture.enabled` | boolean | No | `true` | boolean only | Controls architecture overview generation |
+| `capstone.devsecopsMatrix.enabled` | boolean | No | `true` | boolean only | Controls DevSecOps chain generation |
+| `capstone.modulesSummary.enabled` | boolean | No | `true` | boolean only | Controls modules summary generation |
+| `capstone.manualSteps.enabled` | boolean | No | `true` | boolean only | Controls manual steps generation |
+| `capstone.runtimeDependencies.enabled` | boolean | No | `true` | boolean only | Controls runtime dependencies generation |
+| `capstone.securitySummary.enabled` | boolean | No | `true` | boolean only | Controls Security Audit summary generation |
+| `capstone.v1Readiness.enabled` | boolean | No | `true` | boolean only | Controls v1 readiness generation |
+| `capstone.examples.enabled` | boolean | No | `true` | boolean only | Controls final report outline generation |
+
+Capstone readiness is Markdown-only in v0.17.0. It does not deploy, scan, contact external systems, or add doctor checks.

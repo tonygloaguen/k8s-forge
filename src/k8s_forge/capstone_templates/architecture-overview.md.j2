@@ -1,0 +1,23 @@
+# Architecture Overview
+
+The lab architecture starts with `{{ app.name }}` running in namespace `{{ app.namespace }}` and expands through progressive DevSecOps readiness layers.
+
+## Logical layers
+
+- Application: image `{{ app.image }}` with `{{ app.replicas }}` requested replica(s).
+- Kubernetes raw: base manifests for namespace, workload, service, optional config, placeholder sensitive configuration, and autoscaling.
+- Helm: local chart packaging for reusable manifest rendering.
+- Ingress: optional HTTP routing and TLS readiness.
+- Linkerd: optional service mesh metadata readiness.
+- NetworkPolicy: optional ingress-only network isolation readiness.
+- Kyverno: optional policy visibility readiness.
+- CI: GitHub Actions workflow examples for quality and image security preparation.
+- GitOps: ArgoCD Application readiness for Helm-based delivery review.
+- Observability: Prometheus ServiceMonitor and Grafana dashboard model.
+- Logging: Loki LogQL examples, collector notes, and dashboard model.
+- Tracing: OpenTelemetry, OTLP, Tempo, TraceQL, and dashboard model.
+- Terraform: local Infrastructure as Code examples.
+- Ansible: local automation examples.
+- Security Audit: v0.16.0 Security Audit readiness dossier for hardening review.
+
+This architecture overview is descriptive. It does not modify or validate a live platform.

@@ -1,0 +1,39 @@
+# Lab Summary
+
+Report title: `{{ report_title }}`
+Audience: `{{ capstone.report.audience }}`
+Project: `{{ project_name }}`
+Application: `{{ app.name }}`
+Namespace: `{{ app.namespace }}`
+Image: `{{ app.image }}`
+Replicas: `{{ app.replicas }}`
+Container port: `{{ app.containerPort }}`
+
+## Application exposure
+
+- Service generation is controlled by the core Kubernetes renderer.
+- Ingress readiness: `{{ "enabled" if ingress.enabled else "not enabled" }}`
+- TLS readiness: `{{ "enabled" if ingress.tls.enabled else "not enabled" }}`
+- Autoscaling readiness: `{{ "enabled" if autoscaling.enabled else "not enabled" }}`
+
+## Security and policy posture
+
+- Linkerd readiness: `{{ "enabled" if mesh.enabled else "not enabled" }}`
+- NetworkPolicy readiness: `{{ "enabled" if network_policy.enabled else "not enabled" }}`
+- Kyverno readiness: `{{ "enabled" if policy.enabled else "not enabled" }}`
+- Security Audit readiness: `{{ "enabled" if security.enabled else "not enabled" }}`
+
+## Platform readiness
+
+- Supply Chain readiness: `{{ "enabled" if supply_chain.enabled else "not enabled" }}`
+- CI readiness: `{{ "enabled" if ci.enabled else "not enabled" }}`
+- GitOps readiness: `{{ "enabled" if gitops.enabled else "not enabled" }}`
+- Observability readiness: `{{ "enabled" if observability.enabled else "not enabled" }}`
+- Logging readiness: `{{ "enabled" if logging.enabled else "not enabled" }}`
+- Tracing readiness: `{{ "enabled" if tracing.enabled else "not enabled" }}`
+- Terraform readiness: `{{ "enabled" if terraform.enabled else "not enabled" }}`
+- Ansible readiness: `{{ "enabled" if ansible.enabled else "not enabled" }}`
+
+## Limits
+
+This Capstone summary describes generated readiness assets. Runtime installation, production release design, platform validation, and operational ownership remain manual.
