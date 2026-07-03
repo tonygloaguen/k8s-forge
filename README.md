@@ -1,88 +1,75 @@
 # k8s-forge
 
-`k8s-forge` is a generic Python CLI for generating Kubernetes manifests for
-stateless containerized web applications from a user-owned `app.yaml` file.
+`k8s-forge` is a pedagogical DevSecOps Cloud-Native CLI. It generates local readiness assets from a user-owned `app.yaml` so learners can review how an application moves through Kubernetes manifests, Helm, ingress, service mesh readiness, policy, supply chain, CI, GitOps, observability, logging, tracing, Infrastructure as Code, automation, security review, and final Capstone reporting.
 
-Status: local MVP. The project is ready to install and test locally, but it is
-not a full deployment platform and does not replace Kubernetes or `kubectl`.
+Status: v1.0.0 release hardening. The package version remains `0.17.0` until the final release bump. The project is designed for local learning, review, and controlled diagnostics. It is not a deployment platform and does not replace Kubernetes, Helm, ArgoCD, Terraform, Ansible, scanners, or runtime platform validation.
 
-The project is intentionally application-agnostic. Application-specific values
-must come from `app.yaml`; implementation logic must not hardcode an application
-name.
+The project is intentionally application-agnostic. Application-specific values must come from `app.yaml`; implementation logic must not hardcode an application name.
 
-## What It Does
+## What k8s-forge Does
 
 `k8s-forge` can:
 
 - create a starter `app.yaml` with `init`;
-- validate `app.yaml` with Pydantic models;
-- render Kubernetes YAML manifests locally;
-- generate a local Helm chart from the same `app.yaml`;
-- generate optional Ingress-NGINX compatible Ingress resources;
-- prepare Deployments for optional Linkerd service mesh injection;
-- generate optional ingress-only NetworkPolicy manifests;
-- generate optional Kyverno baseline Policy manifests in Audit mode;
-- generate local Supply Chain readiness scripts for Trivy, Syft, and optional Cosign;
-- generate GitHub Actions CI readiness workflows for Python and image security checks;
-- generate ArgoCD GitOps readiness manifests for Helm-based delivery review;
-- generate observability readiness files for Prometheus ServiceMonitor and Grafana dashboard review;
-- generate logging readiness files for Loki, LogQL, Promtail notes, and Grafana logs dashboard review;
-- generate tracing readiness files for OpenTelemetry, OTLP, Tempo, TraceQL, and Grafana traces dashboard review;
-- generate Terraform readiness files for local Infrastructure as Code review;
-- generate Ansible readiness files for local automation review;
-- generate Security Audit readiness files for local hardening review;
-- generate Capstone readiness files for the final DevSecOps lab synthesis;
-- run guarded `kubectl` workflows for `dry-run`, `diff`, `apply`, and `status`;
-- check local Docker/kind/kubectl prerequisites and manage a local kind cluster;
-- keep generated manifests inspectable before cluster operations.
+- validate configuration with typed Pydantic models;
+- render raw Kubernetes YAML locally;
+- generate a local Helm chart;
+- generate readiness files for ingress, Linkerd, NetworkPolicy, Kyverno, Supply Chain, CI, GitOps, observability, logging, tracing, Terraform, Ansible, Security Audit, and Capstone review;
+- run explicit, guarded cluster-oriented commands such as `dry-run`, `diff`, `apply`, `status`, `cluster`, and `image` when the user chooses them;
+- run non-blocking diagnostics with `doctor`;
+- keep generated files inspectable before any manual runtime workflow.
 
-## MVP Scope
+## What k8s-forge Does Not Do
 
-Included:
+`k8s-forge` does not:
 
-- `init`
-- `check`
-- `render`
-- `dry-run`
-- `diff`
-- `apply` with confirmation
-- `status`
-- `doctor`
-- `cluster create`, `cluster status`, `cluster delete` for kind
-- `image load` for loading local Docker images into kind
-- `helm render` for generating a local Helm chart
-- generation of Namespace, ConfigMap, Secret, Deployment, Service, optional HorizontalPodAutoscaler, optional Ingress, optional Linkerd pod-template annotations, optional NetworkPolicy, and optional Kyverno Policy
+- install ingress-nginx, cert-manager, Linkerd, Kyverno, ArgoCD, Prometheus, Grafana, Loki, Tempo, OpenTelemetry Collector, Terraform, Ansible, Trivy, Syft, or Cosign;
+- deploy automatically;
+- push Git commits or create tags;
+- create real secrets, tokens, credentials, private keys, kubeconfig files, or cloud access material;
+- run Terraform workflows that create, modify, or delete resources;
+- run Ansible playbooks or open remote sessions;
+- run runtime scans automatically;
+- prove cluster health, compliance, or production readiness.
 
-Out of scope:
+Readiness files are local educational examples. Runtime validation remains a separate manual workflow.
 
-- automatic Linkerd installation or `linkerd inject`
-- automatic Kyverno installation or cluster-wide ClusterPolicy generation
-- Kustomize
-- LangGraph
-- real secret management
-- Python Kubernetes client
-- Kubernetes operator behavior
-
-## Local Installation
+## Quickstart
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
+
 k8s-forge --help
-```
-
-## Quick Example
-
-```bash
-k8s-forge doctor
-k8s-forge cluster create --name devsecops
-k8s-forge cluster status --name devsecops
 k8s-forge init demo-app
 k8s-forge check app.yaml
 k8s-forge render app.yaml --output generated/
+```
+
+`demo-app` is only a documentation example. Real values should come from the user configuration.
+
+## Main Commands
+
+```bash
+k8s-forge init demo-app
+k8s-forge check app.yaml
+k8s-forge render app.yaml --output generated/
+k8s-forge dry-run app.yaml --output generated/
+k8s-forge diff app.yaml --output generated/
+k8s-forge apply app.yaml --output generated/
+k8s-forge status demo-app -n demo-app
+k8s-forge doctor
+k8s-forge cluster create --name devsecops
+k8s-forge image load demo-app:latest --cluster devsecops
+```
+
+Specialized renderers stay separate from raw Kubernetes rendering:
+
+```bash
 k8s-forge helm render app.yaml --output charts/
+k8s-forge supply-chain render app.yaml --output generated-supply-chain/
 k8s-forge ci render app.yaml --output generated-ci/
 k8s-forge gitops render app.yaml --output generated-gitops/
 k8s-forge observability render app.yaml --output generated-observability/
@@ -92,40 +79,32 @@ k8s-forge terraform render app.yaml --output generated-terraform/
 k8s-forge ansible render app.yaml --output generated-ansible/
 k8s-forge security render app.yaml --output generated-security-audit/
 k8s-forge capstone render app.yaml --output generated-capstone/
-k8s-forge supply-chain render app.yaml --output generated-supply-chain/
-k8s-forge image load demo-app:latest --cluster devsecops
-k8s-forge dry-run app.yaml --output generated/
-k8s-forge diff app.yaml --output generated/
-k8s-forge apply app.yaml --output generated/
-k8s-forge status demo-app -n demo-app
 ```
 
-`demo-app` is only a documentation example. Real values should come from the
-user's configuration.
+## Modules
 
-## Main Commands
-
-```bash
-k8s-forge doctor
-k8s-forge cluster create --name devsecops
-k8s-forge cluster status --name devsecops
-k8s-forge cluster delete --name devsecops
-k8s-forge image load demo-app:latest --cluster devsecops
-k8s-forge init demo-app
-k8s-forge init demo-app --namespace demo --image demo-app:1.0.0 --port 8000
-k8s-forge check app.yaml
-k8s-forge render app.yaml --output generated/
-k8s-forge helm render app.yaml --output charts/
-k8s-forge dry-run app.yaml --output generated/
-k8s-forge diff app.yaml --output generated/
-k8s-forge apply app.yaml --output generated/
-k8s-forge apply app.yaml --output generated/ --yes
-k8s-forge status demo-app -n demo-app
-```
+| Module | Scope | Output | Runtime dependency |
+| --- | --- | --- | --- |
+| Kubernetes raw | Namespace, ConfigMap, Secret placeholder, Deployment, Service, HPA, Ingress, NetworkPolicy, Kyverno Policy | `generated/` | Kubernetes cluster for runtime use |
+| Helm | Local chart from `app.yaml` | `charts/<app>/` | Helm for manual chart validation/use |
+| Ingress / TLS | Ingress readiness and cert-manager annotations | raw/Helm manifests | ingress-nginx, cert-manager, DNS/TLS setup |
+| Linkerd | Pod template injection annotations | raw/Helm manifests | Linkerd installed manually |
+| NetworkPolicy | Ingress-only network policy | raw/Helm manifests | CNI with NetworkPolicy support |
+| Kyverno | Namespace Policy in Audit mode | raw/Helm manifests | Kyverno installed manually |
+| Supply Chain | Trivy, Syft, optional Cosign helper scripts | `generated-supply-chain/` | Tools installed and run manually |
+| CI | GitHub Actions workflows | `generated-ci/` | GitHub Actions after manual repository integration |
+| GitOps | ArgoCD Application manifest | `generated-gitops/` | ArgoCD installed and configured manually |
+| Observability | ServiceMonitor and Grafana dashboard example | `generated-observability/` | Prometheus Operator and Grafana |
+| Logging | LogQL examples, collector notes, Grafana logs dashboard | `generated-logging/` | Loki and collector installed manually |
+| Tracing | OTEL notes, TraceQL examples, Grafana traces dashboard | `generated-tracing/` | Instrumentation, collector, Tempo/Grafana |
+| Terraform | Local IaC examples | `generated-terraform/` | Terraform run manually if desired |
+| Ansible | Local automation examples | `generated-ansible/` | Ansible run manually if desired |
+| Security Audit | Local security review and checklist | `generated-security-audit/` | Manual review, no live scan |
+| Capstone | Final lab synthesis and v1 readiness notes | `generated-capstone/` | Manual review |
 
 ## Generated Kubernetes Objects
 
-For a complete configuration, `render` writes:
+For a complete raw Kubernetes configuration, `render` may write:
 
 ```text
 generated/00-namespace.yaml
@@ -133,124 +112,40 @@ generated/10-configmap.yaml
 generated/20-secret.yaml
 generated/30-deployment.yaml
 generated/40-service.yaml
-generated/50-hpa.yaml        # only when autoscaling.enabled is true
+generated/50-hpa.yaml
+generated/60-ingress.yaml
+generated/70-networkpolicy.yaml
+generated/80-kyverno-policy.yaml
 ```
 
-Optional resources are generated only when enabled by `app.yaml`:
+Optional resources are generated only when enabled by `app.yaml`. Known generated files are overwritten on each raw render; unrelated files in the output directory are left untouched.
 
-- ConfigMap is rendered only when `config` is non-empty.
-- Secret is rendered only when `secrets` is non-empty.
-- Service is rendered only when `service.enabled` is `true`.
-- HorizontalPodAutoscaler is rendered only when `autoscaling.enabled` is `true`.
+## Examples
 
-Known generated files are overwritten on each render. Files with other names in
-the output directory are left untouched.
+- `examples/demo-app.yaml` is a compact generic example.
+- `examples/admin-api.yaml` is a second application shape with different ports and options.
+- `docs/real-app-weatherapi.md` documents a terrain-style FastAPI scenario.
 
-
-## Generated Helm Chart
-
-`k8s-forge helm render app.yaml --output charts/` writes a local chart to
-`charts/<app.name>/`. The chart includes `Chart.yaml`, `values.yaml`, and Helm
-templates for ConfigMap, Secret, Deployment, Service, and HPA. It does not
-contact the cluster and does not run `helm` automatically.
-
-After generation, validate manually:
+Validate examples locally:
 
 ```bash
-helm lint charts/demo-app
-helm template demo-app charts/demo-app -n demo-app
+k8s-forge check examples/demo-app.yaml
+k8s-forge check examples/admin-api.yaml
 ```
-
-## Module 3 Ingress
-
-When `ingress.enabled` is true, `k8s-forge` renders raw and Helm Ingress resources for an existing ingress-nginx controller. It does not install ingress-nginx, cert-manager, ClusterIssuers, DNS, or `/etc/hosts` entries.
-
-## Module 3 Linkerd
-
-When `mesh.enabled` and `mesh.inject` are true, `k8s-forge` adds Linkerd injection annotations to the Deployment pod template. It does not install Linkerd, annotate the Namespace, or run `linkerd inject`. Validate Linkerd manually and expect injected pods to show `2/2` containers: application plus `linkerd-proxy`.
-
-## Module 4 NetworkPolicy
-
-When `networkPolicy.enabled` is true, `k8s-forge` renders an ingress-only NetworkPolicy that allows traffic from the `ingress-nginx` namespace to the application container port. Enforcement depends on the cluster CNI; `k8s-forge` does not install or replace the CNI.
-
-## Module 4 Kyverno
-
-When `policy.enabled` is true and `provider` is `kyverno`, `k8s-forge` renders a namespace-scoped Kyverno `Policy` using the baseline profile. The default mode is `Audit` so violations can be observed without blocking lab deployments. `k8s-forge` does not install Kyverno.
-
-## Module 5 Supply Chain
-
-When `supplyChain.enabled` is true, `k8s-forge` can generate local helper scripts for Trivy image scans, Syft SBOM generation, and optional Cosign signing commands. It does not install these tools and does not generate secrets or signing keys.
-
-## Module 6 CI Readiness
-
-When `ci.enabled` is true, `k8s-forge` can generate GitHub Actions workflow files for Python quality checks, package build, local image scanning with Trivy, SBOM generation with Syft, and artifact upload. It does not push images, create secrets, deploy Kubernetes resources, or configure GitOps.
-
-## Module 7 GitOps
-
-When `gitops.enabled` is true, `k8s-forge` can generate local ArgoCD `Application` manifests that point to a Helm chart path in Git. It does not install ArgoCD, push commits, create credentials, apply manifests, or sync applications.
-
-## Module 8 Observability
-
-When `observability.enabled` is true, `k8s-forge` can generate local Prometheus Operator `ServiceMonitor` readiness manifests and a Grafana dashboard JSON model. It does not install Prometheus, Grafana, Loki, kube-prometheus-stack, create secrets, apply manifests, or import dashboards.
-
-## Module 9 Logging
-
-When `logging.enabled` is true, `k8s-forge` can generate local Loki LogQL examples, collector notes, and a Grafana logs dashboard JSON model. It does not install Loki, Grafana, Promtail, Alloy, create datasources, create secrets, apply manifests, or import dashboards.
-
-## Module 10 Tracing
-
-When `tracing.enabled` is true, `k8s-forge` can generate local OpenTelemetry notes, OTEL environment examples, Tempo TraceQL examples, collector notes, and a Grafana traces dashboard JSON model. It does not install OpenTelemetry Collector, Tempo, Grafana, Jaeger, create datasources, create secrets, apply manifests, or import dashboards.
-
-## Module 11 Terraform
-
-When `terraform.enabled` is true, `k8s-forge` can generate local Terraform readiness examples for Kubernetes and Helm providers using a local backend model. It does not run Terraform, contact a cloud provider, create access material, generate kubeconfig files, or provision infrastructure.
-
-## Local kind Bootstrap
-
-`k8s-forge doctor` checks Docker, kind, kubectl, the current context, and
-visible nodes.
-`k8s-forge cluster create --name devsecops` creates a local kind cluster when it
-does not already exist. `k8s-forge image load IMAGE --cluster devsecops` loads a
-local Docker image into that kind cluster.
-
-## Pedagogical CLI Output
-
-`k8s-forge` intentionally prints short explanations before important actions.
-The goal is to make the raw Kubernetes workflow understandable: local rendering,
-server-side dry-run, apply, Deployment replicas, Services, HPA, and
-metrics-server status. These messages are educational and do not change the
-underlying manifests or kubectl commands.
 
 ## Guardrails
 
-- `check` validates the configuration before rendering.
-- `render` only writes local YAML files.
-- `dry-run` asks the Kubernetes API server to validate manifests without
-  applying them.
-- `diff` shows what would change before applying.
+- `check` validates configuration before rendering.
+- `render` writes local Kubernetes YAML only.
+- Specialized readiness renderers write local review files only.
+- `dry-run`, `diff`, `apply`, `status`, `cluster`, and `image` are explicit user commands.
 - `apply` asks for confirmation unless `--yes` is passed.
-- `kubectl` calls go through one wrapper using `subprocess.run` without
-  `shell=True`.
-- Tests mock `kubectl` and must not depend on a real Kubernetes cluster.
+- External command execution stays behind narrow wrappers.
+- Tests mock external commands and do not depend on a real Kubernetes cluster.
 
 ## Secrets Warning
 
-Do not commit real secrets. Values placed in `app.yaml` or generated manifests
-may be stored in plain text during the MVP. The MVP uses Kubernetes
-`stringData` for readability and should only be used with placeholder values in
-examples and tests.
-
-## Module 12 Ansible
-
-When `ansible.enabled` is true, `k8s-forge` can generate local Ansible readiness examples with a local inventory, review-only playbook, group variables, and role notes. It does not run Ansible, open remote sessions, modify servers, contact Kubernetes, run Helm, run Terraform, create secrets, or generate login keys.
-
-## Module 13 Security Audit
-
-When `security.enabled` is true, `k8s-forge` can generate a local Security Audit readiness dossier covering container hardening, Kubernetes manifests, RBAC, ServiceAccounts, Pod Security, NetworkPolicy, Ingress/TLS, secrets handling, and supply chain review. It does not run scanners, contact the cluster, modify doctor checks, create secrets, or prove runtime compliance automatically.
-
-## Module 14 Capstone
-
-When `capstone.enabled` is true, `k8s-forge` can generate a final local DevSecOps lab synthesis covering Kubernetes raw, Helm, Ingress/TLS, Linkerd, NetworkPolicy, Kyverno, Supply Chain, CI, GitOps, Observability, Logging, Tracing, Terraform, Ansible, and Security Audit readiness. It does not deploy, scan, contact the cluster, contact the cloud, create sensitive values, or validate runtime compliance.
+Do not commit real secrets. Example values such as `change-me` are placeholders. Kubernetes Secret manifests are generated for readability in a lab context and must not be treated as real secret management. Use an external secret manager, Sealed Secrets, External Secrets, Vault, or another approved workflow for real environments.
 
 ## Documentation
 
@@ -274,39 +169,30 @@ When `capstone.enabled` is true, `k8s-forge` can generate a final local DevSecOp
 - [Module 12 Ansible readiness workflow](docs/module-12-ansible.md)
 - [Module 13 Security Audit readiness workflow](docs/module-13-security-audit.md)
 - [Module 14 Capstone readiness workflow](docs/module-14-capstone.md)
+- [v1.0.0 release hardening](docs/release-v1.md)
+- [Release checklist](docs/release-checklist.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Real app case study: weatherapi-platform](docs/real-app-weatherapi.md)
 - [Design notes](docs/design.md)
-- [Release checklist](docs/release-checklist.md)
 
-## Local Release Check
+## Release Hardening
 
-Build the package and verify it installs into a clean temporary virtualenv:
+Run the local release gate before a final v1.0.0 bump/tag:
 
 ```bash
-python -m build
-bash scripts/check_release.sh
+scripts/check_release.sh
 ```
 
-The release check verifies wheel/sdist creation, installation of the wheel, the
-`k8s-forge` console command, and manifest generation from the installed wheel.
-It does not call `kubectl apply` and does not require a Kubernetes cluster.
+The release gate checks Python quality, package build, wheel installation, CLI smoke tests, and local manifest rendering. It does not deploy, install platform components, contact a cloud provider, or require a Kubernetes cluster.
 
-## Development
-
-Install with development dependencies:
+## Development Checks
 
 ```bash
-python -m pip install -e ".[dev]"
-```
-
-Run checks:
-
-```bash
-ruff format --check .
-ruff check .
-mypy src
-bandit -r src
-pip-audit --skip-editable
-pytest -q
+.venv/bin/python -m ruff format --check .
+.venv/bin/python -m ruff check .
+.venv/bin/python -m mypy src
+.venv/bin/python -m pytest -q
+.venv/bin/python -m bandit -r src
+.venv/bin/python -m pip_audit --skip-editable
+.venv/bin/python -m build
 ```

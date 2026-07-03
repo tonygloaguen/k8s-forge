@@ -14,16 +14,36 @@ VENV_DIR="/tmp/k8s-forge-release-venv"
 APP_FILE="/tmp/k8s-forge-wheel-app.yaml"
 GENERATED_DIR="/tmp/k8s-forge-wheel-generated"
 
+run_python_module() {
+  local module="$1"
+  shift
+  "${PYTHON_BIN}" -m "${module}" "$@"
+}
+
+echo "==> Running Python quality gates with ${PYTHON_BIN}"
+cd "${ROOT_DIR}"
+run_python_module ruff format --check .
+run_python_module ruff check .
+run_python_module mypy src
+run_python_module pytest -q
+run_python_module bandit -r src
+run_python_module pip_audit --skip-editable
+
 echo "==> Cleaning previous release check artifacts"
 rm -rf "${DIST_DIR}" "${VENV_DIR}" "${APP_FILE}" "${GENERATED_DIR}"
 
-echo "==> Building wheel and sdist with ${PYTHON_BIN}"
-cd "${ROOT_DIR}"
-"${PYTHON_BIN}" -m build
+echo "==> Building wheel and sdist"
+run_python_module build
 
-WHEEL_PATH="$(find "${DIST_DIR}" -maxdepth 1 -name 'k8s_forge-*.whl' | sort | tail -n 1)"
+WHEEL_PATH="$(find "${DIST_DIR}" -maxdepth 1 -name "k8s_forge-*.whl" | sort | tail -n 1)"
 if [[ -z "${WHEEL_PATH}" ]]; then
   echo "No wheel artifact found in ${DIST_DIR}" >&2
+  exit 1
+fi
+
+SDIST_PATH="$(find "${DIST_DIR}" -maxdepth 1 -name "k8s_forge-*.tar.gz" | sort | tail -n 1)"
+if [[ -z "${SDIST_PATH}" ]]; then
+  echo "No source distribution artifact found in ${DIST_DIR}" >&2
   exit 1
 fi
 
@@ -35,16 +55,26 @@ echo "==> Installing wheel: ${WHEEL_PATH}"
 "${VENV_DIR}/bin/python" -m pip install "${WHEEL_PATH}"
 
 echo "==> Checking installed console command"
+"${VENV_DIR}/bin/k8s-forge" --version
 "${VENV_DIR}/bin/k8s-forge" --help >/tmp/k8s-forge-wheel-help.txt
 
 echo "==> Generating and validating app.yaml from installed wheel"
 "${VENV_DIR}/bin/k8s-forge" init demo-app --output "${APP_FILE}" --force
 "${VENV_DIR}/bin/k8s-forge" check "${APP_FILE}"
 
+echo "==> Validating checked-in examples"
+"${VENV_DIR}/bin/k8s-forge" check "${ROOT_DIR}/examples/demo-app.yaml"
+"${VENV_DIR}/bin/k8s-forge" check "${ROOT_DIR}/examples/admin-api.yaml"
+
 echo "==> Rendering manifests from installed wheel"
 "${VENV_DIR}/bin/k8s-forge" render "${APP_FILE}" --output "${GENERATED_DIR}"
 
-for manifest in   00-namespace.yaml   10-configmap.yaml   20-secret.yaml   30-deployment.yaml   40-service.yaml; do
+for manifest in \
+  00-namespace.yaml \
+  10-configmap.yaml \
+  20-secret.yaml \
+  30-deployment.yaml \
+  40-service.yaml; do
   if [[ ! -f "${GENERATED_DIR}/${manifest}" ]]; then
     echo "Missing generated manifest: ${manifest}" >&2
     exit 1
@@ -53,4 +83,5 @@ done
 
 echo "==> Release check passed"
 echo "Wheel: ${WHEEL_PATH}"
+echo "Source distribution: ${SDIST_PATH}"
 echo "Generated manifests: ${GENERATED_DIR}"

@@ -1,184 +1,179 @@
-# Release Checklist v0.1.0
+# Release Checklist v1.0.0
 
-This checklist prepares a local GitHub release for `k8s-forge` v0.1.0.
-It does not publish to PyPI and does not create a GitHub release
-automatically.
+This checklist prepares `k8s-forge` for the final v1.0.0 release hardening phase. It is local and review-oriented: it does not deploy to a cluster, contact a cloud provider, create secrets, push Git changes, or create a tag automatically.
 
-## 1. Git Pre-Checks
+## 1. Prerequisites
 
-Check the repository state before tagging:
+- Python 3.11 or newer is available.
+- A local virtual environment exists with development dependencies installed.
+- The repository contains no real secrets, tokens, credentials, kubeconfig material, private keys, or production inventory.
+- The reviewer understands the difference between generated readiness files and runtime validation on an installed platform.
+
+## 2. Git State
+
+Review the repository before release work:
 
 ```bash
 git status
 git log --oneline --max-count=5
+git tag --list "v*"
 ```
 
 Success criteria:
 
-- the working tree is clean;
-- no unexpected deleted or untracked files remain;
-- the latest commits match the intended release content.
+- the working tree is clean before final bump/tag work;
+- the latest commits match the intended release content;
+- the previous tag is present;
+- no unexpected generated output is staged.
 
-## 2. Local Quality
+## 3. Version Consistency
 
-Run the local quality gate:
+Before the final release commit, verify the current version locations:
+
+```bash
+rg -n "version = |__version__" pyproject.toml src/k8s_forge/__init__.py
+k8s-forge --version
+```
+
+For this hardening phase the version remains `0.17.0`. The final release bump to `1.0.0` must be a separate, explicit step.
+
+## 4. Python Quality Gate
+
+Run the full local quality gate:
 
 ```bash
 .venv/bin/python -m ruff format --check .
 .venv/bin/python -m ruff check .
 .venv/bin/python -m mypy src
+.venv/bin/python -m pytest -q
 .venv/bin/python -m bandit -r src
 .venv/bin/python -m pip_audit --skip-editable
-.venv/bin/python -m pytest -q
 ```
 
-All commands must complete successfully before tagging.
+All commands must complete successfully.
 
-## 3. Packaging
+## 5. Package Build
 
-Build the package and run the local release installation check:
+Build the wheel and source distribution:
 
 ```bash
 .venv/bin/python -m build
-bash scripts/check_release.sh
-```
-
-Verify that the expected artifacts exist:
-
-```bash
-test -f dist/k8s_forge-0.1.0-py3-none-any.whl
-test -f dist/k8s_forge-0.1.0.tar.gz
 ```
 
 Success criteria:
 
-- wheel and sdist are built;
-- the wheel installs in a temporary virtualenv;
-- the installed `k8s-forge` command runs;
-- Jinja2 templates are included in the installed package;
-- manifests can be rendered from the installed wheel.
+- `dist/` contains a wheel;
+- `dist/` contains a source distribution;
+- package data includes every renderer template directory.
 
-## 4. Local Functional Check
+## 6. Release Smoke Test
 
-Run a minimal functional flow without touching a Kubernetes cluster:
+Run the release script:
 
 ```bash
+scripts/check_release.sh
+```
+
+The script must validate quality gates, build artifacts, install the wheel into a temporary virtual environment, and exercise local CLI flows. It must not run deployment commands, provision infrastructure, execute Ansible playbooks, or contact a cluster.
+
+## 7. CLI Smoke Tests
+
+Review local command help:
+
+```bash
+k8s-forge --version
 k8s-forge --help
-k8s-forge init demo-app --output /tmp/k8s-forge-demo.yaml --force
-k8s-forge check /tmp/k8s-forge-demo.yaml
-k8s-forge render /tmp/k8s-forge-demo.yaml --output /tmp/k8s-forge-generated
+k8s-forge init --help
+k8s-forge check --help
+k8s-forge render --help
+k8s-forge helm render --help
+k8s-forge security render --help
+k8s-forge capstone render --help
 ```
 
-Expected generated files:
+Success criteria:
 
-```text
-/tmp/k8s-forge-generated/00-namespace.yaml
-/tmp/k8s-forge-generated/10-configmap.yaml
-/tmp/k8s-forge-generated/20-secret.yaml
-/tmp/k8s-forge-generated/30-deployment.yaml
-/tmp/k8s-forge-generated/40-service.yaml
-```
+- help output is readable;
+- specialized renderers remain separate from raw Kubernetes `render`;
+- `--output` and `--force` behavior is documented where relevant.
 
-## 5. Git Tag
+## 8. Example Validation
 
-Create and push the release tag after the quality and packaging checks pass:
+Validate the checked-in examples:
 
 ```bash
-git tag -a v0.1.0 -m "Release v0.1.0 local MVP"
-git push origin main
-git push origin v0.1.0
+k8s-forge check examples/demo-app.yaml
+k8s-forge check examples/admin-api.yaml
 ```
 
-Do not tag with a dirty working tree.
+Success criteria:
 
-## 6. GitHub Release Text
+- both examples load successfully;
+- readiness sections are present and disabled or configured intentionally;
+- no example contains real secrets, tokens, credentials, private keys, or production host data.
 
-Title:
+## 9. Documentation Review
 
-```text
-v0.1.0 - Local MVP
-```
+Review:
 
-Release notes:
+- `README.md`;
+- `CHANGELOG.md`;
+- `docs/release-v1.md`;
+- `docs/release-checklist.md`;
+- `docs/config-reference.md`;
+- all `docs/module-*.md`;
+- `docs/real-app-weatherapi.md`.
 
-```markdown
-## Summary
+Success criteria:
 
-`k8s-forge` v0.1.0 is a local MVP for generating Kubernetes manifests for
-stateless containerized web applications from a generic `app.yaml` file.
+- module order is correct through Module 14 Capstone;
+- Security Audit readiness is Module 13;
+- Capstone readiness is Module 14;
+- readiness is not described as runtime validation;
+- no obsolete `v0.1.0` release text remains in release docs.
 
-The tool is intentionally application-agnostic: application names, images,
-ports, namespaces, labels, configuration values, and secrets placeholders come
-from the user configuration.
+## 10. Terrain Validation Plan
 
-## Included
+Terrain validation stays manual. The release process may document commands to review generated files, but it must not run platform installation or deployment commands automatically.
 
-- `k8s-forge doctor` for local Docker/kind/kubectl checks.
-- `k8s-forge cluster create/status/delete` for local kind clusters.
-- `k8s-forge image load` for loading a local Docker image into kind.
-- `k8s-forge init` for generating a starter `app.yaml`.
-- `k8s-forge check` for validating configuration.
-- `k8s-forge render` for generating Kubernetes YAML locally.
-- `k8s-forge dry-run` using `kubectl apply --dry-run=server`.
-- `k8s-forge diff` using `kubectl diff`.
-- `k8s-forge apply` with interactive confirmation by default.
-- `k8s-forge status` for Deployment, Pod, and Service visibility.
-- Generation of Namespace, ConfigMap, Secret, Deployment, and Service.
+Recommended manual review:
 
-## Out of Scope
+- render raw Kubernetes manifests locally;
+- render each enabled readiness module into a separate output directory;
+- inspect generated Markdown, YAML, JSON, and scripts;
+- run `k8s-forge doctor` for non-blocking diagnostics.
 
-- PyPI publication.
-- Helm.
-- Kustomize.
-- LangGraph.
-- Ingress.
-- HPA.
-- NetworkPolicy.
-- Real secret management.
-- Python Kubernetes client.
-- Kubernetes operator behavior.
+## 11. Final Bump
 
-## Known Limitations
-
-- `app.yaml` secrets are educational placeholders and must not contain real
-  committed secrets.
-- `apply --yes` is intended for advanced or automated use.
-- Local cluster support assumes Docker, kind, and kubectl are installed by the
-  user.
-- Tests mock external commands and do not validate against a real Kubernetes
-  cluster.
-
-## Quick Start
+Only after all checks pass, perform the explicit release bump in a dedicated commit:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
-
-k8s-forge doctor
-k8s-forge cluster create --name devsecops
-k8s-forge init demo-app
-k8s-forge check app.yaml
-k8s-forge render app.yaml --output generated/
-k8s-forge image load demo-app:latest --cluster devsecops
-k8s-forge dry-run app.yaml --output generated/
-k8s-forge diff app.yaml --output generated/
-k8s-forge apply app.yaml --output generated/
-k8s-forge status demo-app -n demo-app
-```
+# update pyproject.toml and src/k8s_forge/__init__.py to 1.0.0
+git diff
+git status
 ```
 
-## 7. Success Criteria
+Do not combine the final bump with unrelated refactors.
 
-The release is ready when:
+## 12. Final Tag
 
-- GitHub Actions CI is green;
-- the working tree is clean;
+After the final bump commit and release checks pass:
+
+```bash
+git tag -a v1.0.0 -m "Release v1.0.0"
+```
+
+Pushing the branch and tag is a manual maintainer action.
+
+## 13. Success Criteria
+
+The v1.0.0 release is ready when:
+
 - local quality checks pass;
-- the wheel is built;
-- the sdist is built;
-- installation from the wheel is validated in a temporary virtualenv;
-- the `k8s-forge` CLI is available from the installed wheel;
-- manifests are generated successfully;
-- documentation is present and linked from the README.
+- package build succeeds;
+- wheel install smoke test succeeds;
+- examples load successfully;
+- docs and changelog are current;
+- generated templates are packaged;
+- no release step performs deployment or runtime mutation;
+- final bump and tag are deliberate maintainer actions.
