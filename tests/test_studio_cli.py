@@ -13,9 +13,6 @@ def test_cli_studio_help() -> None:
     result = runner.invoke(app, ["studio", "--help"])
 
     assert result.exit_code == 0
-    assert "--host" in result.output
-    assert "--port" in result.output
-    assert "--workspace" in result.output
 
 
 def test_cli_studio_defaults(monkeypatch: object) -> None:
@@ -35,6 +32,38 @@ def test_cli_studio_defaults(monkeypatch: object) -> None:
         "host": "127.0.0.1",
         "port": 8765,
         "workspace": Path(".k8s-forge-studio"),
+    }
+
+
+def test_cli_studio_explicit_options(monkeypatch: object, tmp_path: Path) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run_studio(host: str, port: int, workspace: Path) -> None:
+        captured["host"] = host
+        captured["port"] = port
+        captured["workspace"] = workspace
+
+    monkeypatch.setattr(cli, "run_studio", fake_run_studio)
+    workspace = tmp_path / "studio-workspace"
+
+    result = runner.invoke(
+        app,
+        [
+            "studio",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "8765",
+            "--workspace",
+            str(workspace),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert captured == {
+        "host": "127.0.0.1",
+        "port": 8765,
+        "workspace": workspace,
     }
 
 
