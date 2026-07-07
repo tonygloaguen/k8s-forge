@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import importlib
 from pathlib import Path
+from typing import Any
 
 
 class StudioDependencyError(RuntimeError):
@@ -23,7 +25,7 @@ def run_studio(host: str, port: int, workspace: Path) -> None:
     """Run the local Studio server."""
     _require_local_host(host)
     try:
-        import uvicorn
+        uvicorn: Any = importlib.import_module("uvicorn")
     except ImportError as exc:
         msg = (
             "Studio dependencies are missing.\n"
