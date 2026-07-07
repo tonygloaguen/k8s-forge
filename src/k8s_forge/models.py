@@ -1071,6 +1071,27 @@ class AppConfig(BaseModel):
     app: AppSpec
     config: dict[str, str] = Field(default_factory=dict)
     secrets: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("config", mode="before")
+    @classmethod
+    def normalize_config_section(cls, value: object) -> object:
+        """Accept discovery-style config.enabled/data and legacy flat config maps."""
+        if not isinstance(value, dict):
+            return value
+        if "enabled" not in value and "data" not in value:
+            return value
+        enabled = value.get("enabled", True)
+        data = value.get("data", {})
+        if not isinstance(enabled, bool):
+            msg = "config.enabled must be a boolean"
+            raise ValueError(msg)
+        if not enabled:
+            return {}
+        if not isinstance(data, dict):
+            msg = "config.data must be a mapping"
+            raise ValueError(msg)
+        return data
+
     service: ServiceConfig = Field(default_factory=ServiceConfig)
     resources: ResourcesConfig = Field(default_factory=ResourcesConfig)
     probes: ProbesConfig = Field(default_factory=ProbesConfig)

@@ -10,8 +10,10 @@ app:
   replicas: {{ result.suggested_config.replicas }}
 
 config:
+  enabled: true
+  data:
 {% for key, value in result.suggested_config.config.items() %}
-  {{ key }}: "{{ value }}"
+    {{ key }}: "{{ value }}"
 {% endfor %}
 
 secrets: {}

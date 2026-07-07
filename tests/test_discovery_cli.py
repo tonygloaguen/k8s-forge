@@ -3,6 +3,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from k8s_forge.cli import app
+from k8s_forge.config_loader import load_app_config
 
 runner = CliRunner()
 
@@ -67,7 +68,14 @@ def test_cli_discover_generates_files_for_fastapi(tmp_path: Path) -> None:
     assert "Confidence:" in result.output
     assert (output / "discovery-report.md").exists()
     assert (output / "warnings.md").exists()
-    assert (output / "k8s-forge-app.yaml").exists()
+    generated_yaml = output / "k8s-forge-app.yaml"
+    assert generated_yaml.exists()
+    config = load_app_config(generated_yaml)
+    assert config.app.name == "cli-fastapi"
+    assert config.config == {"DISCOVERY_REVIEW": "required"}
+
+    check_result = runner.invoke(app, ["check", str(generated_yaml)])
+    assert check_result.exit_code == 0
 
 
 def test_cli_discover_refuses_overwrite_without_force(tmp_path: Path) -> None:

@@ -172,6 +172,76 @@ def test_discover_sqlite_and_file_write_warning(tmp_path: Path) -> None:
     assert "local-persistence" in {warning.code for warning in result.warnings}
 
 
+def test_discover_readme_env_vars_avoid_markdown_false_positives(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "readme-env-api"
+    write(repo / "requirements.txt", "fastapi\nuvicorn\n")
+    write(repo / "main.py", "from fastapi import FastAPI\napp = FastAPI()\n")
+    write(
+        repo / "README.md",
+        """
+        # Example API
+
+        Licensed under APACHE. See LICENSE and CONTRIBUTING.
+        POST /messages returns HTML.
+
+        ## Environment Variables
+
+        - OLLAMA_BASE_URL=http://localhost:11434
+        - OLLAMA_MODEL=llama3
+        - PST_VIEWER_DATA_DIR=/tmp/data
+        - PST_VIEWER_PORT=8000
+        """,
+    )
+
+    result = discover_repository(repo)
+
+    assert {
+        "OLLAMA_BASE_URL",
+        "OLLAMA_MODEL",
+        "PST_VIEWER_DATA_DIR",
+        "PST_VIEWER_PORT",
+    } <= set(result.env_vars)
+    assert {"APACHE", "CONTRIBUTING", "HTML", "LICENSE", "POST"}.isdisjoint(
+        result.env_vars
+    )
+
+
+def test_discover_readme_env_vars_with_code_prefix_are_kept(tmp_path: Path) -> None:
+    repo = tmp_path / "prefixed-env-api"
+    write(repo / "requirements.txt", "fastapi\nuvicorn\n")
+    write(
+        repo / "main.py",
+        """
+        import os
+        from fastapi import FastAPI
+        app = FastAPI()
+        data_dir = os.getenv("PST_VIEWER_DATA_DIR")
+        """,
+    )
+    write(
+        repo / "README.md",
+        """
+        # API documentation
+
+        APACHE LICENSE POST HTML CONTRIBUTING
+        Configure PST_VIEWER_DB_PATH and PST_VIEWER_PORT for local runs.
+        OTHER_RANDOM_VALUE is not part of the application prefix.
+        """,
+    )
+
+    result = discover_repository(repo)
+
+    assert "PST_VIEWER_DATA_DIR" in result.env_vars
+    assert "PST_VIEWER_DB_PATH" in result.env_vars
+    assert "PST_VIEWER_PORT" in result.env_vars
+    assert "OTHER_RANDOM_VALUE" not in result.env_vars
+    assert {"APACHE", "CONTRIBUTING", "HTML", "LICENSE", "POST"}.isdisjoint(
+        result.env_vars
+    )
+
+
 def test_discover_env_vars_without_sensitive_values(tmp_path: Path) -> None:
     repo = tmp_path / "env-api"
     write(repo / "requirements.txt", "fastapi\nuvicorn\n")

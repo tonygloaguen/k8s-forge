@@ -67,6 +67,28 @@ SECRET_ENV_MARKERS = (
     "PRIVATE_KEY",
     "CREDENTIAL",
 )
+GENERIC_README_ENV_WORDS = {
+    "API",
+    "APACHE",
+    "CLI",
+    "COM",
+    "CONTRIBUTING",
+    "CSS",
+    "GET",
+    "HTML",
+    "HTTP",
+    "HTTPS",
+    "JSON",
+    "LICENSE",
+    "MIT",
+    "POST",
+    "README",
+    "REST",
+    "SQL",
+    "URL",
+    "YAML",
+}
+
 WINDOWS_PATTERNS = (
     ("pywin32", "Windows-only pywin32 dependency"),
     ("pythoncom", "Windows COM automation dependency"),
@@ -631,22 +653,91 @@ def _python_file_exposes_app(path: Path, factory_name: str) -> bool:
 
 
 def _detect_env_vars(files: list[_InspectedFile]) -> list[str]:
-    env_vars: set[str] = set()
+    code_env_vars: set[str] = set()
+    readme_texts: list[str] = []
     for file in files:
-        text = file.text
-        for pattern in (
-            r"os\.getenv\(\s*[\"\']([A-Z][A-Z0-9_]{2,})[\"\']",
-            r"os\.environ\.get\(\s*[\"\']([A-Z][A-Z0-9_]{2,})[\"\']",
-            r"os\.environ\[\s*[\"\']([A-Z][A-Z0-9_]{2,})[\"\']\s*\]",
-        ):
-            env_vars.update(re.findall(pattern, text))
-        if (
-            file.relative_path.lower().startswith("readme")
-            or file.relative_path == "README"
-        ):
-            env_vars.update(re.findall(r"\b[A-Z][A-Z0-9_]{3,}\b", text))
-    ignored = {"README", "HTTP", "HTTPS", "JSON", "YAML", "SQL", "COM", "API", "URL"}
-    return sorted(var for var in env_vars if var not in ignored)
+        code_env_vars.update(_python_env_vars(file.text))
+        if _is_readme(file):
+            readme_texts.append(file.text)
+
+    prefixes = _env_prefixes(code_env_vars)
+    readme_env_vars: set[str] = set()
+    for text in readme_texts:
+        readme_env_vars.update(_readme_env_vars(text, prefixes))
+
+    env_vars = code_env_vars | readme_env_vars
+    return sorted(var for var in env_vars if _is_plausible_env_var(var))
+
+
+def _python_env_vars(text: str) -> set[str]:
+    env_vars: set[str] = set()
+    for pattern in (
+        r"os\.getenv\(\s*[\"']([A-Z][A-Z0-9_]{2,})[\"']",
+        r"os\.environ\.get\(\s*[\"']([A-Z][A-Z0-9_]{2,})[\"']",
+        r"os\.environ\[\s*[\"']([A-Z][A-Z0-9_]{2,})[\"']\s*\]",
+    ):
+        env_vars.update(re.findall(pattern, text))
+    return env_vars
+
+
+def _is_readme(file: _InspectedFile) -> bool:
+    name = file.relative_path.lower()
+    return name == "readme" or name.startswith("readme.")
+
+
+def _readme_env_vars(text: str, prefixes: set[str]) -> set[str]:
+    env_vars: set[str] = set()
+    env_section = _readme_environment_section(text)
+    if env_section:
+        env_vars.update(_uppercase_underscore_names(env_section))
+    for candidate in _uppercase_underscore_names(text):
+        if any(candidate.startswith(f"{prefix}_") for prefix in prefixes):
+            env_vars.add(candidate)
+    return env_vars
+
+
+def _uppercase_underscore_names(text: str) -> set[str]:
+    return set(re.findall(r"\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\b", text))
+
+
+def _env_prefixes(env_vars: set[str]) -> set[str]:
+    prefixes: set[str] = set()
+    for name in env_vars:
+        parts = name.split("_")
+        if len(parts) >= 3:
+            prefixes.add("_".join(parts[:2]))
+        if len(parts) >= 2:
+            prefixes.add(parts[0])
+    return prefixes
+
+
+def _readme_environment_section(text: str) -> str:
+    lines = text.splitlines()
+    captured: list[str] = []
+    in_section = False
+    for line in lines:
+        stripped = line.strip()
+        is_heading = stripped.startswith("#")
+        normalized = stripped.strip("# ").lower()
+        if is_heading:
+            if in_section:
+                break
+            in_section = normalized in {
+                "environment",
+                "environment variables",
+                "configuration",
+                "configuration variables",
+            }
+            continue
+        if in_section:
+            captured.append(line)
+    return "\n".join(captured)
+
+
+def _is_plausible_env_var(name: str) -> bool:
+    if name in GENERIC_README_ENV_WORDS:
+        return False
+    return "_" in name or name.startswith(("PORT", "HOST"))
 
 
 def _detect_volumes(files: list[_InspectedFile], all_text_lower: str) -> list[str]:

@@ -55,6 +55,8 @@ def test_render_discovery_files_generates_report_warnings_and_yaml(
     assert config.app.namespace == "sample-fastapi"
     assert config.app.containerPort == 8080
     assert config.service.port == 80
+    yaml_text = (output / "k8s-forge-app.yaml").read_text(encoding="utf-8")
+    assert "config:\n  enabled: true\n  data:" in yaml_text
     text = generated_text(output)
     assert "starter configuration" in text
     assert "readiness scaffold" in text
