@@ -24,6 +24,7 @@ will render standard YAML manifests. The full configuration reference lives in
 - `renderer.py`: raw Kubernetes manifest rendering.
 - `discovery.py`: static repository discovery rules for starter app.yaml scaffolding.
 - `discovery_renderer.py`: local Markdown and starter YAML discovery rendering.
+- `explain.py` and `explain_renderer.py`: read-only app.yaml explanation and warning rendering.
 - `supply_chain_renderer.py`: local Trivy, Syft, and Cosign readiness script rendering.
 - `ci_renderer.py`: GitHub Actions CI readiness workflow rendering.
 - `gitops_renderer.py`: ArgoCD GitOps readiness manifest rendering.
@@ -84,3 +85,7 @@ commands, warnings, blockers, confidence, and recommended mode.
 warnings, and a starter `k8s-forge-app.yaml` when confidence is high or medium.
 It does not execute code, install dependencies, build images, contact a cluster,
 modify the analyzed repository, or prove Kubernetes compatibility.
+
+## Explain Architecture
+
+`explain` deliberately reuses the existing config loader, then renders an in-memory explanation. It does not call Kubernetes renderers, specialized readiness renderers, kubectl wrappers, Terraform, Ansible, scanners, or any external command.

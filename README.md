@@ -2,7 +2,7 @@
 
 `k8s-forge` is a pedagogical DevSecOps Cloud-Native CLI. It generates local readiness assets from a user-owned `app.yaml` so learners can review how an application moves through Kubernetes manifests, Helm, ingress, service mesh readiness, policy, supply chain, CI, GitOps, observability, logging, tracing, Infrastructure as Code, automation, security review, and final Capstone reporting.
 
-Status: v1.1.0 repository discovery development on top of the stable v1.0.0 baseline. The package version remains `1.0.0` during this implementation. The project is designed for local learning, review, and controlled diagnostics. It is not a deployment platform and does not replace Kubernetes, Helm, ArgoCD, Terraform, Ansible, scanners, or runtime platform validation.
+Status: v1.2.0 explain configuration development on top of the stable v1.1.0 baseline. The package version remains unchanged during this implementation. The project is designed for local learning, review, and controlled diagnostics. It is not a deployment platform and does not replace Kubernetes, Helm, ArgoCD, Terraform, Ansible, scanners, or runtime platform validation.
 
 The project is intentionally application-agnostic. Application-specific values must come from `app.yaml`; implementation logic must not hardcode an application name.
 
@@ -13,6 +13,7 @@ The project is intentionally application-agnostic. Application-specific values m
 - create a starter `app.yaml` with `init`;
 - statically inspect an existing repository with `discover` and generate a starter readiness scaffold for review;
 - validate configuration with typed Pydantic models;
+- explain an app.yaml file in read-only mode with `explain`;
 - render raw Kubernetes YAML locally;
 - generate a local Helm chart;
 - generate readiness files for ingress, Linkerd, NetworkPolicy, Kyverno, Supply Chain, CI, GitOps, observability, logging, tracing, Terraform, Ansible, Security Audit, and Capstone review;
@@ -46,6 +47,7 @@ python -m pip install -e ".[dev]"
 k8s-forge --help
 k8s-forge init demo-app
 k8s-forge discover . --output generated-discovery/
+k8s-forge explain generated-discovery/k8s-forge-app.yaml
 k8s-forge check app.yaml
 k8s-forge render app.yaml --output generated/
 ```
@@ -57,6 +59,7 @@ k8s-forge render app.yaml --output generated/
 ```bash
 k8s-forge init demo-app
 k8s-forge discover . --output generated-discovery/
+k8s-forge explain generated-discovery/k8s-forge-app.yaml
 k8s-forge check app.yaml
 k8s-forge render app.yaml --output generated/
 k8s-forge dry-run app.yaml --output generated/
@@ -105,6 +108,7 @@ k8s-forge capstone render app.yaml --output generated-capstone/
 | Security Audit | Local security review and checklist | `generated-security-audit/` | Manual review, no live scan |
 | Capstone | Final lab synthesis and v1 readiness notes | `generated-capstone/` | Manual review |
 | Repository discovery | Static repository analysis and starter app.yaml scaffold | `generated-discovery/` | Manual review, no runtime proof |
+| Explain | Read-only app.yaml explanation and warnings | console output | Local validation only |
 
 ## Generated Kubernetes Objects
 
@@ -174,6 +178,7 @@ Do not commit real secrets. Example values such as `change-me` are placeholders.
 - [Module 13 Security Audit readiness workflow](docs/module-13-security-audit.md)
 - [Module 14 Capstone readiness workflow](docs/module-14-capstone.md)
 - [Module 15 Repository Discovery workflow](docs/module-15-repository-discovery.md)
+- [Module 16 Explain app configuration](docs/module-16-explain.md)
 - [v1.0.0 release hardening](docs/release-v1.md)
 - [Release checklist](docs/release-checklist.md)
 - [Troubleshooting](docs/troubleshooting.md)

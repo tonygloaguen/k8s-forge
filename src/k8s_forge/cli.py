@@ -30,6 +30,8 @@ from k8s_forge.exceptions import (
     LocalCommandError,
     RenderError,
 )
+from k8s_forge.explain import build_explanation
+from k8s_forge.explain_renderer import render_explanation
 from k8s_forge.gitops_renderer import (
     render_gitops_files,
     resolve_gitops_application_name,
@@ -2031,6 +2033,26 @@ def init(
     _print_autoscaling_warning(generated_config)
     output.write_text(_starter_config_yaml(data), encoding="utf-8")
     console.print(f"[green]created {output}[/green]")
+
+
+@app.command()
+def explain(
+    config_path: Annotated[Path, typer.Argument(help="Path to app.yaml.")],
+) -> None:
+    """Explain a k8s-forge app.yaml file without generating or deploying."""
+    _print_step(f"Explaining application configuration from {config_path}...")
+    _print_hint(
+        "This command is read-only. It validates app.yaml and explains its "
+        "readiness meaning without rendering manifests or contacting a cluster."
+    )
+    try:
+        loaded = load_app_config(config_path)
+    except ConfigLoadError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    report = build_explanation(loaded)
+    console.print(render_explanation(report), markup=False)
 
 
 @app.command()

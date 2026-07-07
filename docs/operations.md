@@ -73,6 +73,10 @@ can be inspected before any cluster operation.
 
 ## Repository Discovery Operations
 
+## Explain Configuration
+
+`k8s-forge explain PATH` validates an app.yaml file and prints a read-only explanation of the application, exposure, config, resources, probes, readiness modules, risks, and next steps. It does not write files, render manifests, contact the cluster, or execute external tools.
+
 `k8s-forge discover PATH --output generated-discovery/` is a local static
 analysis command. It reads selected project files, writes discovery artifacts to
 the requested output directory, and does not contact Kubernetes, Docker, a cloud

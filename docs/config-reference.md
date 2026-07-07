@@ -19,6 +19,10 @@ file follows the same schema documented here, but it is a readiness scaffold: it
 uses placeholder image values, review-required config values, disabled secrets,
 and conservative defaults. Review it before running `check` or `render`.
 
+## Explaining a Configuration
+
+Use `k8s-forge explain PATH` to validate and explain an app.yaml file in read-only mode. It highlights placeholder images, review-required config values, disabled modules, missing probes, and other risks without rendering manifests or contacting a cluster.
+
 ## Minimal Example
 
 ```yaml

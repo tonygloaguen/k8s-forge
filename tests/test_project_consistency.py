@@ -21,6 +21,7 @@ TOP_LEVEL_HELP_COMMANDS = [
     ["apply"],
     ["status"],
     ["discover"],
+    ["explain"],
     ["doctor"],
     ["cluster"],
     ["image"],
@@ -139,6 +140,7 @@ def test_pyproject_packages_all_template_directories() -> None:
         ROOT / "docs" / "module-13-security-audit.md",
         ROOT / "docs" / "module-14-capstone.md",
         ROOT / "docs" / "module-15-repository-discovery.md",
+        ROOT / "docs" / "module-16-explain.md",
     ],
 )
 def test_release_documentation_exists(path: Path) -> None:

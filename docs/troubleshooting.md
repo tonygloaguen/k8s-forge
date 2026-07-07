@@ -119,3 +119,11 @@ If Kubernetes reports that `servicemonitors.monitoring.coreos.com` is unknown, t
 | `discover` reports Windows or desktop blockers | Static signals such as `pywin32`, `win32com`, Outlook Desktop, PowerShell, or Windows paths were detected | Split Linux-containerizable web components from Windows-only workers before Kubernetes deployment |
 | Generated image uses `ghcr.io/example/...` | No real image build or registry push is performed by discovery | Replace the placeholder after building and publishing an image manually |
 | Environment variables appear with review-required values | Discovery detected variable names but never copies sensitive values | Fill non-sensitive config manually and use an external secret workflow for sensitive values |
+
+## Explain notes
+
+| Symptom | Cause | Resolution |
+| --- | --- | --- |
+| `explain` fails with validation errors | The file is not a valid `k8s-forge` app.yaml | Fix the schema errors or run `k8s-forge check` for the same validation path |
+| `explain` warns about placeholders | The file likely came from `init` or `discover` and still contains review-only values | Replace placeholder images and review config/secrets before rendering |
+| `explain` output does not create files | This command is intentionally read-only | Use `render` or a specialized readiness renderer only after review |

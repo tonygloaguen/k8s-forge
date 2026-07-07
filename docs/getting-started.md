@@ -44,6 +44,7 @@ k8s-forge doctor
 k8s-forge cluster create --name devsecops
 k8s-forge init demo-app
 k8s-forge discover . --output generated-discovery/
+k8s-forge explain generated-discovery/k8s-forge-app.yaml
 k8s-forge check app.yaml
 k8s-forge render app.yaml --output generated/
 k8s-forge helm render app.yaml --output charts/
@@ -80,6 +81,8 @@ The output contains `discovery-report.md`, `warnings.md`, and, when confidence
 is high or medium, `k8s-forge-app.yaml`. This is a readiness scaffold for manual
 review. It does not execute application code, install dependencies, build
 images, contact a cluster, or prove Kubernetes compatibility.
+
+Run `k8s-forge explain generated-discovery/k8s-forge-app.yaml` to review the scaffold meaning before rendering.
 
 Read [module-15-repository-discovery.md](module-15-repository-discovery.md) for
 confidence levels, warnings, blockers, and supported static signals.
@@ -138,6 +141,7 @@ real Kubernetes cluster.
 - [Module 6 CI readiness workflow](module-6-ci.md)
 - [Module 7 ArgoCD GitOps readiness workflow](module-7-gitops-argocd.md)
 - [Module 15 Repository Discovery workflow](module-15-repository-discovery.md)
+- [Module 16 Explain app configuration](module-16-explain.md)
 - [Design notes](design.md)
 
 ## Local Release Check

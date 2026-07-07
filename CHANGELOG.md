@@ -3,6 +3,12 @@
 This changelog summarizes product milestones for `k8s-forge`. It is not a commit-by-commit history.
 
 
+## v1.2.0 - Explain app configuration
+
+- Adds `k8s-forge explain PATH` for read-only app.yaml explanations.
+- Highlights placeholder images, review-required config, disabled readiness modules, missing probes, and other starter-configuration risks.
+- Keeps explanation local: no rendering, deployment, cluster access, secret creation, or external command execution.
+
 ## v1.1.0 - Repository discovery / app.yaml scaffolding
 
 - Adds generic static repository discovery with `k8s-forge discover PATH`.
