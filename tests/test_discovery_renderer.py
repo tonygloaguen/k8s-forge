@@ -25,6 +25,7 @@ def create_fastapi_repo(root: Path) -> Path:
 def create_low_confidence_repo(root: Path) -> Path:
     repo = root / "batch-job"
     write(repo / "worker.py", "print('background')\n")
+    write(repo / "helper.py", "print('helper')\n")
     return repo
 
 
@@ -55,6 +56,7 @@ def test_render_discovery_files_generates_report_warnings_and_yaml(
     assert config.app.namespace == "sample-fastapi"
     assert config.app.containerPort == 8080
     assert config.service.port == 80
+    assert config.workload.type == "deployment"
     yaml_text = (output / "k8s-forge-app.yaml").read_text(encoding="utf-8")
     assert "config:\n  enabled: true\n  data:" in yaml_text
     text = generated_text(output)
@@ -117,3 +119,18 @@ def test_render_discovery_files_does_not_generate_forbidden_commands(
         assert forbidden not in text
     for forbidden_secret in ("change-me", "real-secret", "API_TOKEN:"):
         assert forbidden_secret not in text
+
+
+def test_render_discovery_files_generates_job_yaml_for_cli_repo(tmp_path: Path) -> None:
+    repo = tmp_path / "cli-tool"
+    write(repo / "requirements.txt", "pytest\n")
+    write(repo / "mapper.py", "print('scan')\n")
+
+    output = tmp_path / "generated-discovery"
+    render_discovery_files(discover_repository(repo), output)
+
+    config = load_app_config(output / "k8s-forge-app.yaml")
+    assert config.workload.type == "job"
+    assert config.workload.command == ["python"]
+    assert config.workload.args == ["mapper.py"]
+    assert config.service.enabled is False

@@ -22,6 +22,7 @@ TOP_LEVEL_HELP_COMMANDS = [
     ["status"],
     ["discover"],
     ["explain"],
+    ["studio"],
     ["doctor"],
     ["cluster"],
     ["image"],
@@ -79,6 +80,7 @@ def test_checked_in_examples_load(example_path: Path) -> None:
 
     assert config.app.name
     assert config.app.namespace
+    assert config.workload is not None
     assert config.ingress is not None
     assert config.networkPolicy is not None
     assert config.policy is not None
@@ -126,6 +128,9 @@ def test_pyproject_packages_all_template_directories() -> None:
         "security_templates/*.j2",
         "capstone_templates/*.j2",
         "discovery_templates/*.j2",
+        "studio/templates/*.html",
+        "studio/static/*.js",
+        "studio/static/*.css",
     }
 
     assert expected_patterns <= set(package_data)
@@ -141,6 +146,8 @@ def test_pyproject_packages_all_template_directories() -> None:
         ROOT / "docs" / "module-14-capstone.md",
         ROOT / "docs" / "module-15-repository-discovery.md",
         ROOT / "docs" / "module-16-explain.md",
+        ROOT / "docs" / "module-17-studio.md",
+        ROOT / "docs" / "module-18-workload-types.md",
     ],
 )
 def test_release_documentation_exists(path: Path) -> None:

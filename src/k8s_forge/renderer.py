@@ -30,6 +30,8 @@ GENERATED_FILENAMES = (
     "10-configmap.yaml",
     "20-secret.yaml",
     "30-deployment.yaml",
+    "30-job.yaml",
+    "30-cronjob.yaml",
     "40-service.yaml",
     "50-hpa.yaml",
     "60-ingress.yaml",
@@ -116,6 +118,7 @@ def _context(config: AppConfig) -> dict[str, Any]:
         "app": config.app,
         "config": config.config,
         "secrets": config.secrets,
+        "workload": config.workload,
         "service": config.service,
         "labels": _labels(app_name),
         "selector_labels": _selector_labels(app_name),
@@ -146,21 +149,36 @@ def _template_specs(config: AppConfig) -> list[TemplateSpec]:
             "20-secret.yaml",
             enabled=bool(config.secrets),
         ),
-        TemplateSpec("30-deployment.yaml.j2", "30-deployment.yaml"),
+        TemplateSpec(
+            "30-deployment.yaml.j2",
+            "30-deployment.yaml",
+            enabled=config.workload.type in {"deployment", "worker"},
+        ),
+        TemplateSpec(
+            "30-job.yaml.j2",
+            "30-job.yaml",
+            enabled=config.workload.type == "job",
+        ),
+        TemplateSpec(
+            "30-cronjob.yaml.j2",
+            "30-cronjob.yaml",
+            enabled=config.workload.type == "cronjob",
+        ),
         TemplateSpec(
             "40-service.yaml.j2",
             "40-service.yaml",
-            enabled=config.service.enabled,
+            enabled=config.service.enabled and config.workload.type == "deployment",
         ),
         TemplateSpec(
             "50-hpa.yaml.j2",
             "50-hpa.yaml",
-            enabled=config.autoscaling.enabled,
+            enabled=config.autoscaling.enabled
+            and config.workload.type in {"deployment", "worker"},
         ),
         TemplateSpec(
             "60-ingress.yaml.j2",
             "60-ingress.yaml",
-            enabled=config.ingress.enabled,
+            enabled=config.ingress.enabled and config.workload.type == "deployment",
         ),
         TemplateSpec(
             "70-networkpolicy.yaml.j2",

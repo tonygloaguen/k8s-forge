@@ -1,0 +1,63 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ app.name | tojson }}
+  namespace: {{ app.namespace | tojson }}
+  labels:
+{% for key, value in labels.items() %}
+    {{ key | tojson }}: {{ value | tojson }}
+{% endfor %}
+spec:
+  schedule: {{ workload.schedule | tojson }}
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+{% for key, value in labels.items() %}
+            {{ key | tojson }}: {{ value | tojson }}
+{% endfor %}
+{% if pod_annotations %}
+          annotations:
+{% for key, value in pod_annotations.items() %}
+            {{ key | tojson }}: {{ value | tojson }}
+{% endfor %}
+{% endif %}
+        spec:
+          restartPolicy: {{ workload.restartPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: {{ app.name | tojson }}
+              image: {{ app.image | tojson }}
+              imagePullPolicy: IfNotPresent
+{% if workload.command %}
+              command: {{ workload.command | tojson }}
+{% endif %}
+{% if workload.args %}
+              args: {{ workload.args | tojson }}
+{% endif %}
+{% if env_from %}
+              envFrom:
+{% for source in env_from %}
+                - {{ source.kind }}:
+                    name: {{ source.name | tojson }}
+{% endfor %}
+{% endif %}
+{% if resources %}
+              resources:
+{% for section, values in resources.items() %}
+                {{ section }}:
+{% for key, value in values.items() %}
+                  {{ key }}: {{ value | tojson }}
+{% endfor %}
+{% endfor %}
+{% endif %}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL

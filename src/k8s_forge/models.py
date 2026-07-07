@@ -26,8 +26,40 @@ class AppSpec(BaseModel):
     name: str = Field(min_length=1)
     namespace: str = Field(min_length=1)
     image: str = Field(min_length=1)
-    containerPort: int = Field(ge=1, le=65535)
-    replicas: int = Field(ge=1)
+    containerPort: int = Field(default=8000, ge=1, le=65535)
+    replicas: int = Field(default=1, ge=1)
+
+
+class WorkloadConfig(BaseModel):
+    """Kubernetes workload shape rendered for the application."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["deployment", "worker", "job", "cronjob"] = "deployment"
+    command: list[str] = Field(default_factory=list)
+    args: list[str] = Field(default_factory=list)
+    restartPolicy: Literal["Always", "Never", "OnFailure"] = "Always"
+    schedule: str = ""
+
+    @field_validator("command", "args")
+    @classmethod
+    def validate_command_items(cls, value: list[str]) -> list[str]:
+        """Require non-empty command and argument tokens when provided."""
+        if any(not item.strip() for item in value):
+            msg = "workload command and args values must be non-empty strings"
+            raise ValueError(msg)
+        return value
+
+    @model_validator(mode="after")
+    def validate_batch_settings(self) -> "WorkloadConfig":
+        """Validate workload-specific batch settings."""
+        if self.type in {"job", "cronjob"} and self.restartPolicy == "Always":
+            msg = "workload.restartPolicy must be Never or OnFailure for job workloads"
+            raise ValueError(msg)
+        if self.type == "cronjob" and not self.schedule.strip():
+            msg = "workload.schedule is required when workload.type is cronjob"
+            raise ValueError(msg)
+        return self
 
 
 class ServiceConfig(BaseModel):
@@ -1069,6 +1101,7 @@ class AppConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     app: AppSpec
+    workload: WorkloadConfig = Field(default_factory=WorkloadConfig)
     config: dict[str, str] = Field(default_factory=dict)
     secrets: dict[str, str] = Field(default_factory=dict)
 
@@ -1113,8 +1146,25 @@ class AppConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_ingress_service(self) -> "AppConfig":
-        """Ensure enabled Ingress has a Service backend to target."""
+        """Ensure workload, Service, Ingress, and autoscaling are compatible."""
         if self.ingress.enabled and not self.service.enabled:
             msg = "service.enabled must be true when ingress.enabled is true"
+            raise ValueError(msg)
+        if self.workload.type in {"worker", "job", "cronjob"} and self.service.enabled:
+            msg = (
+                "service.enabled must be false when workload.type is worker, "
+                "job, or cronjob"
+            )
+            raise ValueError(msg)
+        if self.workload.type in {"worker", "job", "cronjob"} and self.ingress.enabled:
+            msg = (
+                "ingress.enabled must be false when workload.type is worker, "
+                "job, or cronjob"
+            )
+            raise ValueError(msg)
+        if self.workload.type in {"job", "cronjob"} and self.autoscaling.enabled:
+            msg = (
+                "autoscaling.enabled must be false when workload.type is job or cronjob"
+            )
             raise ValueError(msg)
         return self

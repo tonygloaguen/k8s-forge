@@ -3,6 +3,18 @@
 This changelog summarizes product milestones for `k8s-forge`. It is not a commit-by-commit history.
 
 
+## v1.4.0 - Workload types
+
+- Adds native workload shapes for Deployment, Worker, Job, and CronJob rendering.
+- Allows CLI and batch repositories to use Job/CronJob scaffolds instead of forcing a web Service model.
+- Extends discovery, explain, and Studio assisted scaffolding around reviewed workload types.
+
+## v1.3.0 - Studio local GUI
+
+- Adds `k8s-forge studio`, a local FastAPI-powered web UI for repository discovery, app.yaml review, check, explain, render, and dry-run workflows.
+- Streams job stdout/stderr to the browser and keeps local job logs under the Studio workspace.
+- Adds guardrails for local-only binding, allowlisted commands, dry-run-before-deploy, explicit deploy confirmation, and blocker-aware review-only mode.
+
 ## v1.2.0 - Explain app configuration
 
 - Adds `k8s-forge explain PATH` for read-only app.yaml explanations.

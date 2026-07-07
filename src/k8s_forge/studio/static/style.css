@@ -1,0 +1,21 @@
+:root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+body { margin: 0; display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
+aside { padding: 16px; border-right: 1px solid #8884; background: #f6f8fa; }
+@media (prefers-color-scheme: dark) { aside { background: #111827; } }
+main { padding: 16px; overflow: auto; }
+h1 { font-size: 22px; margin: 0 0 8px; }
+h2 { font-size: 16px; margin: 0 0 8px; }
+.guardrail { font-size: 13px; color: #b45309; }
+label { display: block; margin: 12px 0 6px; font-size: 13px; }
+input, textarea, button, select { box-sizing: border-box; width: 100%; }
+input, textarea, select { padding: 8px; border: 1px solid #8888; border-radius: 6px; font: inherit; }
+textarea { min-height: 360px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+button { margin: 6px 0; padding: 8px 10px; border: 1px solid #2563eb; border-radius: 6px; background: #2563eb; color: white; cursor: pointer; }
+button:disabled { background: #6b7280; border-color: #6b7280; cursor: not-allowed; }
+.cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+.scaffold { border: 1px solid #8884; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+.scaffold textarea { min-height: 180px; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+article { border: 1px solid #8884; border-radius: 8px; padding: 12px; min-width: 0; }
+pre { white-space: pre-wrap; overflow: auto; max-height: 420px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+#console { min-height: 280px; background: #030712; color: #d1d5db; padding: 8px; border-radius: 6px; }

@@ -9,6 +9,19 @@ app:
   containerPort: {{ result.suggested_config.container_port }}
   replicas: {{ result.suggested_config.replicas }}
 
+workload:
+  type: {{ result.suggested_config.workload_type }}
+  command:
+{% for token in result.suggested_config.command %}
+    - {{ token | tojson }}
+{% endfor %}
+  args:
+{% for token in result.suggested_config.args %}
+    - {{ token | tojson }}
+{% endfor %}
+  restartPolicy: {{ result.suggested_config.restart_policy }}
+  schedule: {{ result.suggested_config.schedule | tojson }}
+
 config:
   enabled: true
   data:
@@ -19,7 +32,7 @@ config:
 secrets: {}
 
 service:
-  enabled: true
+  enabled: {{ "true" if result.suggested_config.service_enabled else "false" }}
   port: {{ result.suggested_config.service_port }}
 
 resources:

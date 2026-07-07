@@ -98,17 +98,34 @@ def test_discover_node_express_repository(tmp_path: Path) -> None:
     assert result.tests_detected is True
 
 
-def test_discover_python_without_web_framework_is_report_only(tmp_path: Path) -> None:
+def test_discover_python_cli_repository_suggests_job(tmp_path: Path) -> None:
     repo = tmp_path / "worker"
     write(repo / "requirements.txt", "pytest\n")
     write(repo / "worker.py", "print('background job')\n")
 
     result = discover_repository(repo)
 
+    assert result.confidence == "medium"
+    assert result.recommended_mode == "review-required"
+    assert result.yaml_generated is True
+    assert result.startup_command == "python worker.py"
+    assert result.suggested_config is not None
+    assert result.suggested_config.workload_type == "job"
+    assert result.suggested_config.service_enabled is False
+
+
+def test_discover_ambiguous_python_repository_is_report_only(tmp_path: Path) -> None:
+    repo = tmp_path / "ambiguous"
+    write(repo / "requirements.txt", "pytest\n")
+    write(repo / "worker.py", "print('background job')\n")
+    write(repo / "helper.py", "print('helper')\n")
+
+    result = discover_repository(repo)
+
     assert result.confidence == "low"
     assert result.recommended_mode == "report-only"
     assert result.yaml_generated is False
-    assert "no-web-framework" in {blocker.code for blocker in result.blockers}
+    assert "no-workload-shape" in {blocker.code for blocker in result.blockers}
 
 
 @pytest.mark.parametrize("marker", ["pywin32", "pythoncom", "win32com", "win32api"])

@@ -68,6 +68,11 @@ from k8s_forge.security_renderer import (
     render_security_files,
     resolve_security_project_name,
 )
+from k8s_forge.studio.server import (
+    StudioDependencyError,
+    StudioHostError,
+    run_studio,
+)
 from k8s_forge.supply_chain_renderer import (
     is_registry_backed_image,
     render_supply_chain_files,
@@ -1908,6 +1913,31 @@ def main(
 ) -> None:
     """Run k8s-forge."""
     _ = version
+
+
+@app.command()
+def studio(
+    host: Annotated[
+        str,
+        typer.Option("--host", help="Local host to bind Studio to."),
+    ] = "127.0.0.1",
+    port: Annotated[
+        int,
+        typer.Option("--port", help="Local Studio port."),
+    ] = 8765,
+    workspace: Annotated[
+        Path,
+        typer.Option("--workspace", help="Studio workspace directory."),
+    ] = Path(".k8s-forge-studio"),
+) -> None:
+    """Run the local k8s-forge Studio web UI."""
+    _print_step(f"Starting k8s-forge Studio at http://{host}:{port}")
+    _print_hint("Studio is local-lab only and binds to 127.0.0.1 by default.")
+    try:
+        run_studio(host=host, port=port, workspace=workspace)
+    except (StudioDependencyError, StudioHostError) as exc:
+        console.print(f"[red]{escape(str(exc))}[/red]")
+        raise typer.Exit(code=1) from exc
 
 
 @app.command()

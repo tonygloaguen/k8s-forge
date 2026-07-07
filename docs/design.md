@@ -89,3 +89,11 @@ modify the analyzed repository, or prove Kubernetes compatibility.
 ## Explain Architecture
 
 `explain` deliberately reuses the existing config loader, then renders an in-memory explanation. It does not call Kubernetes renderers, specialized readiness renderers, kubectl wrappers, Terraform, Ansible, scanners, or any external command.
+
+## Workload Types
+
+`workload.type` keeps Kubernetes rendering honest for web services, background workers, one-shot jobs, and scheduled jobs. The default remains `deployment` for compatibility. Non-web workload types do not render Service or Ingress.
+
+## Studio Architecture
+
+`studio` is an optional local FastAPI server. It keeps web dependencies behind the `[studio]` extra, uses a workspace manager for `.k8s-forge-studio/`, a typed job manager for history, and a command runner with an explicit allowlist. Internal steps reuse Python functions for discovery, check, explain, and render. External commands are executed with `asyncio.create_subprocess_exec` and never through a shell.

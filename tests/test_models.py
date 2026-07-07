@@ -1565,3 +1565,99 @@ def test_capstone_rejects_non_strict_booleans(
 
     with pytest.raises(ValidationError):
         AppConfig.model_validate(config_data)
+
+
+def test_workload_absent_defaults_to_deployment() -> None:
+    config = AppConfig.model_validate(_valid_config())
+
+    assert config.workload.type == "deployment"
+    assert config.workload.restartPolicy == "Always"
+
+
+def test_worker_workload_is_valid_without_service() -> None:
+    config_data = _valid_config("demo-worker")
+    config_data["workload"] = {
+        "type": "worker",
+        "command": ["python"],
+        "args": ["-m", "worker"],
+    }
+    config_data["service"] = {"enabled": False, "port": 80}
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.workload.type == "worker"
+    assert config.service.enabled is False
+
+
+def test_job_workload_is_valid_without_service() -> None:
+    config_data = _valid_config("network-mapper")
+    config_data["workload"] = {
+        "type": "job",
+        "command": ["python"],
+        "args": ["-m", "network_mapper"],
+        "restartPolicy": "OnFailure",
+    }
+    config_data["service"] = {"enabled": False, "port": 80}
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.workload.type == "job"
+    assert config.workload.restartPolicy == "OnFailure"
+
+
+def test_cronjob_workload_requires_schedule() -> None:
+    config_data = _valid_config("network-mapper")
+    config_data["workload"] = {
+        "type": "cronjob",
+        "command": ["python"],
+        "args": ["-m", "network_mapper"],
+        "restartPolicy": "OnFailure",
+    }
+    config_data["service"] = {"enabled": False, "port": 80}
+
+    with pytest.raises(ValidationError, match="schedule"):
+        AppConfig.model_validate(config_data)
+
+
+def test_cronjob_workload_is_valid_with_schedule() -> None:
+    config_data = _valid_config("network-mapper")
+    config_data["workload"] = {
+        "type": "cronjob",
+        "command": ["python"],
+        "args": ["-m", "network_mapper"],
+        "restartPolicy": "OnFailure",
+        "schedule": "0 * * * *",
+    }
+    config_data["service"] = {"enabled": False, "port": 80}
+
+    config = AppConfig.model_validate(config_data)
+
+    assert config.workload.type == "cronjob"
+    assert config.workload.schedule == "0 * * * *"
+
+
+def test_job_rejects_restart_policy_always() -> None:
+    config_data = _valid_config("network-mapper")
+    config_data["workload"] = {
+        "type": "job",
+        "command": ["python"],
+        "args": ["-m", "network_mapper"],
+        "restartPolicy": "Always",
+    }
+    config_data["service"] = {"enabled": False, "port": 80}
+
+    with pytest.raises(ValidationError, match="restartPolicy"):
+        AppConfig.model_validate(config_data)
+
+
+def test_job_rejects_enabled_service() -> None:
+    config_data = _valid_config("network-mapper")
+    config_data["workload"] = {
+        "type": "job",
+        "command": ["python"],
+        "args": ["-m", "network_mapper"],
+        "restartPolicy": "OnFailure",
+    }
+
+    with pytest.raises(ValidationError, match="service.enabled"):
+        AppConfig.model_validate(config_data)

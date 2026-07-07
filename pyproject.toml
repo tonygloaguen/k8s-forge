@@ -26,6 +26,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+studio = [
+  "fastapi>=0.115",
+  "uvicorn>=0.30",
+  "python-multipart>=0.0.9",
+]
+
 dev = [
   "build>=1.2",
   "bandit>=1.7",
@@ -71,6 +77,9 @@ k8s_forge = [
   "security_templates/*.j2",
   "capstone_templates/*.j2",
   "discovery_templates/*.j2",
+  "studio/static/*.css",
+  "studio/static/*.js",
+  "studio/templates/*.html",
 ]
 
 [tool.ruff]

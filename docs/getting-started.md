@@ -142,6 +142,7 @@ real Kubernetes cluster.
 - [Module 7 ArgoCD GitOps readiness workflow](module-7-gitops-argocd.md)
 - [Module 15 Repository Discovery workflow](module-15-repository-discovery.md)
 - [Module 16 Explain app configuration](module-16-explain.md)
+- [Module 18 Workload Types](module-18-workload-types.md)
 - [Design notes](design.md)
 
 ## Local Release Check
@@ -204,3 +205,14 @@ After Security Audit readiness, see [Module 14 Capstone](module-14-capstone.md) 
 ## Next step: Repository Discovery
 
 After the v1.0.0 stabilized workflow, see [Module 15 Repository Discovery](module-15-repository-discovery.md) to scaffold a starter `k8s-forge-app.yaml` from static repository signals without executing the application.
+
+## Studio local GUI
+
+Install the optional Studio extra and start the local browser workflow:
+
+```bash
+pip install -e ".[studio]"
+k8s-forge studio
+```
+
+Studio is local-lab only and keeps deploy actions behind dry-run and explicit confirmation. For non-web repositories, review `workload.type` and consider `job` or `cronjob` instead of forcing a Deployment plus Service.

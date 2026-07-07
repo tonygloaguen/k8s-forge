@@ -581,3 +581,91 @@ def test_renderer_cleans_previous_kyverno_policy_file_when_disabled(
     render_manifests(AppConfig.model_validate(_base_config()), tmp_path)
 
     assert not policy_file.exists()
+
+
+def test_worker_workload_generates_deployment_without_service(tmp_path: Path) -> None:
+    config_data = _base_config()
+    config_data["workload"] = {
+        "type": "worker",
+        "command": ["python"],
+        "args": ["-m", "worker"],
+    }
+    config_data["service"] = {"enabled": False, "port": 80}
+    config = AppConfig.model_validate(config_data)
+
+    generated = render_manifests(config, tmp_path)
+
+    assert "30-deployment.yaml" in [path.name for path in generated]
+    assert not (tmp_path / "40-service.yaml").exists()
+    deployment = _load_yaml(tmp_path / "30-deployment.yaml")
+    container = deployment["spec"]["template"]["spec"]["containers"][0]
+    assert container["command"] == ["python"]
+    assert container["args"] == ["-m", "worker"]
+
+
+def test_job_workload_generates_job_without_service(tmp_path: Path) -> None:
+    config_data = _base_config()
+    config_data["workload"] = {
+        "type": "job",
+        "command": ["python"],
+        "args": ["-m", "network_mapper"],
+        "restartPolicy": "OnFailure",
+    }
+    config_data["service"] = {"enabled": False, "port": 80}
+    config = AppConfig.model_validate(config_data)
+
+    generated = render_manifests(config, tmp_path)
+
+    assert "30-job.yaml" in [path.name for path in generated]
+    assert not (tmp_path / "30-deployment.yaml").exists()
+    assert not (tmp_path / "40-service.yaml").exists()
+    job = _load_yaml(tmp_path / "30-job.yaml")
+    assert job["apiVersion"] == "batch/v1"
+    assert job["kind"] == "Job"
+    spec = job["spec"]["template"]["spec"]
+    assert spec["restartPolicy"] == "OnFailure"
+    assert spec["containers"][0]["command"] == ["python"]
+    assert spec["containers"][0]["args"] == ["-m", "network_mapper"]
+
+
+def test_cronjob_workload_generates_cronjob_without_service(tmp_path: Path) -> None:
+    config_data = _base_config()
+    config_data["workload"] = {
+        "type": "cronjob",
+        "command": ["python"],
+        "args": ["-m", "network_mapper"],
+        "restartPolicy": "OnFailure",
+        "schedule": "0 * * * *",
+    }
+    config_data["service"] = {"enabled": False, "port": 80}
+    config = AppConfig.model_validate(config_data)
+
+    generated = render_manifests(config, tmp_path)
+
+    assert "30-cronjob.yaml" in [path.name for path in generated]
+    assert not (tmp_path / "30-deployment.yaml").exists()
+    assert not (tmp_path / "40-service.yaml").exists()
+    cronjob = _load_yaml(tmp_path / "30-cronjob.yaml")
+    assert cronjob["apiVersion"] == "batch/v1"
+    assert cronjob["kind"] == "CronJob"
+    assert cronjob["spec"]["schedule"] == "0 * * * *"
+    spec = cronjob["spec"]["jobTemplate"]["spec"]["template"]["spec"]
+    assert spec["restartPolicy"] == "OnFailure"
+
+
+def test_ingress_is_not_generated_without_service_for_non_web_workload(
+    tmp_path: Path,
+) -> None:
+    config_data = _base_config()
+    config_data["workload"] = {
+        "type": "job",
+        "command": ["python"],
+        "args": ["-m", "network_mapper"],
+        "restartPolicy": "OnFailure",
+    }
+    config_data["service"] = {"enabled": False, "port": 80}
+    config = AppConfig.model_validate(config_data)
+
+    render_manifests(config, tmp_path)
+
+    assert not (tmp_path / "60-ingress.yaml").exists()

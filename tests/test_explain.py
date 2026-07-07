@@ -96,3 +96,123 @@ def test_build_explanation_reports_enabled_modules() -> None:
     assert "- status: enabled" in text
     assert "Security" in text
     assert "Capstone" in text
+
+
+def test_build_explanation_describes_job_workload() -> None:
+    config = AppConfig.model_validate(
+        {
+            "app": {
+                "name": "network-mapper",
+                "namespace": "network-mapper",
+                "image": "network-mapper:dev",
+            },
+            "workload": {
+                "type": "job",
+                "command": ["python"],
+                "args": ["-m", "network_mapper"],
+                "restartPolicy": "OnFailure",
+            },
+            "service": {"enabled": False, "port": 80},
+        }
+    )
+
+    text = render_explanation(build_explanation(config))
+
+    assert "Workload" in text
+    assert "- type: job" in text
+    assert "- rendered as: batch/v1 Job" in text
+    assert "- port not applicable for workload type job" in text
+    assert "- applicable: no" in text
+    assert "target port: not applicable for workload type job" in text
+
+
+def test_build_explanation_warns_job_without_command() -> None:
+    config = AppConfig.model_validate(
+        {
+            "app": {
+                "name": "network-mapper",
+                "namespace": "network-mapper",
+                "image": "network-mapper:dev",
+            },
+            "workload": {"type": "job", "restartPolicy": "OnFailure"},
+            "service": {"enabled": False, "port": 80},
+        }
+    )
+
+    report = build_explanation(config)
+
+    assert "job workload has no explicit command" in report.warnings
+
+
+def test_build_explanation_describes_cronjob_workload() -> None:
+    config = AppConfig.model_validate(
+        {
+            "app": {
+                "name": "network-mapper",
+                "namespace": "network-mapper",
+                "image": "network-mapper:dev",
+            },
+            "workload": {
+                "type": "cronjob",
+                "command": ["python"],
+                "args": ["-m", "network_mapper"],
+                "restartPolicy": "OnFailure",
+                "schedule": "0 * * * *",
+            },
+            "service": {"enabled": False, "port": 80},
+        }
+    )
+
+    text = render_explanation(build_explanation(config))
+
+    assert "- type: cronjob" in text
+    assert "- schedule: 0 * * * *" in text
+    assert "- rendered as: batch/v1 CronJob" in text
+
+
+def test_build_explanation_marks_worker_port_not_applicable() -> None:
+    config = AppConfig.model_validate(
+        {
+            "app": {
+                "name": "demo-worker",
+                "namespace": "demo-worker",
+                "image": "demo-worker:dev",
+            },
+            "workload": {
+                "type": "worker",
+                "command": ["python"],
+                "args": ["-m", "worker"],
+            },
+            "service": {"enabled": False, "port": 80},
+        }
+    )
+
+    text = render_explanation(build_explanation(config))
+
+    assert "- port not applicable for workload type worker" in text
+    assert "target port: not applicable for workload type worker" in text
+
+
+def test_build_explanation_marks_cronjob_port_not_applicable() -> None:
+    config = AppConfig.model_validate(
+        {
+            "app": {
+                "name": "network-mapper",
+                "namespace": "network-mapper",
+                "image": "network-mapper:dev",
+            },
+            "workload": {
+                "type": "cronjob",
+                "command": ["python"],
+                "args": ["-m", "network_mapper"],
+                "restartPolicy": "OnFailure",
+                "schedule": "0 * * * *",
+            },
+            "service": {"enabled": False, "port": 80},
+        }
+    )
+
+    text = render_explanation(build_explanation(config))
+
+    assert "- port not applicable for workload type cronjob" in text
+    assert "target port: not applicable for workload type cronjob" in text

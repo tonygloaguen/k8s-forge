@@ -115,7 +115,7 @@ If Kubernetes reports that `servicemonitors.monitoring.coreos.com` is unknown, t
 
 | Symptom | Cause | Resolution |
 | --- | --- | --- |
-| `discover` does not generate `k8s-forge-app.yaml` | Confidence is low, usually because no supported web framework or port was found | Review `discovery-report.md` and create or edit `app.yaml` manually |
+| `discover` does not generate `k8s-forge-app.yaml` | Confidence is low, usually because no supported workload shape was found | Review `discovery-report.md` and use Studio assisted scaffold when appropriate |
 | `discover` reports Windows or desktop blockers | Static signals such as `pywin32`, `win32com`, Outlook Desktop, PowerShell, or Windows paths were detected | Split Linux-containerizable web components from Windows-only workers before Kubernetes deployment |
 | Generated image uses `ghcr.io/example/...` | No real image build or registry push is performed by discovery | Replace the placeholder after building and publishing an image manually |
 | Environment variables appear with review-required values | Discovery detected variable names but never copies sensitive values | Fill non-sensitive config manually and use an external secret workflow for sensitive values |
@@ -127,3 +127,19 @@ If Kubernetes reports that `servicemonitors.monitoring.coreos.com` is unknown, t
 | `explain` fails with validation errors | The file is not a valid `k8s-forge` app.yaml | Fix the schema errors or run `k8s-forge check` for the same validation path |
 | `explain` warns about placeholders | The file likely came from `init` or `discover` and still contains review-only values | Replace placeholder images and review config/secrets before rendering |
 | `explain` output does not create files | This command is intentionally read-only | Use `render` or a specialized readiness renderer only after review |
+
+## Workload notes
+
+| Symptom | Likely cause | Suggested action |
+| --- | --- | --- |
+| CLI repository has no port | The project may be a Job or CronJob, not a web service | Use `workload.type=job` or `cronjob` and keep Service disabled |
+| Job validation rejects Service | Service is not applicable to Job/CronJob workloads | Set `service.enabled=false` |
+| CronJob validation fails | `workload.schedule` is required | Add a cron schedule such as `0 * * * *` |
+
+## Studio notes
+
+| Symptom | Cause | Resolution |
+| --- | --- | --- |
+| `studio` reports missing dependencies | The optional Studio extra is not installed | Run `pip install -e ".[studio]"` or `pip install -e ".[dev,studio]"` |
+| Deploy button is disabled | Dry-run has not succeeded or critical blockers were detected | Review warnings, fix app.yaml, render again, and rerun dry-run |
+| No logs appear | No job is running or the WebSocket disconnected | Refresh the page and inspect `.k8s-forge-studio/jobs/` |

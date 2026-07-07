@@ -96,6 +96,7 @@ def test_cli_commands_exist() -> None:
         "status",
         "discover",
         "explain",
+        "studio",
         "helm",
         "ci",
         "gitops",

@@ -514,3 +514,11 @@ Then inspect `README.md`, run `scan-image.sh` for Trivy, and run `generate-sbom.
 ## Capstone Readiness
 
 `k8s-forge capstone render app.yaml --output generated-capstone/` generates the final local DevSecOps lab synthesis. It is useful for review, reporting, and v1.0.0 preparation. It does not deploy, scan, contact the cluster, contact cloud providers, or modify runtime state.
+
+## Workload Operations
+
+Use `workload.type=deployment` for web/API workloads, `worker` for long-running background processes, `job` for one-shot CLI tasks, and `cronjob` for scheduled tasks. Jobs and CronJobs do not render Service or Ingress.
+
+## Studio Operations
+
+`k8s-forge studio` starts a local web UI on `127.0.0.1:8765` by default. It stores repos, outputs, state, and job logs under `.k8s-forge-studio/`. Studio streams stdout/stderr for controlled jobs and rejects free-form shell commands.

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>k8s-forge Studio</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <aside>
+    <h1>k8s-forge Studio</h1>
+    <p class="guardrail">Local lab only. Review required. Not production-ready.</p>
+    <label>Local repo path <input id="repo-path" placeholder="/path/to/repo"></label>
+    <button id="select-repo">Select repo</button>
+    <label>GitHub URL <input id="repo-url" placeholder="https://github.com/org/repo.git"></label>
+    <button id="clone-repo">Clone / Pull</button>
+    <hr>
+    <button id="discover">Discover</button>
+    <button id="load-scaffold-defaults">Load scaffold defaults</button>
+    <button id="create-scaffold">Create scaffold</button>
+    <button id="dockerfile-proposal">Dockerfile proposal</button>
+    <button id="write-dockerfile">Write Dockerfile confirmed</button>
+    <button id="check">Check</button>
+    <button id="explain">Explain</button>
+    <button id="save-yaml">Save YAML</button>
+    <button id="render">Render</button>
+    <button id="docker-build">Docker build</button>
+    <button id="kind-load">Kind load image</button>
+    <button id="dry-run">Dry-run</button>
+    <button id="deploy" disabled>Deploy confirmed</button>
+    <button id="status">Status</button>
+  </aside>
+  <main>
+    <section class="cards">
+      <article><h2>State</h2><pre id="state">loading...</pre></article>
+      <article><h2>Warnings / Blockers</h2><pre id="warnings"></pre></article>
+    </section>
+    <section class="scaffold">
+      <h2>Assisted scaffold</h2>
+      <p>No app.yaml was generated? Choose a reviewed workload shape.</p>
+      <label>Application name <input id="scaffold-app-name"></label>
+      <label>Namespace <input id="scaffold-namespace"></label>
+      <label>Image <input id="scaffold-image"></label>
+      <label>Workload type
+        <select id="scaffold-workload-type">
+          <option value="deployment">deployment</option>
+          <option value="worker">worker</option>
+          <option value="job">job</option>
+          <option value="cronjob">cronjob</option>
+        </select>
+      </label>
+      <label>Startup command <input id="scaffold-startup-command" placeholder="python -m module"></label>
+      <label>Container port <input id="scaffold-container-port" type="number" min="1" max="65535"></label>
+      <label><input id="scaffold-service-enabled" type="checkbox"> Service enabled</label>
+      <label>Restart policy
+        <select id="scaffold-restart-policy">
+          <option value="Always">Always</option>
+          <option value="OnFailure">OnFailure</option>
+          <option value="Never">Never</option>
+        </select>
+      </label>
+      <label>Cron schedule <input id="scaffold-schedule" placeholder="0 * * * *"></label>
+      <label><input id="scaffold-persistence" type="checkbox"> Persistence required</label>
+      <h3>Dockerfile proposal</h3>
+      <textarea id="dockerfile-text"></textarea>
+    </section>
+    <section class="grid">
+      <article><h2>Discovery report</h2><pre id="report"></pre></article>
+      <article><h2>app.yaml</h2><textarea id="app-yaml"></textarea></article>
+      <article><h2>Explain</h2><pre id="explain-output"></pre></article>
+      <article><h2>Console</h2><pre id="console"></pre></article>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>

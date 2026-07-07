@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -17,6 +18,7 @@ RecommendedMode = Literal[
     "not-linux-kubernetes-ready",
 ]
 PortConfidence = Literal["high", "medium", "low"]
+WorkloadType = Literal["deployment", "worker", "job", "cronjob"]
 
 MAX_FILE_BYTES = 200_000
 MAX_PYTHON_FILES = 200
@@ -152,6 +154,12 @@ class SuggestedAppConfig:
     replicas: int
     container_port: int
     service_port: int
+    service_enabled: bool
+    workload_type: WorkloadType
+    command: list[str] = field(default_factory=list)
+    args: list[str] = field(default_factory=list)
+    restart_policy: str = "Always"
+    schedule: str = ""
     config: dict[str, str] = field(default_factory=dict)
 
 
@@ -218,6 +226,9 @@ def discover_repository(repo_path: Path) -> RepositoryDiscoveryResult:
     frameworks = _detect_frameworks(root, files, dependency_names, all_text_lower)
     detected_ports = _detect_ports(files, frameworks)
     startup_command = _detect_startup_command(root, files, frameworks, detected_ports)
+    if startup_command is None and not frameworks:
+        startup_command = _detect_cli_startup_command(root, files)
+    suggested_workload_type = _suggest_workload_type(frameworks, startup_command)
     env_vars = _detect_env_vars(files)
     volumes_needed = _detect_volumes(files, all_text_lower)
     blockers, os_constraints = _detect_blockers(dependency_names, all_text_lower)
@@ -243,18 +254,20 @@ def discover_repository(repo_path: Path) -> RepositoryDiscoveryResult:
         ci_detected=ci_detected,
         frameworks=frameworks,
     )
-    if not frameworks:
+    if not frameworks and startup_command is None:
         blockers.append(
             DiscoveryBlocker(
-                code="no-web-framework",
-                message="No supported web framework was detected.",
-                impact="k8s-forge cannot infer an HTTP application shape reliably.",
+                code="no-workload-shape",
+                message=(
+                    "No supported web framework or CLI startup command was detected."
+                ),
+                impact="k8s-forge cannot infer a Kubernetes workload shape reliably.",
                 recommendation=(
-                    "Create the starter app.yaml manually or add framework metadata."
+                    "Create a Web, Worker, Job, or CronJob scaffold manually."
                 ),
             )
         )
-    if not detected_ports:
+    if suggested_workload_type == "deployment" and not detected_ports:
         blockers.append(
             DiscoveryBlocker(
                 code="no-port",
@@ -270,6 +283,7 @@ def discover_repository(repo_path: Path) -> RepositoryDiscoveryResult:
         startup_command=startup_command,
         blockers=blockers,
         warnings=warnings,
+        suggested_workload_type=suggested_workload_type,
     )
     app_name = _normalize_name(root.name)
     selected_port = (
@@ -292,6 +306,13 @@ def discover_repository(repo_path: Path) -> RepositoryDiscoveryResult:
             replicas=1,
             container_port=selected_port,
             service_port=80,
+            service_enabled=suggested_workload_type == "deployment",
+            workload_type=suggested_workload_type,
+            command=_command_tokens(startup_command),
+            args=_argument_tokens(startup_command),
+            restart_policy=(
+                "OnFailure" if suggested_workload_type == "job" else "Always"
+            ),
             config=config_values,
         )
 
@@ -624,6 +645,74 @@ def _detect_startup_command(
     return None
 
 
+def _detect_cli_startup_command(root: Path, files: list[_InspectedFile]) -> str | None:
+    pyproject = _read_limited_text(root / "pyproject.toml")
+    if pyproject:
+        script = _script_command_from_pyproject(pyproject)
+        if script:
+            return script
+    root_python_files = [
+        file.path
+        for file in files
+        if file.path.parent == root
+        and file.path.suffix == ".py"
+        and file.path.name not in {"setup.py", "conftest.py"}
+    ]
+    if (root / "main.py").exists():
+        return "python main.py"
+    if len(root_python_files) == 1:
+        return f"python {root_python_files[0].name}"
+    return None
+
+
+def _script_command_from_pyproject(text: str) -> str | None:
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        return None
+    project = data.get("project")
+    if not isinstance(project, dict):
+        return None
+    scripts = project.get("scripts")
+    if not isinstance(scripts, dict) or not scripts:
+        return None
+    name, target = next(iter(scripts.items()))
+    if not isinstance(target, str) or ":" not in target:
+        return str(name)
+    module, _, function = target.partition(":")
+    return f"python -c 'import {module}; {module}.{function}()'"
+
+
+def _suggest_workload_type(
+    frameworks: list[str], startup_command: str | None
+) -> WorkloadType:
+    if frameworks:
+        return "deployment"
+    if startup_command:
+        return "job"
+    return "deployment"
+
+
+def _command_tokens(command: str | None) -> list[str]:
+    if not command:
+        return []
+    try:
+        parts = shlex.split(command)
+    except ValueError:
+        return []
+    return parts[:1]
+
+
+def _argument_tokens(command: str | None) -> list[str]:
+    if not command:
+        return []
+    try:
+        parts = shlex.split(command)
+    except ValueError:
+        return []
+    return parts[1:]
+
+
 def _extract_uvicorn_command(line: str) -> str | None:
     match = re.search(
         r"(?i)(?:^|[`\s])(python\s+-m\s+uvicorn\s+[^`]+|uvicorn\s+[^`]+)",
@@ -935,12 +1024,19 @@ def _resolve_confidence(
     startup_command: str | None,
     blockers: list[DiscoveryBlocker],
     warnings: list[DiscoveryWarning],
+    suggested_workload_type: WorkloadType,
 ) -> tuple[Confidence, RecommendedMode]:
     has_framework = bool(frameworks)
     has_port = bool(detected_ports)
     explicit_port = has_port and detected_ports[0].confidence in {"high", "medium"}
     has_startup = startup_command is not None
     has_major_blocker = bool(blockers)
+    if suggested_workload_type == "job":
+        if has_major_blocker:
+            return "low", "not-linux-kubernetes-ready"
+        if has_startup:
+            return "medium", "review-required"
+        return "low", "report-only"
     if not has_framework or not has_port:
         return "low", "report-only"
     if has_major_blocker:

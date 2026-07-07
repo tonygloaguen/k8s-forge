@@ -1,5 +1,5 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: batch/v1
+kind: Job
 metadata:
   name: {{ app.name | tojson }}
   namespace: {{ app.namespace | tojson }}
@@ -8,12 +8,6 @@ metadata:
     {{ key | tojson }}: {{ value | tojson }}
 {% endfor %}
 spec:
-  replicas: {{ app.replicas }}
-  selector:
-    matchLabels:
-{% for key, value in selector_labels.items() %}
-      {{ key | tojson }}: {{ value | tojson }}
-{% endfor %}
   template:
     metadata:
       labels:
@@ -27,6 +21,7 @@ spec:
 {% endfor %}
 {% endif %}
     spec:
+      restartPolicy: {{ workload.restartPolicy }}
       securityContext:
         runAsNonRoot: true
         seccompProfile:
@@ -41,8 +36,6 @@ spec:
 {% if workload.args %}
           args: {{ workload.args | tojson }}
 {% endif %}
-          ports:
-            - containerPort: {{ app.containerPort }}
 {% if env_from %}
           envFrom:
 {% for source in env_from %}
@@ -58,18 +51,6 @@ spec:
               {{ key }}: {{ value | tojson }}
 {% endfor %}
 {% endfor %}
-{% endif %}
-{% if probes.liveness %}
-          livenessProbe:
-            httpGet:
-              path: {{ probes.liveness | tojson }}
-              port: {{ app.containerPort }}
-{% endif %}
-{% if probes.readiness %}
-          readinessProbe:
-            httpGet:
-              path: {{ probes.readiness | tojson }}
-              port: {{ app.containerPort }}
 {% endif %}
           securityContext:
             allowPrivilegeEscalation: false
