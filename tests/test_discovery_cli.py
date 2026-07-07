@@ -32,9 +32,27 @@ def test_cli_discover_help() -> None:
     result = runner.invoke(app, ["discover", "--help"])
 
     assert result.exit_code == 0
-    assert "Repository path to inspect" in result.output
-    assert "--output" in result.output
-    assert "--force" in result.output
+    output = result.output.lower()
+    assert "repository path to inspect" in output
+    assert "discover" in output
+    assert "output" in output
+    assert "force" in output
+
+
+def test_cli_discover_accepts_output_option(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    write(repo / "requirements.txt", "fastapi\nuvicorn\n")
+    write(repo / "main.py", "from fastapi import FastAPI\napp = FastAPI()\n")
+    output_dir = tmp_path / "custom-discovery"
+
+    result = runner.invoke(
+        app,
+        ["discover", str(repo), "--output", str(output_dir), "--force"],
+    )
+
+    assert result.exit_code == 0
+    assert (output_dir / "discovery-report.md").exists()
+    assert (output_dir / "warnings.md").exists()
 
 
 def test_cli_discover_errors_for_missing_path(tmp_path: Path) -> None:
