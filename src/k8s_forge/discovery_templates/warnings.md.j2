@@ -1,0 +1,33 @@
+# Discovery Warnings and Blockers
+
+This file explains issues found by static repository discovery. It is not a runtime scan and does not prove deployment readiness.
+
+## Warnings
+
+{% for warning in result.warnings -%}
+### {{ warning.code }}
+
+- Message: {{ warning.message }}
+- Kubernetes impact: {{ warning.impact }}
+- Recommended action: {{ warning.recommendation }}
+
+{% else -%}
+No warnings detected.
+{% endfor %}
+
+## Blockers
+
+{% for blocker in result.blockers -%}
+### {{ blocker.code }}
+
+- Message: {{ blocker.message }}
+- Kubernetes impact: {{ blocker.impact }}
+- Recommended action: {{ blocker.recommendation }}
+
+{% else -%}
+No blockers detected.
+{% endfor %}
+
+## Important Boundary
+
+A generated YAML file is only a starter configuration and readiness scaffold. Review is required. It is not deployment-ready by default and does not prove that the repository is compatible with Kubernetes Linux.

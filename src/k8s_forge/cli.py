@@ -22,6 +22,8 @@ from k8s_forge.capstone_renderer import (
 )
 from k8s_forge.ci_renderer import render_ci_files, resolve_ci_image
 from k8s_forge.config_loader import load_app_config
+from k8s_forge.discovery import DiscoveryError, discover_repository
+from k8s_forge.discovery_renderer import render_discovery_files
 from k8s_forge.exceptions import (
     ConfigLoadError,
     KubectlError,
@@ -1904,6 +1906,53 @@ def main(
 ) -> None:
     """Run k8s-forge."""
     _ = version
+
+
+@app.command()
+def discover(
+    repo_path: Annotated[Path, typer.Argument(help="Repository path to inspect.")],
+    output: Annotated[
+        Path,
+        typer.Option("--output", "-o", help="Output directory for discovery files."),
+    ] = Path("generated-discovery"),
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Overwrite existing discovery files."),
+    ] = False,
+) -> None:
+    """Statically discover a repository and scaffold app.yaml readiness."""
+    _print_step(f"Discovering repository at {repo_path}...")
+    _print_hint("This performs static analysis only.")
+    _print_hint(
+        "k8s-forge does not execute application code, install dependencies, "
+        "build images, or deploy anything."
+    )
+    try:
+        result = discover_repository(repo_path)
+        generated = render_discovery_files(result, output, force=force)
+    except (DiscoveryError, RenderError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    _print_step("Repository discovery completed.")
+    _print_hint(f"Detected language: {', '.join(result.languages)}")
+    framework = ", ".join(result.frameworks) if result.frameworks else "unknown"
+    _print_hint(f"Detected framework: {framework}")
+    _print_hint(f"Confidence: {result.confidence}")
+    _print_hint(f"Recommended mode: {result.recommended_mode}")
+    if result.warnings:
+        _print_warning(f"Warnings: {len(result.warnings)}")
+    if result.blockers:
+        _print_warning(f"Blockers: {len(result.blockers)}")
+    table = Table(title="Generated files")
+    table.add_column("File", style="bold")
+    for path in generated:
+        table.add_row(str(path.relative_to(output)))
+    console.print(table)
+    _print_hint(
+        "Generated discovery files are starter readiness artifacts. Review is "
+        "required; they are not deployment-ready by default."
+    )
 
 
 @app.command()

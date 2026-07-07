@@ -70,6 +70,19 @@ manifests are generated.
 `k8s-forge render app.yaml --output generated/` generates local manifests that
 can be inspected before any cluster operation.
 
+
+## Repository Discovery Operations
+
+`k8s-forge discover PATH --output generated-discovery/` is a local static
+analysis command. It reads selected project files, writes discovery artifacts to
+the requested output directory, and does not contact Kubernetes, Docker, a cloud
+provider, or the analyzed application runtime.
+
+Use discovery before the normal `check` and `render` flow when an existing
+repository does not yet have a `k8s-forge-app.yaml`. Treat the generated YAML as
+a starter configuration that requires manual review. Low-confidence discoveries
+produce a report and warnings without a YAML scaffold.
+
 ## `dry-run`
 
 ```bash

@@ -94,6 +94,7 @@ def test_cli_commands_exist() -> None:
         "diff",
         "apply",
         "status",
+        "discover",
         "helm",
         "ci",
         "gitops",

@@ -110,3 +110,12 @@ If Kubernetes reports that `servicemonitors.monitoring.coreos.com` is unknown, t
 | Capstone marks a module as manual | The matching readiness section is disabled or runtime setup is outside k8s-forge | Enable the readiness section when needed and perform runtime setup manually |
 | Capstone files do not prove runtime health | Capstone is a Markdown synthesis, not a live validation | Use the generated dossier for review and run separate manual validations |
 | Doctor output is unchanged | Capstone adds no new tool requirement | Use existing doctor diagnostics for earlier modules |
+
+## Repository Discovery notes
+
+| Symptom | Cause | Resolution |
+| --- | --- | --- |
+| `discover` does not generate `k8s-forge-app.yaml` | Confidence is low, usually because no supported web framework or port was found | Review `discovery-report.md` and create or edit `app.yaml` manually |
+| `discover` reports Windows or desktop blockers | Static signals such as `pywin32`, `win32com`, Outlook Desktop, PowerShell, or Windows paths were detected | Split Linux-containerizable web components from Windows-only workers before Kubernetes deployment |
+| Generated image uses `ghcr.io/example/...` | No real image build or registry push is performed by discovery | Replace the placeholder after building and publishing an image manually |
+| Environment variables appear with review-required values | Discovery detected variable names but never copies sensitive values | Fill non-sensitive config manually and use an external secret workflow for sensitive values |

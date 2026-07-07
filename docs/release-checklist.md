@@ -35,7 +35,7 @@ rg -n "version = |__version__" pyproject.toml src/k8s_forge/__init__.py
 k8s-forge --version
 ```
 
-For this hardening phase the version remains `0.17.0`. The final release bump to `1.0.0` must be a separate, explicit step.
+For post-v1.0.0 development, keep the current package version unchanged until an explicit release bump is requested. Version changes and tags must be separate, deliberate steps.
 
 ## 4. Python Quality Gate
 

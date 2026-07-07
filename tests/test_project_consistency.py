@@ -20,6 +20,7 @@ TOP_LEVEL_HELP_COMMANDS = [
     ["diff"],
     ["apply"],
     ["status"],
+    ["discover"],
     ["doctor"],
     ["cluster"],
     ["image"],
@@ -123,6 +124,7 @@ def test_pyproject_packages_all_template_directories() -> None:
         "ansible_templates/roles/*.j2",
         "security_templates/*.j2",
         "capstone_templates/*.j2",
+        "discovery_templates/*.j2",
     }
 
     assert expected_patterns <= set(package_data)
@@ -136,6 +138,7 @@ def test_pyproject_packages_all_template_directories() -> None:
         ROOT / "docs" / "release-checklist.md",
         ROOT / "docs" / "module-13-security-audit.md",
         ROOT / "docs" / "module-14-capstone.md",
+        ROOT / "docs" / "module-15-repository-discovery.md",
     ],
 )
 def test_release_documentation_exists(path: Path) -> None:

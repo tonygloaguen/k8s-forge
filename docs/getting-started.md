@@ -35,7 +35,7 @@ python -m pip install -e ".[dev]"
 k8s-forge --help
 ```
 
-The CLI can initialize, validate, render, and run guarded kubectl workflows.
+The CLI can initialize, discover, validate, render, and run guarded kubectl workflows.
 
 ## Basic Flow
 
@@ -43,6 +43,7 @@ The CLI can initialize, validate, render, and run guarded kubectl workflows.
 k8s-forge doctor
 k8s-forge cluster create --name devsecops
 k8s-forge init demo-app
+k8s-forge discover . --output generated-discovery/
 k8s-forge check app.yaml
 k8s-forge render app.yaml --output generated/
 k8s-forge helm render app.yaml --output charts/
@@ -64,6 +65,24 @@ For real existing applications, keep `k8s-forge` files separate from existing
 Kubernetes or Helm assets. Use a dedicated config such as `k8s-forge-app.yaml`
 and render into a dedicated directory such as `generated-k8s-forge/`. See
 [real-app-weatherapi.md](real-app-weatherapi.md) for a tested FastAPI example.
+
+
+## Repository Discovery
+
+For an existing application repository, `discover` can statically inspect common
+project files and generate a local starter scaffold:
+
+```bash
+k8s-forge discover /path/to/repo --output generated-discovery/
+```
+
+The output contains `discovery-report.md`, `warnings.md`, and, when confidence
+is high or medium, `k8s-forge-app.yaml`. This is a readiness scaffold for manual
+review. It does not execute application code, install dependencies, build
+images, contact a cluster, or prove Kubernetes compatibility.
+
+Read [module-15-repository-discovery.md](module-15-repository-discovery.md) for
+confidence levels, warnings, blockers, and supported static signals.
 
 ## Module 2 Kubernetes
 
@@ -118,6 +137,7 @@ real Kubernetes cluster.
 - [Module 4 NetworkPolicy workflow](module-4-networkpolicy.md)
 - [Module 6 CI readiness workflow](module-6-ci.md)
 - [Module 7 ArgoCD GitOps readiness workflow](module-7-gitops-argocd.md)
+- [Module 15 Repository Discovery workflow](module-15-repository-discovery.md)
 - [Design notes](design.md)
 
 ## Local Release Check
@@ -176,3 +196,7 @@ After Ansible readiness, see [Module 13 Security Audit](module-13-security-audit
 ## Next step: Capstone readiness
 
 After Security Audit readiness, see [Module 14 Capstone](module-14-capstone.md) to generate the final local DevSecOps lab synthesis and prepare stabilization toward v1.0.0.
+
+## Next step: Repository Discovery
+
+After the v1.0.0 stabilized workflow, see [Module 15 Repository Discovery](module-15-repository-discovery.md) to scaffold a starter `k8s-forge-app.yaml` from static repository signals without executing the application.

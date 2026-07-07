@@ -11,6 +11,14 @@ namespace, image, ports, replicas, environment variables, secrets, resource
 settings, probe paths, and autoscaling settings. The implementation must stay generic and must not
 hardcode an application-specific name.
 
+## Repository Discovery Scaffold
+
+`k8s-forge discover PATH --output generated-discovery/` can generate a starter
+`k8s-forge-app.yaml` when static repository signals are strong enough. That
+file follows the same schema documented here, but it is a readiness scaffold: it
+uses placeholder image values, review-required config values, disabled secrets,
+and conservative defaults. Review it before running `check` or `render`.
+
 ## Minimal Example
 
 ```yaml

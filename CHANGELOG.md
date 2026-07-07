@@ -2,6 +2,14 @@
 
 This changelog summarizes product milestones for `k8s-forge`. It is not a commit-by-commit history.
 
+
+## v1.1.0 - Repository discovery / app.yaml scaffolding
+
+- Adds generic static repository discovery with `k8s-forge discover PATH`.
+- Generates local discovery reports, warnings, and starter `k8s-forge-app.yaml` scaffolds when confidence is sufficient.
+- Detects common Python/Node frameworks, ports, startup hints, env vars, persistence signals, and Kubernetes Linux blockers without executing application code.
+- Keeps discovery as readiness-only review material, not a Kubernetes compatibility proof.
+
 ## v1.0.0 - Stabilisation finale
 
 - Stabilizes the CLI, README, documentation, examples, tests, packaging, release checklist, changelog, and pedagogical wording.

@@ -22,6 +22,8 @@ will render standard YAML manifests. The full configuration reference lives in
 - `models.py`: Pydantic models for user configuration.
 - `config_loader.py`: YAML loading and validation entry points.
 - `renderer.py`: raw Kubernetes manifest rendering.
+- `discovery.py`: static repository discovery rules for starter app.yaml scaffolding.
+- `discovery_renderer.py`: local Markdown and starter YAML discovery rendering.
 - `supply_chain_renderer.py`: local Trivy, Syft, and Cosign readiness script rendering.
 - `ci_renderer.py`: GitHub Actions CI readiness workflow rendering.
 - `gitops_renderer.py`: ArgoCD GitOps readiness manifest rendering.
@@ -69,3 +71,16 @@ does not run Helm and does not install releases. Ingress rendering targets exist
 ## Capstone Readiness Renderer
 
 `capstone_renderer.py` should remain separate from all technology-specific renderers. It produces the final local Markdown synthesis of Kubernetes raw, Helm, Ingress, Linkerd, NetworkPolicy, Kyverno, Supply Chain, CI, GitOps, observability, logging, tracing, Terraform, Ansible, and Security Audit readiness. It does not deploy, scan, contact external systems, or add doctor checks.
+
+## Repository Discovery
+
+`discovery.py` remains generic and must not special-case real repository names.
+It statically inspects bounded files such as README, dependency manifests,
+Dockerfile, selected Python files, package.json, CI workflows, and scripts. It
+returns typed discovery results with languages, frameworks, ports, startup
+commands, warnings, blockers, confidence, and recommended mode.
+
+`discovery_renderer.py` writes local readiness artifacts only: a report,
+warnings, and a starter `k8s-forge-app.yaml` when confidence is high or medium.
+It does not execute code, install dependencies, build images, contact a cluster,
+modify the analyzed repository, or prove Kubernetes compatibility.
