@@ -13,9 +13,110 @@ textarea { min-height: 360px; font-family: ui-monospace, SFMono-Regular, Menlo, 
 button { margin: 6px 0; padding: 8px 10px; border: 1px solid #2563eb; border-radius: 6px; background: #2563eb; color: white; cursor: pointer; }
 button:disabled { background: #6b7280; border-color: #6b7280; cursor: not-allowed; }
 .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+.banner { border: 1px solid #f59e0b; border-left: 6px solid #f59e0b; border-radius: 8px; padding: 12px; margin-bottom: 12px; background: #fffbeb; color: #78350f; }
+.paths { border: 1px solid #8884; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+.paths p { overflow-wrap: anywhere; }
 .scaffold { border: 1px solid #8884; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+.scaffold.attention { border-color: #f59e0b; box-shadow: 0 0 0 2px #f59e0b33; }
+#current-state, #next-action, #dockerfile-status, #kind-cluster-status { font-weight: 600; }
 .scaffold textarea { min-height: 180px; }
 .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 article { border: 1px solid #8884; border-radius: 8px; padding: 12px; min-width: 0; }
 pre { white-space: pre-wrap; overflow: auto; max-height: 420px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 #console { min-height: 280px; background: #030712; color: #d1d5db; padding: 8px; border-radius: 6px; }
+
+.results { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+.result-card { border: 1px solid #8884; border-radius: 8px; padding: 10px; }
+.result-card h3 { margin: 0 0 8px; font-size: 14px; }
+.result-card.ok { border-color: #16a34a; background: #f0fdf4; color: #14532d; }
+.result-card.failed { border-color: #dc2626; background: #fef2f2; color: #7f1d1d; }
+.result-card.info { border-color: #2563eb; background: #eff6ff; color: #1e3a8a; }
+.warning { border-color: #dc2626; border-left-color: #dc2626; background: #fef2f2; color: #7f1d1d; }
+#explain-output, #console, #warnings, #report, #state, .result-card pre { white-space: pre-wrap; }
+
+.readiness-memo, .production-checklist {
+  border: 1px solid #d0d7de;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: #ffffff;
+}
+
+.readiness-memo ol {
+  display: grid;
+  gap: 0.55rem;
+  padding-left: 1.35rem;
+}
+
+.memo-step {
+  border-left: 4px solid #d0d7de;
+  padding-left: 0.65rem;
+}
+
+.memo-step.done { border-color: #1a7f37; }
+.memo-step.ready { border-color: #0969da; }
+.memo-step.running { border-color: #8250df; }
+.memo-step.blocked, .memo-step.failed { border-color: #cf222e; }
+.memo-step.not-started { border-color: #8c959f; }
+
+.memo-status {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+}
+
+.prod-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.production-step {
+  border-top: 1px solid #d0d7de;
+  padding: 0.85rem 0;
+}
+
+.production-step h3 {
+  margin: 0 0 0.4rem;
+}
+
+.production-command {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  align-items: start;
+  margin: 0.4rem 0;
+}
+
+.production-command pre {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+#logs-output { min-height: 260px; white-space: pre-wrap; overflow: auto; }
+
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(3, 7, 18, 0.55);
+  z-index: 10;
+}
+
+.confirm-dialog {
+  width: min(520px, calc(100vw - 32px));
+  border: 1px solid #dc2626;
+  border-radius: 8px;
+  padding: 16px;
+  background: #fff;
+  color: #111827;
+  box-shadow: 0 20px 60px rgba(3, 7, 18, 0.35);
+}
+
+.confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}

@@ -20,24 +20,64 @@
     <button id="create-scaffold">Create scaffold</button>
     <button id="dockerfile-proposal">Dockerfile proposal</button>
     <button id="write-dockerfile">Write Dockerfile confirmed</button>
+    <button id="overwrite-dockerfile" disabled>Overwrite Dockerfile</button>
     <button id="check">Check</button>
     <button id="explain">Explain</button>
     <button id="save-yaml">Save YAML</button>
     <button id="render">Render</button>
     <button id="docker-build">Docker build</button>
+    <label>Kind cluster
+      <select id="kind-cluster"></select>
+    </label>
+    <p id="kind-cluster-status">No kind cluster found</p>
+    <button id="refresh-kind-clusters">Refresh Kind clusters</button>
     <button id="kind-load">Kind load image</button>
     <button id="dry-run">Dry-run</button>
     <button id="deploy" disabled>Deploy confirmed</button>
+    <button id="job-redeploy" disabled hidden>Delete existing Job and redeploy</button>
     <button id="status">Status</button>
+    <button id="read-logs" disabled>Read logs</button>
+    <button id="refresh-logs" disabled>Refresh logs</button>
   </aside>
   <main>
-    <section class="cards">
-      <article><h2>State</h2><pre id="state">loading...</pre></article>
-      <article><h2>Warnings / Blockers</h2><pre id="warnings"></pre></article>
+    <section id="streaming-warning" class="banner warning" hidden></section>
+    <section id="scaffold-required" class="banner" hidden>
+      <h2>Assisted scaffold required</h2>
+      <p>No app.yaml was generated. The repository does not expose enough reliable web deployment signals. Choose how to continue.</p>
     </section>
-    <section class="scaffold">
+    <section class="cards">
+      <article><h2>Current state</h2><p id="current-state">loading...</p><pre id="state">loading...</pre></article>
+      <article><h2>Next action</h2><p id="next-action">loading...</p><h2>Deploy status</h2><p id="deploy-status">loading...</p><h2>Warnings / Blockers</h2><pre id="warnings"></pre></article>
+    </section>
+    <section class="paths">
+      <h2>Studio output paths</h2>
+      <label>Studio output directory <input id="studio-output-path" readonly></label>
+      <button id="copy-output-path">Copy output path</button>
+      <p><strong>generated_discovery_dir:</strong> <span id="generated-discovery-path"></span></p>
+      <p><strong>generated_k8s_dir:</strong> <span id="generated-k8s-path"></span></p>
+    </section>
+    <section>
+      <h2>Action results</h2>
+      <div id="action-results" class="results"></div>
+    </section>
+    <section class="readiness-memo">
+      <h2>Deployment readiness memo</h2>
+      <p>Studio prepares a controlled local lab deployment workflow. It is not a one-click production deploy.</p>
+      <ol id="readiness-memo"></ol>
+    </section>
+    <details class="production-checklist">
+      <summary>Production handoff checklist</summary>
+      <p><strong>Studio prepares and documents production readiness.</strong><br>It does not execute production commands automatically.</p>
+      <div class="prod-fields">
+        <label>Production registry <input id="prod-registry" placeholder="registry.example.com/team"></label>
+        <label>Release tag <input id="prod-release-tag" placeholder="1.3.1 or git SHA"></label>
+        <label>Production context <input id="prod-context" placeholder="prod-cluster"></label>
+      </div>
+      <div id="production-checklist"></div>
+    </details>
+    <section id="scaffold" class="scaffold">
       <h2>Assisted scaffold</h2>
-      <p>No app.yaml was generated? Choose a reviewed workload shape.</p>
+      <p>Choose a reviewed workload shape before running Check, Explain, Render, Docker build, Dry-run, or Deploy.</p>
       <label>Application name <input id="scaffold-app-name"></label>
       <label>Namespace <input id="scaffold-namespace"></label>
       <label>Image <input id="scaffold-image"></label>
@@ -52,6 +92,7 @@
       <label>Startup command <input id="scaffold-startup-command" placeholder="python -m module"></label>
       <label>Container port <input id="scaffold-container-port" type="number" min="1" max="65535"></label>
       <label><input id="scaffold-service-enabled" type="checkbox"> Service enabled</label>
+      <label><input id="scaffold-ingress-enabled" type="checkbox" disabled> Ingress enabled</label>
       <label>Restart policy
         <select id="scaffold-restart-policy">
           <option value="Always">Always</option>
@@ -61,13 +102,15 @@
       </label>
       <label>Cron schedule <input id="scaffold-schedule" placeholder="0 * * * *"></label>
       <label><input id="scaffold-persistence" type="checkbox"> Persistence required</label>
-      <h3>Dockerfile proposal</h3>
+      <h3>Dockerfile</h3>
+      <p id="dockerfile-status">loading...</p>
       <textarea id="dockerfile-text"></textarea>
     </section>
     <section class="grid">
       <article><h2>Discovery report</h2><pre id="report"></pre></article>
       <article><h2>app.yaml</h2><textarea id="app-yaml"></textarea></article>
       <article><h2>Explain</h2><pre id="explain-output"></pre></article>
+      <article><h2>Logs</h2><pre id="logs-output"></pre></article>
       <article><h2>Console</h2><pre id="console"></pre></article>
     </section>
   </main>

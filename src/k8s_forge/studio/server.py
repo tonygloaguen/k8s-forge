@@ -38,4 +38,4 @@ def run_studio(host: str, port: int, workspace: Path) -> None:
 
     from k8s_forge.studio.routes import create_app
 
-    uvicorn.run(create_app(workspace), host=host, port=port)
+    uvicorn.run(create_app(workspace), host=host, port=port, ws="websockets")

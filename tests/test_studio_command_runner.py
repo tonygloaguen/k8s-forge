@@ -15,11 +15,22 @@ def test_allowed_commands_are_accepted() -> None:
     validate_allowed_command(["git", "clone", "https://example/repo.git", "repo"])
     validate_allowed_command(["git", "-C", "repo", "pull", "--ff-only"])
     validate_allowed_command(["docker", "build", "-t", "demo:dev", "."])
+    validate_allowed_command(["kind", "get", "clusters"])
     validate_allowed_command(["kind", "load", "docker-image", "demo:dev"])
+    validate_allowed_command(
+        ["kind", "load", "docker-image", "demo:dev", "--name", "devsecops"]
+    )
     validate_allowed_command(
         ["kubectl", "apply", "--dry-run=client", "-f", "generated"]
     )
     validate_allowed_command(["kubectl", "get", "all", "-n", "demo"])
+    validate_allowed_command(["kubectl", "logs", "-n", "demo", "job/demo"])
+    validate_allowed_command(
+        ["kubectl", "logs", "-n", "demo", "-l", "app=demo", "--tail=200"]
+    )
+    validate_allowed_command(
+        ["kubectl", "delete", "job", "demo", "-n", "demo", "--ignore-not-found"]
+    )
 
 
 @pytest.mark.parametrize(

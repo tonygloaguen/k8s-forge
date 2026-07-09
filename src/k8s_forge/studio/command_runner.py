@@ -19,7 +19,6 @@ class CommandRejectedError(ValueError):
 
 FORBIDDEN_TOKENS = (
     "push",
-    "delete",
     "install",
     "terraform",
     "ansible-playbook",
@@ -52,6 +51,7 @@ def validate_allowed_command(command: list[str]) -> None:
         allowed = len(command) >= 2 and command[1] == "build"
     elif program == "kind":
         allowed = len(command) >= 3 and command[1:3] == ["load", "docker-image"]
+        allowed = allowed or command == ["kind", "get", "clusters"]
     elif program == "kubectl":
         allowed = len(command) >= 2 and command[1] in {
             "apply",
@@ -59,6 +59,12 @@ def validate_allowed_command(command: list[str]) -> None:
             "logs",
             "port-forward",
         }
+        allowed = allowed or (
+            len(command) == 7
+            and command[1:3] == ["delete", "job"]
+            and command[4] == "-n"
+            and command[6] == "--ignore-not-found"
+        )
 
     if not allowed:
         msg = f"command is not allowed in Studio: {' '.join(command)}"

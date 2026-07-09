@@ -8,6 +8,14 @@ from pathlib import Path
 from typing import Literal
 
 JobStatus = Literal["queued", "running", "succeeded", "failed", "cancelled"]
+DeployStatus = Literal[
+    "not_started",
+    "running",
+    "blocked_existing_job",
+    "succeeded",
+    "failed",
+    "cancelled",
+]
 PipelineState = Literal[
     "empty",
     "repo_selected",
@@ -19,6 +27,7 @@ PipelineState = Literal[
     "explained",
     "manifests_rendered",
     "dry_run_ok",
+    "deploy_blocked",
     "deploy_confirmed",
     "deployed",
     "verified",
@@ -72,6 +81,14 @@ class StudioState:
     last_explain: str = ""
     needs_scaffold: bool = False
     dockerfile_proposal: str = ""
+    docker_build_ok: bool = False
+    kind_load_ok: bool = False
+    status_ok: bool = False
+    logs_ok: bool = False
+    last_logs: str = ""
+    deploy_status: DeployStatus = "not_started"
+    deploy_blocked_reason: str = ""
+    deploy_blocked_next_action: str = ""
 
     def to_dict(self) -> dict[str, object]:
         """Return JSON-serializable state."""
@@ -86,4 +103,12 @@ class StudioState:
             "last_explain": self.last_explain,
             "needs_scaffold": self.needs_scaffold,
             "dockerfile_proposal": self.dockerfile_proposal,
+            "docker_build_ok": self.docker_build_ok,
+            "kind_load_ok": self.kind_load_ok,
+            "status_ok": self.status_ok,
+            "logs_ok": self.logs_ok,
+            "last_logs": self.last_logs,
+            "deploy_status": self.deploy_status,
+            "deploy_blocked_reason": self.deploy_blocked_reason,
+            "deploy_blocked_next_action": self.deploy_blocked_next_action,
         }
